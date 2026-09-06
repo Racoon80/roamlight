@@ -109,13 +109,13 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def q(sql, *a):
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     r = con.execute(sql, a).fetchall(); con.close()
     return [dict(x) for x in r]
 
 
 def _wipe():
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     for r in con.execute("SELECT token FROM shares WHERE album_id IN "
                          "(SELECT id FROM albums WHERE title LIKE ?)", (VIR + "%",)):
         shutil.rmtree(Path("/opt/family/incoming") / f"share-{r[0]}", ignore_errors=True)
@@ -252,14 +252,14 @@ def main():
     code, _ = req(f"/s/{d3['token']}", GAAST, "POST",
                   form={"password": d3["password"]})
     chk("⚠ and then even the right password does not help", code == 429, code)
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     con.execute("UPDATE shares SET locked_until=NULL, fail_count=0 WHERE token=?",
                 (d3["token"],)); con.commit(); con.close()
     code, _ = req(f"/s/{d3['token']}", GAAST, "POST", form={"password": d3["password"]})
     chk("after the lock it works again", code == 303, code)
 
     # -- 8. Ofgelaf heescht ofgelaf --------------------------------------------
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     con.execute("UPDATE shares SET expires_at='2000-01-01 00:00:00' WHERE token=?",
                 (d3["token"],)); con.commit(); con.close()
     jar3 = jar_op()

@@ -87,7 +87,7 @@ def req(path, hdr=None, method="GET", data=None):
 
 
 def _foreign():
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path NOT LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", "1998/%")).fetchone()[0]
@@ -105,7 +105,7 @@ def _abort_if_real_data():
                 return True
         if root.exists() and any(p for p in root.rglob("*") if p.is_file() and alien(p)):
             raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     n = con.execute(
         "SELECT COUNT(*) FROM photos WHERE (origin_path LIKE ? OR origin_path LIKE ?) "
         "AND origin_path NOT LIKE ? AND origin_path NOT LIKE ?",
@@ -124,7 +124,7 @@ def _wipe():
                 (root / jar).rmdir()
             except OSError:
                 pass
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     ids = [r[0] for r in con.execute(
         "SELECT id FROM photos WHERE origin_path LIKE ? OR origin_path LIKE ?",
         (TEST_YEAR + "/%", "1998/%"))]
@@ -156,7 +156,7 @@ def make(path: Path, w, h, when):
 def wait_converted(n, secs=120):
     """Wait until the worker is done -- the scan queues the conversion."""
     for _ in range(secs * 2):
-        con = sqlite3.connect(DB)
+        con = _env.connect(DB)
         c = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                         "AND state='ok'", (TEST_YEAR + "/%",)).fetchone()[0]
         con.close()
@@ -174,7 +174,7 @@ def _drop_test_members():
     viewing list because it was sitting there. A test must not invent a person
     who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(DB)
+    con = _env.connect(DB)
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()
@@ -204,7 +204,7 @@ def main():
     n = wait_converted(2)
     chk("both converted", n == 2, n)
 
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     rows = con.execute("SELECT * FROM photos WHERE origin_path LIKE ?",
                        (TEST_YEAR + "/%",)).fetchall()
     con.close()
@@ -243,7 +243,7 @@ def main():
     chk("⚠ keng Foto verluer", len(list(new_o.glob("*.jpg"))) == 2)
 
     # -- 5. D'Datebank ------------------------------------------------------
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     rows = con.execute("SELECT * FROM photos WHERE origin_path LIKE '1998/%'").fetchall()
     con.close()
     chk("the paths followed", len(rows) == 2 and all(
@@ -295,7 +295,7 @@ def main():
     chk("changing only the place", st == 200 and out.get("from") == out.get("to"),
         f"{st} {out}")
     chk("the folder was NOT moved", new_o.is_dir())
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     pl = con.execute("SELECT DISTINCT place FROM photos WHERE origin_path LIKE '1998/%'").fetchall()
     con.close()
     chk("nei Uertschaft an der Datebank", pl == [("Aner Plaz",)], pl)

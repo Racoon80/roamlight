@@ -35,3 +35,21 @@ def need(var):
                  f"  Run the test with the service's environment, for example:\n"
                  f"    set -a; . /etc/family/env; set +a; python3 <test>")
     return v
+
+
+def connect(path=None):
+    """Eng Verbindung op d'Datebank -- ËMMER mat Fremdschlësselen UN.
+
+    ⚠ `sqlite3.connect()` mécht se AUS. E Test dee mat esou enger Verbindung
+      Fotoen läscht, léisst d'Zeilen an `album_photos`, `upload_files` an
+      `share_hits` hänken -- an dann gëtt aus enger ganz normaler Aktioun um
+      Site e 500 (`FOREIGN KEY constraint failed`). Genee dat ass der lieweger
+      Datebank de 06.09.2026 passéiert: néng verwaist Zeilen, an d'Läsche vun
+      enger Sammlung ass ofgeflunn.
+    """
+    import sqlite3
+    con = sqlite3.connect(path or need("FAMILY_DB"), timeout=30)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys=ON")
+    con.execute("PRAGMA busy_timeout=30000")
+    return con

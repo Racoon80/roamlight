@@ -83,7 +83,7 @@ def req(path, hdr=None, method="GET", data=None):
 
 
 def q(sql, *a):
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     r = con.execute(sql, a).fetchall(); con.close()
     return [dict(x) for x in r]
 
@@ -93,7 +93,7 @@ def _foreign():
 
 
 def _wipe():
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     for tab, link, column in (("tags", "photo_tags", "tag_id"),
                              ("people", "photo_people", "person_id")):
         con.execute(f"DELETE FROM {link} WHERE {column} IN "
@@ -113,7 +113,7 @@ def _drop_test_members():
     viewing list because it was sitting there. A test must not invent a person
     who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(DB)
+    con = _env.connect(DB)
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()

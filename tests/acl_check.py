@@ -82,7 +82,7 @@ def req(path, hdr, method="GET", data=None):
 
 
 def q(sql, *a):
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     r = con.execute(sql, a).fetchall(); con.close()
     return [dict(x) for x in r]
 
@@ -95,7 +95,7 @@ def _drop_test_members():
     viewing list because it was sitting there. A test must not invent a person
     who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(DB)
+    con = _env.connect(DB)
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()
@@ -124,7 +124,7 @@ def main():
     before_ = {k: list(v) for k, v in acl.all_acls().items()}
 
     def back_():
-        con = sqlite3.connect(DB)
+        con = _env.connect(DB)
         con.execute("DELETE FROM album_acl")
         for k, ps in before_.items():
             con.executemany("INSERT INTO album_acl (album_key, principal) VALUES (?,?)",
@@ -137,7 +137,7 @@ def main():
         #   the other way round (no list = everybody), and that was changed:
         #   if nobody is ticked, nobody sees it except the administrator.
         #   Shut until somebody opens it -- not the other way round.
-        con = sqlite3.connect(DB); con.execute("DELETE FROM album_acl"); con.commit(); con.close()
+        con = _env.connect(DB); con.execute("DELETE FROM album_acl"); con.commit(); con.close()
         st, d = req("/api/photos", as_("Eve"))
         chk("⚠ with no list the family sees NOTHING", st == 200 and d["total"] == 0,
             f"{st} {d.get('total') if isinstance(d, dict) else d}")

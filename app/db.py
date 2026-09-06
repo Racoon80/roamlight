@@ -4,11 +4,14 @@ The schema carries `origin_root` from the start even though there is only one
 value today -- when a second library is added one day, that is a migration of
 one row and not a rewrite.
 """
+import logging
 import sqlite3
 import threading
 from contextlib import contextmanager
 
 from . import config
+
+log = logging.getLogger("family")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS folders (
@@ -490,10 +493,41 @@ def _backfill_album_columns(conn) -> int:
     return n
 
 
+def _repair(conn) -> int:
+    """Verwaist Zeilen ewechhuelen -- déi, déi op eppes weisen, wat et net gëtt.
+
+    ⚠ Firwat dat néideg ass: `sqlite3.connect()` mécht d'Fremdschlësselen AUS.
+      Kënnt iergendee Wee un d'Datei laanscht `connect()` (Ofnahm-Tester, eng
+      Reparatur vun Hand, en ale Stand vum Programm), da kann eng Foto geläscht
+      ginn an d'Zeilen an `album_photos`, `upload_files` an `share_hits`
+      bleiwen hänken.
+
+      Déi Zeilen sinn net nëmmen Dreck: soubal eng ganz normal Aktioun se
+      uréiert -- eng Foto aus enger Sammlung huelen, wat d'Titelfoto nei setzt
+      -- brécht d'Ufro mat `FOREIGN KEY constraint failed` of, an de Benotzer
+      gesäit e 500 ouni Grond. Genee dat war um lieweg Site de Fall.
+
+    Geläscht gëtt NËMME wat op eppes weist, wat et net gëtt -- ni eng Foto, ni
+    en Album, ni eng Sammlung.
+    """
+    gone = 0
+    for row in list(conn.execute("PRAGMA foreign_key_check")):
+        table, rowid, parent = row[0], row[1], row[2]
+        if rowid is None:                     # WITHOUT ROWID -- net eendeiteg
+            continue
+        conn.execute(f"DELETE FROM {table} WHERE rowid=?", (rowid,))
+        gone += 1
+        log.warning("orphaned row removed: %s.rowid=%s -> %s", table, rowid, parent)
+    if gone:
+        log.warning("%d orphaned row(s) removed -- the database is consistent again", gone)
+    return gone
+
+
 def init() -> None:
     conn = connect()
     conn.executescript(SCHEMA)
     _migrate(conn)
+    _repair(conn)
     set_state("schema_version", "6")
 
 

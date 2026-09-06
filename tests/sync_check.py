@@ -77,7 +77,7 @@ def req(path, method="GET", data=None):
 
 
 def q(sql, *a):
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     r = con.execute(sql, a).fetchall(); con.close()
     return [dict(x) for x in r]
 
@@ -115,7 +115,7 @@ def _wipe():
     from app import convert
     ids = [r["id"] for r in q("SELECT id FROM photos WHERE origin_path LIKE ?",
                               TEST_YEAR + "/%")]
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     if ids:
         m = ",".join("?" * len(ids))
         con.execute(f"DELETE FROM jobs WHERE kind='convert' AND payload IN ({m})",

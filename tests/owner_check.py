@@ -89,7 +89,7 @@ def req(path, h, method="GET", data=None, raw=None, ctype=None):
 
 
 def q(sql, *a):
-    con = sqlite3.connect(DB); con.row_factory = sqlite3.Row
+    con = _env.connect(DB); con.row_factory = sqlite3.Row
     r = con.execute(sql, a).fetchall(); con.close()
     return [dict(x) for x in r]
 
@@ -97,7 +97,7 @@ def q(sql, *a):
 def _wipe():
     from app import convert, config
     ids = [r["id"] for r in q("SELECT id FROM photos WHERE owner LIKE 'zz-%'")]
-    con = sqlite3.connect(DB)
+    con = _env.connect(DB)
     if ids:
         m = ",".join("?" * len(ids))
         con.execute(f"DELETE FROM jobs WHERE payload IN ({m})", [str(i) for i in ids])

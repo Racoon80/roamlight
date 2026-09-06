@@ -108,9 +108,16 @@ def drop(ident: int, photo_ids) -> dict:
                   (ident, *ids))
         # If the cover was among them, the collection takes the next one --
         # otherwise it shows a picture that is no longer in it.
+        #
+        # ⚠ `JOIN photos`: the new cover has to be a photograph that REALLY
+        #   exists. `album_photos` can hold a row pointing at a photograph that
+        #   is gone (see db._repair), and setting that as the cover breaks the
+        #   foreign key -- the request then dies with a 500 on an action as
+        #   ordinary as taking one photograph out of a collection.
         c.execute("UPDATE albums SET cover_photo_id=("
-                  "  SELECT photo_id FROM album_photos WHERE album_id=? "
-                  "  ORDER BY sort_index LIMIT 1) "
+                  "  SELECT ap.photo_id FROM album_photos ap "
+                  "  JOIN photos p ON p.id=ap.photo_id "
+                  "  WHERE ap.album_id=? ORDER BY ap.sort_index LIMIT 1) "
                   "WHERE id=? AND cover_photo_id NOT IN ("
                   "  SELECT photo_id FROM album_photos WHERE album_id=?)",
                   (ident, ident, ident))

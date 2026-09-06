@@ -32,7 +32,7 @@ MY_BATCHES = []          # remove only what the test created itself
 
 def _foreign(dbf):
     import sqlite3
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%",)).fetchone()[0]
     con.close()
@@ -42,7 +42,7 @@ def _foreign(dbf):
 def _cleanup(dbf):
     """Remove only what the test created."""
     import sqlite3
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     ids = [r[0] for r in con.execute("SELECT id FROM photos WHERE origin_path LIKE ?",
                                      (TEST_YEAR + "/%",))]
     if ids:
@@ -84,7 +84,7 @@ def _abort_if_real_data():
             return True
     if root.exists() and any(p for p in root.rglob("*") if p.is_file() and _alien(p)):
         raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(_env.need("FAMILY_DB"))
+    con = _env.connect(_env.need("FAMILY_DB"))
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", f"{TEST_YEAR}/{TEST_COUNTRY}/%")).fetchone()[0]

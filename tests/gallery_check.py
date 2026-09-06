@@ -59,7 +59,7 @@ MY_BATCHES = []          # remove only what the test created itself
 
 def _foreign(dbf):
     import sqlite3
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%",)).fetchone()[0]
     con.close()
@@ -69,7 +69,7 @@ def _foreign(dbf):
 def _cleanup(dbf):
     """Remove only what the test created."""
     import sqlite3
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     ids = [r[0] for r in con.execute("SELECT id FROM photos WHERE origin_path LIKE ?",
                                      (TEST_YEAR + "/%",))]
     if ids:
@@ -106,7 +106,7 @@ def _abort_if_real_data():
             return True
     if root.exists() and any(p for p in root.rglob("*") if p.is_file() and _alien(p)):
         raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(_env.need("FAMILY_DB"))
+    con = _env.connect(_env.need("FAMILY_DB"))
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", f"{TEST_YEAR}/{TEST_COUNTRY}/%")).fetchone()[0]
@@ -120,7 +120,7 @@ def _open_for_tests():
     own album to its own viewer, or that viewer sees nothing and half the
     checks stop meaning anything."""
     import sqlite3 as _s
-    con = _s.connect(_env.need("FAMILY_DB"))
+    con = _env.connect(_env.need("FAMILY_DB"))
     con.execute("INSERT OR IGNORE INTO album_acl (album_key, principal) VALUES (?,?)",
                 (f"{YEAR}/{COUNTRY}/{EVENT}", "user:zz-test-viewer"))
     con.commit(); con.close()
@@ -128,7 +128,7 @@ def _open_for_tests():
 
 def _drop_test_acl():
     import sqlite3 as _s
-    con = _s.connect(_env.need("FAMILY_DB"))
+    con = _env.connect(_env.need("FAMILY_DB"))
     con.execute("DELETE FROM album_acl WHERE album_key LIKE ?", (TEST_YEAR + "/%",))
     con.commit(); con.close()
 
@@ -168,7 +168,7 @@ def _drop_test_members():
     viewing list because it was sitting there. A test must not invent a person
     who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(_env.need("FAMILY_DB"))
+    con = _env.connect(_env.need("FAMILY_DB"))
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()
@@ -185,7 +185,7 @@ def main():
     _wipe_test_tree()
     import sqlite3
     dbf = _env.need("FAMILY_DB")
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     _cleanup(dbf)
 
     from PIL import Image
@@ -213,7 +213,7 @@ def main():
 
     t0 = time.time(); n = 0
     while time.time() - t0 < 120:
-        con = sqlite3.connect(dbf)
+        con = _env.connect(dbf)
         n = con.execute("SELECT COUNT(*) FROM photos WHERE state='ok' AND origin_path LIKE ?", (TEST_YEAR + "/%",)).fetchone()[0]
         con.close()
         if n == 3: break
@@ -394,7 +394,7 @@ def main():
     shutil.rmtree(tmp, ignore_errors=True)
     _wipe_test_tree()
     _wipe_test_tree()
-    con = sqlite3.connect(dbf)
+    con = _env.connect(dbf)
     _cleanup(dbf)
     # ⚠ Only downwards is an error. Photographs turning UP during a run is
     # normal: somebody copies a folder into the originals tree and a scan takes

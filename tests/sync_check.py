@@ -100,6 +100,14 @@ def _abort_if_real_data():
         raise SystemExit(f"OFGEBRACH: {n} echt Fotoen am Joer {TEST_YEAR}")
 
 
+def _trash_dir():
+    """⚠ Do NOT hard-code it: the name lives in app/sync.py, and it has been
+    changed once already -- after which this test looked in a folder that no
+    longer existed and reported that as a failure."""
+    from app import sync as _s
+    return WEB / _s.TRASH_DIR
+
+
 def _wipe():
     from app import convert
     ids = [r["id"] for r in q("SELECT id FROM photos WHERE origin_path LIKE ?",
@@ -122,12 +130,12 @@ def _wipe():
         except OSError:
             pass
     # Only the test's own leftovers in the bin
-    trash = WEB / ".Poubelle"
+    trash = _trash_dir()
     if trash.is_dir():
-        for dag in trash.iterdir():
-            shutil.rmtree(dag / TEST_YEAR, ignore_errors=True)
+        for day_dir in trash.iterdir():
+            shutil.rmtree(day_dir / TEST_YEAR, ignore_errors=True)
             try:
-                dag.rmdir()
+                day_dir.rmdir()
             except OSError:
                 pass
         try:
@@ -147,7 +155,7 @@ def make(path: Path, w, h, when, seed=1):
                    check=False, capture_output=True)
 
 
-def warten(n, state="ok", secs=180):
+def wait_for(n, state="ok", secs=180):
     for _ in range(secs * 2):
         c = q("SELECT COUNT(*) n FROM photos WHERE origin_path LIKE ? AND state=?",
               TEST_YEAR + "/%", state)[0]["n"]
@@ -174,7 +182,7 @@ def main():
     r = sync.run("quick")
     chk("nei Fotoe kommen vun eleng", r["new"] == 3, r)
     chk("the run was not stopped", not r["halted"], r["halted"])
-    chk("three converted", warten(3) == 3)
+    chk("three converted", wait_for(3) == 3)
 
     rows = {Path(r_["origin_path"]).name: r_ for r_ in
             q("SELECT * FROM photos WHERE origin_path LIKE ?", TEST_YEAR + "/%")}
@@ -195,7 +203,7 @@ def main():
     n = q("SELECT rev, state, origin_sha256 FROM photos WHERE id=?", a1["id"])[0]
     chk("d'Versioun geet erop", n["rev"] == rev_vir + 1, f"{rev_vir} -> {n['rev']}")
     chk("den Hash gouf nogezunn", n["origin_sha256"] != a1["origin_sha256"])
-    chk("it is converted again", warten(3) == 3)
+    chk("it is converted again", wait_for(3) == 3)
     chk("the web sizes were recomputed",
         (convert.derivative_dir(a1["id"]) / "400.webp").is_file())
 
@@ -234,8 +242,9 @@ def main():
     chk("it is off the site",
         q("SELECT COUNT(*) n FROM photos WHERE id=? AND state='ok'",
           a3["id"])[0]["n"] == 0)
-    poub = list((WEB / ".Poubelle").rglob("a3.jpg")) if (WEB / ".Poubelle").is_dir() else []
-    chk("the master is in the bin", len(poub) == 1, poub)
+    _t = _trash_dir()
+    in_bin = list(_t.rglob("a3.jpg")) if _t.is_dir() else []
+    chk("the master is in the bin", len(in_bin) == 1, in_bin)
     chk("the old master is no longer on the site", not (WEB / a3["web_name"]).is_file())
 
     # -- BACK ---------------------------------------------------------------
@@ -244,7 +253,7 @@ def main():
     chk("the photograph comes back", r.get("restored") == 1, r)
     n = q("SELECT * FROM photos WHERE id=?", a3["id"])[0]
     chk("⚠ mat DERSELWECHTER ID -- alles wat drun hong bleift", n["id"] == a3["id"])
-    chk("it is on the site again", warten(3) == 3)
+    chk("it is on the site again", wait_for(3) == 3)
     config.SCAN_MAX_MISSING_PCT = alt_pct
 
     # -- THE MASS BRAKE -----------------------------------------------------
@@ -277,7 +286,7 @@ def main():
     shutil.move(str(baussen / "Anerplaz"), str(neier))
     shutil.rmtree(baussen, ignore_errors=True)
     sync.run("quick")
-    chk("everything comes back", warten(3) == 3)
+    chk("everything comes back", wait_for(3) == 3)
 
     # -- D'MOUNT-BREMSE ----------------------------------------------------
     marker = ORIGINS / config.MARKER_NAME
@@ -300,9 +309,9 @@ def main():
     a1n = q("SELECT * FROM photos WHERE origin_path LIKE ?", f"{BASIS}/Spigel/a1.jpg")[0]
     p = dossier / "a1.jpg"
     st = p.stat()
-    daten = bytearray(p.read_bytes())
-    daten[-1] = daten[-1] ^ 0xFF          # one bit -- or the size would change
-    p.write_bytes(bytes(daten))
+    blob = bytearray(p.read_bytes())
+    blob[-1] = blob[-1] ^ 0xFF          # one bit -- or the size would change
+    p.write_bytes(bytes(blob))
     os.utime(p, (st.st_atime, st.st_mtime))
     chk("size and date really are unchanged",
         p.stat().st_size == st.st_size and abs(p.stat().st_mtime - st.st_mtime) < 1)
@@ -311,19 +320,19 @@ def main():
     r = sync.run("deep")
     chk("⚠ the deep run finds it", r["changed"] == 1, r)
 
-    # -- POUBELLE OPRAUMEN --------------------------------------------------
-    warten(3)
-    trash = WEB / ".Poubelle"
-    alen = trash / "1990-01-01" / BASIS
-    alen.mkdir(parents=True, exist_ok=True)
-    (alen / "alen.jpg").write_bytes(b"x" * 10)
-    haut = trash / time.strftime("%Y-%m-%d") / BASIS
-    haut.mkdir(parents=True, exist_ok=True)
-    (haut / "haut.jpg").write_bytes(b"x" * 10)
+    # -- EMPTYING THE BIN ---------------------------------------------------
+    wait_for(3)
+    trash = _trash_dir()
+    old_day = trash / "1990-01-01" / BASIS
+    old_day.mkdir(parents=True, exist_ok=True)
+    (old_day / "old.jpg").write_bytes(b"x" * 10)
+    today_dir = trash / time.strftime("%Y-%m-%d") / BASIS
+    today_dir.mkdir(parents=True, exist_ok=True)
+    (today_dir / "today.jpg").write_bytes(b"x" * 10)
     res = sync.empty_trash()
     chk("what has been in the bin too long goes",
         not (trash / "1990-01-01").exists(), res)
-    chk("what is not old yet stays", (haut / "haut.jpg").is_file(), res)
+    chk("what is not old yet stays", (today_dir / "today.jpg").is_file(), res)
 
     # -- THROUGH THE BUTTON, NOT DIRECTLY -------------------------------------
     # ⚠ Until now this test always called `sync.run()` directly -- and so it did
@@ -332,14 +341,14 @@ def main():
     # `AttributeError: 'sqlite3.Row' object has no attribute 'rstrip'`. The path
     # through the button has to be checked, because that is the path that is
     # actually used.
-    virdrun = q("SELECT COUNT(*) n FROM scans")[0]["n"]
+    before_ = q("SELECT COUNT(*) n FROM scans")[0]["n"]
     st, out = req("/api/sync", method="POST", data={"kind": "quick"})
     chk("the button starts a run", st == 200 and out and out.get("job"), f"{st} {out}")
     finished = None
     for _ in range(120):
         time.sleep(.5)
         r_ = q("SELECT * FROM scans ORDER BY id DESC LIMIT 1")[0]
-        if q("SELECT COUNT(*) n FROM scans")[0]["n"] > virdrun and r_["finished_at"]:
+        if q("SELECT COUNT(*) n FROM scans")[0]["n"] > before_ and r_["finished_at"]:
             finished = r_
             break
     chk("⚠ the run really does go through the worker", finished is not None,

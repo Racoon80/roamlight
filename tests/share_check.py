@@ -222,14 +222,14 @@ def main():
         # ⚠ With `-a -G1`: the camera serial number sits in the MakerNotes and
         #   does not show up without `-a`. That is exactly the one that was
         #   still in there, and the security review found it.
-        aus = subprocess.run(["exiftool", "-s", "-s", "-s", "-a", "-n",
+        out_ = subprocess.run(["exiftool", "-s", "-s", "-s", "-a", "-n",
                               "-*GPS*", "-*Location*", "-SerialNumber",
                               "-CameraSerialNumber", "-InternalSerialNumber",
                               "-OwnerName", "-Artist", "-By-line", "-Creator",
                               "--", str(p)],
                              capture_output=True, text=True).stdout.strip()
-        chk("⚠ GPS, Seriennummer an Numm sinn aus dem Download eraus",
-            aus == "", aus[:160])
+        chk("⚠ GPS, serial number and owner name are out of the download",
+            out_ == "", out_[:160])
         bleift = subprocess.run(["exiftool", "-s", "-s", "-s", "-Model",
                                  "-DateTimeOriginal", "--", str(p)],
                                 capture_output=True, text=True).stdout.strip()

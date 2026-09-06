@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS upload_batches (
     country      TEXT,
     event        TEXT,
     place        TEXT,
-    share_id     INTEGER REFERENCES shares(id)   -- gesat bei Gaascht-Uploads
+    share_id     INTEGER REFERENCES shares(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS upload_files (
@@ -119,8 +119,8 @@ CREATE TABLE IF NOT EXISTS upload_files (
     gps_lat       REAL,
     gps_lon       REAL,
     kind          TEXT,
-    dup_of        INTEGER REFERENCES photos(id),
-    photo_id      INTEGER REFERENCES photos(id),
+    dup_of        INTEGER REFERENCES photos(id) ON DELETE SET NULL,
+    photo_id      INTEGER REFERENCES photos(id) ON DELETE SET NULL,
     state         TEXT NOT NULL DEFAULT 'uploading',
         -- uploading | ready | rejected | stored
     note          TEXT
@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS albums (
     id             INTEGER PRIMARY KEY,
     slug           TEXT NOT NULL UNIQUE,
     title          TEXT NOT NULL,
-    cover_photo_id INTEGER REFERENCES photos(id),
+    cover_photo_id INTEGER REFERENCES photos(id) ON DELETE SET NULL,
     created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS share_uploads (
     bytes      INTEGER,
     sha256     TEXT,
     state      TEXT NOT NULL DEFAULT 'guest',     -- guest | accepted | rejected
-    photo_id   INTEGER REFERENCES photos(id)
+    photo_id   INTEGER REFERENCES photos(id) ON DELETE SET NULL
 );
 
 -- A signed-in family member adds a photograph to ONE album. Same rule as for
@@ -341,7 +341,7 @@ CREATE TABLE IF NOT EXISTS album_uploads (
     bytes      INTEGER,
     sha256     TEXT,
     state      TEXT NOT NULL DEFAULT 'guest',     -- guest | accepted | rejected
-    photo_id   INTEGER REFERENCES photos(id)
+    photo_id   INTEGER REFERENCES photos(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS moves (
@@ -493,6 +493,100 @@ def _backfill_album_columns(conn) -> int:
     return n
 
 
+# Fremdschlësselen, déi e ganz normaalt Läsche blockéiere WOLLTEN: si sinn all
+# "erënner dech drun, soulaang et do ass", net "dat hei dierf net fort".
+_FK_SET_NULL = (
+    ("albums", "cover_photo_id"),
+    ("upload_files", "photo_id"),
+    ("upload_files", "dup_of"),
+    ("share_uploads", "photo_id"),
+    ("album_uploads", "photo_id"),
+    ("upload_batches", "share_id"),
+)
+
+
+def _fix_fks(conn) -> list:
+    """`ON DELETE SET NULL` op Fremdschlësselen, déi als NO ACTION ugeluecht goufen.
+
+    ⚠ Firwat dat muss sinn: eng Foto vum Site huelen (`register.remove`) mécht
+      e `DELETE FROM photos`. Ass déiselwecht Foto d'Titelbild vun enger
+      Sammlung, blockéiert `albums.cover_photo_id` dat -- an de Klick stierft
+      mat `FOREIGN KEY constraint failed`, also engem 500 ouni Grond. Genee sou
+      bei enger Foto, déi nach an engem alen Upload-Protokoll steet.
+
+    ⚠ SQLite kann e Fremdschlëssel net änneren. Also gëtt d'Tabell nei gebaut --
+      mat HIRER EEGENER Definitioun aus `sqlite_master`, just déi eng Zeil
+      gepatcht. Sou geet keng Kolonn, kee Standardwäert a keng Bedéngung
+      verluer. D'Indexen ginn nogebaut, an duerno gëtt d'Zuel vun den Zeilen
+      verglach -- ass se net déiselwecht, gëtt zréckgerullt.
+    """
+    import re
+    todo = []
+    for table, col in _FK_SET_NULL:
+        try:
+            for fk in conn.execute(f"PRAGMA foreign_key_list({table})"):
+                if fk[3] == col and (fk[6] or "NO ACTION").upper() != "SET NULL":
+                    todo.append((table, col))
+        except sqlite3.Error:
+            continue
+    if not todo:
+        return []
+
+    done = []
+    for table in dict.fromkeys(t for t, _ in todo):
+        cols = [c for tb, c in todo if tb == table]
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+                           (table,)).fetchone()
+        if not row or not row[0]:
+            continue
+        sql = row[0]
+        for col in cols:
+            # nëmmen DÉI eng Kolonn-Zeil, an nëmmen wann do nach kee ON DELETE steet
+            sql = re.sub(
+                rf"(^\s*{re.escape(col)}\s+[^,\n]*?REFERENCES\s+\w+\s*\([^)]*\))"
+                rf"(?![^,\n]*ON DELETE)",
+                r"\1 ON DELETE SET NULL", sql, flags=re.M)
+        sql = sql.replace(f"TABLE {table}", f"TABLE {table}__new", 1)
+        sql = sql.replace(f'TABLE "{table}"', f'TABLE "{table}__new"', 1)
+        if "__new" not in sql:
+            log.warning("FK-Migratioun: %s konnt net ëmbenannt ginn -- iwwersprongen", table)
+            continue
+        idx = [r[0] for r in conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+            (table,))]
+        before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        conn.execute("PRAGMA foreign_keys=OFF")
+        # ⚠ Nëmmen ufänken, wann nach keng leeft: `connect()` steet op
+        #   autocommit, mä e Rufer mat enger oppener Transaktioun géif hei
+        #   soss mat "cannot start a transaction within a transaction" ofbriechen.
+        own = not conn.in_transaction
+        try:
+            if own:
+                conn.execute("BEGIN IMMEDIATE")
+            conn.execute(sql)
+            conn.execute(f"INSERT INTO {table}__new SELECT * FROM {table}")
+            after = conn.execute(f"SELECT COUNT(*) FROM {table}__new").fetchone()[0]
+            if after != before:
+                raise RuntimeError(f"{table}: {before} -> {after} Zeilen")
+            conn.execute(f"DROP TABLE {table}")
+            conn.execute(f"ALTER TABLE {table}__new RENAME TO {table}")
+            for s in idx:
+                conn.execute(s)
+            if own:
+                conn.execute("COMMIT")
+            done.append(f"{table}({', '.join(cols)})")
+            log.warning("foreign key on %s set to ON DELETE SET NULL (%d rows kept)",
+                        table, before)
+        except Exception as exc:                                 # noqa: BLE001
+            if own and conn.in_transaction:
+                conn.execute("ROLLBACK")
+            conn.execute(f"DROP TABLE IF EXISTS {table}__new")
+            log.error("FK-Migratioun fir %s ofgebrach: %s", table, exc)
+        finally:
+            conn.execute("PRAGMA foreign_keys=ON")
+    return done
+
+
 def _repair(conn) -> int:
     """Verwaist Zeilen ewechhuelen -- déi, déi op eppes weisen, wat et net gëtt.
 
@@ -527,6 +621,7 @@ def init() -> None:
     conn = connect()
     conn.executescript(SCHEMA)
     _migrate(conn)
+    _fix_fks(conn)
     _repair(conn)
     set_state("schema_version", "6")
 

@@ -241,13 +241,19 @@ The travel site's look is a **darkroom print** — Didone headings, amber as a
 safelight, grain over everything. This site is the **sleeve around the
 negative**: the same warm coal and the same grain, but
 
-| | Travel | Family |
+| | Travel | Roamlight |
 |---|---|---|
-| Headings | Bodoni Moda (Didone) | **Fraunces** |
-| Body text | Spectral | **Libre Franklin** |
-| Metadata | IBM Plex Mono | **IBM Plex Mono** — the family resemblance |
-| Accent | safelight amber `#e2673b` | **patina green** `#7fae9c` |
+| Headings | Bodoni Moda (Didone) | **Bodoni Moda** — the family resemblance |
+| Body text | Spectral | **Spectral** |
+| Metadata | IBM Plex Mono | **IBM Plex Mono** |
+| Accent | safelight amber `#e2673b` | **a muted blue** `#6aa9e0` |
 | Grid | two side by side, plates | **contact sheet**, dense, plate number on hover |
+
+⚠ The type in §5 above was the proposal (Fraunces, Libre Franklin). What is
+actually shipped is the table here: the two sites share their typography, and
+the difference is carried by the grid and the accent instead. The three
+families and their licences are listed in
+[`static/fonts/LICENSE.md`](static/fonts/LICENSE.md).
 
 ⚠ **The fonts are self-hosted** (`static/fonts/*.woff2`, 8 files, 300 KB). The
 travel site loads them from Google — that does not work here: this site's own

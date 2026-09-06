@@ -3,6 +3,9 @@ ios
 Animation
 *.md
 !requirements.txt
+# ⚠ The font licence has to travel WITH the fonts -- the OFL says so, and
+#   the fonts are inside the image.
+!static/fonts/LICENSE.md
 Logo_Favicon*.png
 fam.tgz
 tools/deploy.py

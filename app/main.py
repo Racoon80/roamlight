@@ -78,6 +78,11 @@ def _page(request: Request, name: str, **ctx):
         # whole column.
         "no_drawer": request.url.path.startswith("/admin"),
         "site_title": config.SITE_TITLE, "is_admin": ident.is_admin,
+        # ⚠ The name of the admin group belongs in the configuration, not in a
+        #   template. It used to stand there as text -- which named a group
+        #   that does not exist on anybody else's installation, and told every
+        #   visitor what this one is called.
+        "admin_group": config.ADMIN_GROUP,
         "is_contributor": ident.is_contributor,
         "user": ident.user, "email": ident.email, "q": ctx.pop("q", None),
         # ⚠ Signing out does not mean the same everywhere: locally the session

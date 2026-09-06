@@ -56,13 +56,26 @@ chown -R family:family /opt/family/venv
 # startup, and without it it finds neither the database nor the mounts. It
 # belongs to the group `family` and is used by the sync runs as well.
 install -m 0640 -o root -g family "$SRC/deploy/family.env" /etc/family/env
-install -m 0644 "$SRC/deploy/family.service" /etc/systemd/system/family.service
+# ⚠ The units carry the DEFAULT folders (/srv/originals, /srv/library) and are
+#   rewritten here to the ones this installation really uses. They stand in
+#   `ReadWritePaths=` / `ReadOnlyPaths=`, and systemd takes no variables there
+#   -- so a unit naming the wrong folder does not fail loudly, it silently
+#   denies the service access to the photographs.
+set -a; . /etc/family/env; set +a
+unit() {
+    sed -e "s|/srv/originals|${FAMILY_ORIGINS:-/srv/originals}|g" \
+        -e "s|/srv/library|${FAMILY_WEB:-/srv/library}|g" "$SRC/deploy/$1" \
+        > "/etc/systemd/system/$1"
+    chmod 0644 "/etc/systemd/system/$1"
+}
+unit family.service
 # The sync: a quick run every night, a deep run every Sunday.
 for u in family-sync.service family-sync.timer \
          family-sync-deep.service family-sync-deep.timer \
          family-db-backup.service family-db-backup.timer; do
-  install -m 0644 "$SRC/deploy/$u" "/etc/systemd/system/$u"
+  unit "$u"
 done
+echo "   units: originals=${FAMILY_ORIGINS:-/srv/originals} library=${FAMILY_WEB:-/srv/library}"
 # A consistent database dump, rotated locally and copied offsite.
 install -d -o family -g family /opt/family/data/backups
 # ⚠ The three site-specific values are NOT in the repository -- the files there
@@ -76,7 +89,6 @@ install -d -o family -g family /opt/family/data/backups
 #   FAMILY_ADMIN_NET   where you administer the box     (nftables, ssh)
 #
 # Unset ones stay at the placeholder -- which is a locked door, not an open one.
-set -a; . /etc/family/env; set +a
 subst() {
     sed -e "s|photos\.example\.com|${FAMILY_SITE_HOST:-photos.example.com}|g" \
         -e "s|10\.0\.0\.3:9000|${FAMILY_OUTPOST:-10.0.0.3:9000}|g" \

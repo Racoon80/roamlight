@@ -148,9 +148,9 @@ def note_seen(username: str, email: str, groups) -> None:
             # ⚠ The groups are ONLY overwritten when the row did NOT come from
             # the directory. A header is what ONE login brought along; the
             # directory is the truth. This line used to be
-            # `groups_json=excluded.groups_json` -- and one single request as
-            # "guy" carrying only `Website-Family` in the header reduced his
-            # three site groups to one.
+            # `groups_json=excluded.groups_json` -- and one single request
+            # whose header carried only the viewer group cut an administrator's
+            # three groups down to that one.
             "  groups_json=CASE WHEN members.seen_in_authentik=1 "
             "                   THEN members.groups_json ELSE excluded.groups_json END, "
             "  last_seen_at=datetime('now')",

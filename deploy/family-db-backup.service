@@ -19,7 +19,7 @@ ProtectSystem=strict
 ProtectHome=true
 # Writes only into the database directory and onto the backed-up share.
 # The originals tree is not needed at all -- so it is not mounted here.
-ReadWritePaths=/opt/family/data /mnt/family-website
+ReadWritePaths=/opt/family/data /srv/library
 ProtectKernelModules=true
 SystemCallArchitectures=native
 SystemCallFilter=@system-service

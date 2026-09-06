@@ -24,8 +24,8 @@ ProtectHome=true
 # marker); what is written goes into data, incoming and the web tree.
 # So the originals are mounted READ-ONLY -- a parser failure here cannot
 # touch them.
-ReadWritePaths=/opt/family/data /opt/family/incoming /mnt/family-website
-ReadOnlyPaths=/mnt/my-photos
+ReadWritePaths=/opt/family/data /opt/family/incoming /srv/library
+ReadOnlyPaths=/srv/originals
 ProtectKernelModules=true
 SystemCallArchitectures=native
 SystemCallFilter=@system-service

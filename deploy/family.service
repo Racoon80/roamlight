@@ -64,7 +64,7 @@ SystemCallErrorNumber=EPERM
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
 UMask=0027
-ReadWritePaths=/opt/family/data /opt/family/incoming /mnt/my-photos /mnt/family-website
+ReadWritePaths=/opt/family/data /opt/family/incoming /srv/originals /srv/library
 
 [Install]
 WantedBy=multi-user.target

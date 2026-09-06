@@ -6,10 +6,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
-sys.path.insert(0, _env.app_root())
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _env                                              # noqa: E402
+
+sys.path.insert(0, _env.app_root())
 
 os.environ.setdefault("FAMILY_REQUIRE_AUTH", "0")
 

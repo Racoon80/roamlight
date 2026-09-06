@@ -1,3 +1,5 @@
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 #!/usr/bin/env python3
 """Every page, opened once. Looking for the 500 that nobody clicks on.
 
@@ -21,8 +23,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import _env                                              # noqa: E402
 sys.path.insert(0, _env.app_root())
 
 BASE = os.environ.get("ROAMLIGHT_BASE", "http://127.0.0.1:8080")

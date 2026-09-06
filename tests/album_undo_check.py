@@ -9,6 +9,8 @@ nothing real and clears up after itself.
 import shutil
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
 sys.path.insert(0, _env.app_root())
 from app import album, config, db  # noqa: E402

@@ -32,6 +32,8 @@ class _Policy(DefaultCookiePolicy):
 def jar_op():
     return CookieJar(_Policy())
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
 # ⚠ The group names are NOT hard-coded: they come from the same environment the
 # site itself reads. A test that assumes "admin" would fail on every
@@ -53,8 +55,6 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 sys.path.insert(0, _env.app_root())
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import _env                                              # noqa: E402
 
 
 BASE = "http://127.0.0.1:8080"

@@ -4,6 +4,7 @@
 0.0.0.0 it would be reachable from the whole network and past every lock in
 here -- the proxy in front is not decoration.
 """
+import hmac
 import json
 import logging
 import os
@@ -102,6 +103,18 @@ def _startup() -> None:
     config.ensure_marker(config.WEB_DIR)
     db.init()
     auth.sweep()          # expired sessions can go
+    # ⚠ Soulaang et kee Kont gëtt, ass d'Setup-Säit op. Dat gehéiert an de Log,
+    #   an net kleng: op engem Netz mat anere Leit kritt deen den Administrateur,
+    #   deen d'Adress als éischten opmécht.
+    if config.AUTH_LOCAL and not auth.has_local_users():
+        if config.SETUP_TOKEN:
+            logging.getLogger("family").warning(
+                "no account yet -- /setup needs FAMILY_SETUP_TOKEN as ?t=...")
+        else:
+            logging.getLogger("family").warning(
+                "⚠ NO ACCOUNT YET: whoever opens this site first becomes the "
+                "administrator. Set FAMILY_SETUP_TOKEN to put a lock on it, or "
+                "create the account now.")
     n = requeue_orphans()
     if n:
         logging.getLogger("family").warning(
@@ -1003,8 +1016,14 @@ def page_setup(request: Request, error: str = ""):
         raise HTTPException(status_code=404, detail="not found")
     if auth.has_local_users():
         return RedirectResponse("/login", status_code=303)
+    # ⚠ Optionale Rigel fir den éischte Start (FAMILY_SETUP_TOKEN). Ouni en
+    #   ass d'Säit op -- soss kéint keen déi éischte Kéier eran.
+    if config.SETUP_TOKEN and not hmac.compare_digest(
+            request.query_params.get("t", ""), config.SETUP_TOKEN):
+        raise HTTPException(status_code=404, detail="not found")
     return templates.TemplateResponse(request, "setup.html", {
-        "site_title": config.SITE_TITLE, "static_ver": _static_ver(), "error": error})
+        "site_title": config.SITE_TITLE, "static_ver": _static_ver(), "error": error,
+        "setup_token": config.SETUP_TOKEN and request.query_params.get("t", "")})
 
 
 @app.post("/setup")
@@ -1012,6 +1031,9 @@ async def do_setup(request: Request):
     if not config.AUTH_LOCAL or auth.has_local_users():
         return RedirectResponse("/login", status_code=303)
     f = await request.form()
+    if config.SETUP_TOKEN and not hmac.compare_digest(
+            str(f.get("t", "")), config.SETUP_TOKEN):
+        raise HTTPException(status_code=404, detail="not found")
     pw, pw2 = str(f.get("password", "")), str(f.get("password2", ""))
     if pw != pw2:
         return RedirectResponse("/setup?error=The+two+passwords+are+not+the+same",

@@ -63,6 +63,13 @@ AUTH_LOCAL = "local" in AUTH_MODES
 AUTH_PROXY = "proxy" in AUTH_MODES
 
 # How long a sign-in lasts, in days.
+# ⚠ Den éischte Start ass eng oppen Dier: soulaang et kee Kont gëtt, kann
+#   JIDDEREN, deen d'Adress erreecht, sech als Administrateur uleeën. Dat ass
+#   bewosst esou (soss kënnt keen eran), mä op engem Netz, wou nach een anere
+#   sëtzt, gehéiert e Rigel dovir. Ass dat hei gesat, muss d'Setup-Säit dat
+#   Wuert kréien -- als `?t=…` oder am Formulaire.
+SETUP_TOKEN = os.environ.get("FAMILY_SETUP_TOKEN", "").strip()
+
 SESSION_DAYS = int(os.environ.get("FAMILY_SESSION_DAYS", "30"))
 SESSION_COOKIE = "family_session"
 # For a TLS proxy that does not set `X-Forwarded-Proto`: put this at 1, and the

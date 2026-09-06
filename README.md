@@ -53,6 +53,12 @@ git clone https://github.com/Racoon80/roamlight && cd roamlight
 docker compose up -d --build
 ```
 
+⚠ **Until you create that account, anybody who reaches the address can create
+it** — that is what "first screen" means. On a network with other people on it,
+set `FAMILY_SETUP_TOKEN` to a word of your own first; `/setup` then only answers
+to `?t=<that word>`, and you can drop the setting once the account exists. The
+service also says so in its log while no account is there.
+
 ⚠ **The folders you mount have to be writable by the user the container runs
 as** (`PUID`/`PGID`, 1000 by default). An empty folder is taken over on the
 first start; one that already holds files is left alone, and the container

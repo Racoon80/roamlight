@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Acceptance test for the upload. Runs on the server.
 
-    /opt/family/venv/bin/python /root/checkout/tests/upload_check.py
+    bash tests/run.sh upload
 
 Makes synthetic photographs with EXIF, carries them through the whole API, and
 then checks on the disk. It touches nothing but what it creates for the test --

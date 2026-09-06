@@ -32,7 +32,7 @@ def chk(name, cond, extra=""):
 
 
 def _jpeg(p, size=(500, 350)):
-    subprocess.run(["/opt/family/venv/bin/python3", "-c",
+    subprocess.run([_env.python(), "-c",
                     f"import pyvips;pyvips.Image.black({size[0]},{size[1]})"
                     f".copy(interpretation='b-w').colourspace('srgb')"
                     f".jpegsave({str(p)!r})"], check=True, capture_output=True)

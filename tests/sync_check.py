@@ -149,7 +149,7 @@ def _wipe():
 
 def make(path: Path, w, h, when, seed=1):
     path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["/opt/family/venv/bin/python3", "-c",
+    subprocess.run([_env.python(), "-c",
                     f"import pyvips;pyvips.Image.gaussnoise({w},{h},seed={seed})"
                     f".cast('uchar').copy(interpretation='b-w').colourspace('srgb')"
                     f".jpegsave({str(path)!r},Q=90)"], check=True, capture_output=True)

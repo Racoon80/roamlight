@@ -119,15 +119,26 @@ def headers(user=None, groups=None):
         row = con.execute("SELECT username FROM members WHERE username=? AND active=1",
                           (user,)).fetchone()
         con.close()
+        want = [groups or sorted(config.ADMIN_GROUPS)[0]]
         if row is None:
             # ⚠ The account is made with the groups the test asked for -- and
             #   `zz-` names are what the tests clean up afterwards.
             import secrets as _s
             try:
                 auth.create_user(user, _s.token_urlsafe(24), display_name=user,
-                                 groups=[groups or sorted(config.ADMIN_GROUPS)[0]])
+                                 groups=want)
             except ValueError:
                 pass
+        else:
+            # ⚠ With local accounts the groups come from the MEMBER, not from
+            #   the request -- so asking for a different role means the record
+            #   has to say so. Behind a proxy the header decides and this does
+            #   not happen; the test must not have to know the difference.
+            import json as _j
+            con2 = connect()
+            con2.execute("UPDATE members SET groups_json=? WHERE username=?",
+                         (_j.dumps(want), user))
+            con2.commit(); con2.close()
         code = devices.new_pairing(user)["code"]
         got = devices.redeem(code, "acceptance test")
         if not got:

@@ -119,7 +119,7 @@ def _wipe():
 def _upload_as(h, name):
     """Upload one image through the chunked API. Returns the batch."""
     img = Path("/tmp/" + name)
-    subprocess.run(["/opt/family/venv/bin/python3", "-c",
+    subprocess.run([_env.python(), "-c",
                     f"import pyvips;pyvips.Image.gaussnoise(1400,1000).cast('uchar')"
                     f".copy(interpretation='b-w').colourspace('srgb')"
                     f".jpegsave({str(img)!r},Q=88)"], check=True, capture_output=True)

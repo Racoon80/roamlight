@@ -286,7 +286,7 @@ def main():
     req(f"/s/{d4['token']}", GAAST, "POST", form={"password": d4["password"]}, jar=jar4)
 
     bild = Path("/tmp/gast.jpg")
-    subprocess.run(["/opt/family/venv/bin/python3", "-c",
+    subprocess.run([_env.python(), "-c",
                     "import pyvips;pyvips.Image.gaussnoise(800,600).cast('uchar')"
                     ".copy(interpretation='b-w').colourspace('srgb')"
                     f".jpegsave({str(bild)!r},Q=85)"], check=True, capture_output=True)

@@ -62,14 +62,28 @@ def _no_access(request: Request):
         from urllib.parse import quote
         from fastapi.responses import RedirectResponse
         target = request.url.path + (("?" + request.url.query) if request.url.query else "")
-        return RedirectResponse(f"/login?next={quote(target, safe='/?=&')}", status_code=303)
+        return _harden(RedirectResponse(
+            f"/login?next={quote(target, safe='/?=&')}", status_code=303))
     return _deny("role")
 
 
 def _deny(reason: str) -> JSONResponse:
     # One word out, no more. Somebody who did not come through the front door
     # does not get free diagnostics.
-    return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _harden(JSONResponse({"error": "forbidden"}, status_code=403))
+
+
+def _harden(response):
+    """D'Sécherheets-Käpp op eng Äntwert setzen.
+
+    ⚠ Si goufen nëmmen um Wee ZRÉCK gesat -- also nëmmen op Äntwerten, déi
+      duerch d'App gaange sinn. Eng Ofso aus dem Wiechter (403, an d'Ëmleedung
+      op d'Umeldung) huet keng gehat: kee `noindex`, kee `nosniff`, keng CSP,
+      kee `X-Frame-Options`. Dat sinn genee d'Äntwerten, déi e Frieme kritt.
+    """
+    for key, value in _HEADERS.items():
+        response.headers.setdefault(key, value)
+    return response
 
 
 def client_ip(request: Request) -> str:
@@ -253,7 +267,7 @@ async def gate(request: Request, call_next):
 
     # While share links are switched off, the path does not exist at all.
     if path.startswith("/s/") and not config.SHARES_ENABLED:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return _harden(JSONResponse({"error": "not found"}, status_code=404))
 
     response = await call_next(request)
     # ⚠ These headers are also set by the example nginx configuration, and

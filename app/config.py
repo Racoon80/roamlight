@@ -63,11 +63,11 @@ AUTH_LOCAL = "local" in AUTH_MODES
 AUTH_PROXY = "proxy" in AUTH_MODES
 
 # How long a sign-in lasts, in days.
-# ⚠ Den éischte Start ass eng oppen Dier: soulaang et kee Kont gëtt, kann
-#   JIDDEREN, deen d'Adress erreecht, sech als Administrateur uleeën. Dat ass
-#   bewosst esou (soss kënnt keen eran), mä op engem Netz, wou nach een anere
-#   sëtzt, gehéiert e Rigel dovir. Ass dat hei gesat, muss d'Setup-Säit dat
-#   Wuert kréien -- als `?t=…` oder am Formulaire.
+# ⚠ The first start is an open door: while there is no account, ANYBODY who
+#   reaches the address can make themselves the administrator. That is
+#   deliberate -- otherwise nobody could get in the first time -- but on a
+#   network with other people on it there should be a lock. Set this, and the
+#   setup page only answers when it is given the word, as `?t=…` or in the form.
 SETUP_TOKEN = os.environ.get("FAMILY_SETUP_TOKEN", "").strip()
 
 SESSION_DAYS = int(os.environ.get("FAMILY_SESSION_DAYS", "30"))
@@ -290,13 +290,13 @@ def ensure_marker(root) -> None:
 
 
 def ensure_dirs() -> None:
-    """D'Ordner uleeën -- an se zoumaachen.
+    """Create the folders -- and shut them.
 
-    ⚠ 0750 an net 0755. An `data/` läit d'Datebank, an do stinn d'Memberen,
-      d'Album-Schlësselen, d'Hashe vun de Sessiounen an de Geräte-Tokenen, an
-      d'Passwuert-Hashe vun de Deel-Links. Standard wier 0755 -- also fir
-      JIDDEREN um Rechner ze liesen. D'Grupp bleift dobäi, well d'Ofgläich- an
-      d'Backup-Léif als dee selwechte Benotzer lafen.
+    ⚠ 0750, not 0755. `data/` holds the database, and in it are the members, the
+      album keys, the hashes of the sessions and the device tokens, and the
+      password hashes of the share links. The default would be 0755 -- readable
+      by anybody on the machine. The group keeps its access, because the sync
+      and the backup runs are the same user.
     """
     for d in (DATA_DIR, INCOMING_DIR, DERIVATIVE_DIR, TILE_CACHE):
         d.mkdir(parents=True, exist_ok=True)

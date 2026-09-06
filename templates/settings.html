@@ -21,9 +21,9 @@
         {% if seen.email %}&middot; {{ seen.email }}{% endif %}
         &middot; {{ 'administrator' if seen.admin else 'viewer' }}</td></tr>
     <tr><th>Your groups</th><td>{% for g in seen.groups %}<span class="pill">{{ g }}</span> {% else %}—{% endfor %}</td></tr>
-    <tr><th>Admin groups</th><td>{% for g in rollen.admin %}<span class="pill">{{ g }}</span> {% endfor %}
+    <tr><th>Admin groups</th><td>{% for g in roles.admin %}<span class="pill">{{ g }}</span> {% endfor %}
         <span class="meta">— may upload, edit and share</span></td></tr>
-    <tr><th>Viewer groups</th><td>{% for g in rollen.viewer %}<span class="pill">{{ g }}</span> {% endfor %}
+    <tr><th>Viewer groups</th><td>{% for g in roles.viewer %}<span class="pill">{{ g }}</span> {% endfor %}
         <span class="meta">— may look</span></td></tr>
   </table>
   <p class="meta">A session carries the groups it had at sign-in. Change someone's
@@ -130,7 +130,7 @@
      Administrators are not in the list: they see every album anyway.</p>
 
   <div class="alb" id="acl">
-    {% for a in alben %}
+    {% for a in alb_rows %}
     {% set key = a.year ~ '/' ~ a.country ~ '/' ~ a.event %}
     {% set liste = acls.get(key, []) %}
     <form class="alb__row aclrow" data-year="{{ a.year }}" data-country="{{ a.country }}"

@@ -294,11 +294,11 @@ def waiting() -> list:
 def _split(refs):
     """`g<id>` -> Gaascht, `a<id>` -> Member. Alles anescht ass e Feeler.
 
-    ⚠ Fréier gouf alles, wat net mat `g` oder `a` ufänkt, einfach ignoréiert:
-      wien nach déi al Form (eng plakeg Zuel) geschéckt huet, krut e 200 an
-      d'Gefill, et wier ugeholl -- an et ass NÄISCHT geschitt. Eng Datei, déi
-      an der Quarantän bleift, well een op de falschen Knäppchen gedréckt huet,
-      ass genee dee Feeler, dee kee mierkt.
+    ⚠ Anything not starting with `g` or `a` used to be ignored: whoever sent
+      the old shape (a bare number) got a 200 and the feeling that it had been
+      accepted -- and NOTHING had happened. A file that stays in quarantine
+      because somebody pressed the wrong button is exactly the failure nobody
+      notices.
     """
     g, a = [], []
     for x in refs or []:

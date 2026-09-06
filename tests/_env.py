@@ -61,12 +61,12 @@ def connect(path=None):
 
 
 def app_root():
-    """Wou de Programm läit -- sou datt en Test op JIDDER Instanz leeft.
+    """Where the program lives -- so that a test runs on ANY instance.
 
-    ⚠ `/opt/family/app` war fest am Code. Domat konnt d'Suite nëmmen op der
-      enger Maschinn lafen -- an dat heescht: jidder Test gouf géint déi
-      liewege Bibliothéik gemaach, och deen, deen 30.000 Fotoen nei hash't.
-      `FAMILY_BASE` seet et; ass et net gesat, bleift dee ale Wee.
+    ⚠ `/opt/family/app` used to be hard-coded. With that the suite could only
+      run on the one machine -- which means every test ran against the live
+      library, including the one that re-hashes every photograph. `FAMILY_BASE`
+      says where it is; without it the old path stands.
     """
     import os
     return os.environ.get("FAMILY_BASE") or _from_file("FAMILY_BASE") or "/opt/family/app"

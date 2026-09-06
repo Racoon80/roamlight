@@ -101,10 +101,10 @@
         {% endfor %}
       </div>
       {% endif %}
-      {% for gruppe, nimm in tagpick.suggested.items() %}
+      {% for group, names in tagpick.suggested.items() %}
       <div class="tagbank__grp">
-        <span class="tagbank__lab">{{ gruppe }}</span>
-        {% for n in nimm %}<button class="chip" type="button" data-tag="{{ n }}">{{ n }}</button>{% endfor %}
+        <span class="tagbank__lab">{{ group }}</span>
+        {% for n in names %}<button class="chip" type="button" data-tag="{{ n }}">{{ n }}</button>{% endfor %}
       </div>
       {% endfor %}
     </div>

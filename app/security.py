@@ -74,12 +74,12 @@ def _deny(reason: str) -> JSONResponse:
 
 
 def _harden(response):
-    """D'Sécherheets-Käpp op eng Äntwert setzen.
+    """Put the security headers on a response.
 
-    ⚠ Si goufen nëmmen um Wee ZRÉCK gesat -- also nëmmen op Äntwerten, déi
-      duerch d'App gaange sinn. Eng Ofso aus dem Wiechter (403, an d'Ëmleedung
-      op d'Umeldung) huet keng gehat: kee `noindex`, kee `nosniff`, keng CSP,
-      kee `X-Frame-Options`. Dat sinn genee d'Äntwerten, déi e Frieme kritt.
+    ⚠ They used to be set only on the way BACK -- so only on answers that had
+      been through the app. A refusal from the gate (a 403, and the redirect to
+      the sign-in page) had none: no `noindex`, no `nosniff`, no CSP, no
+      `X-Frame-Options`. Those are exactly the answers a stranger gets.
     """
     for key, value in _HEADERS.items():
         response.headers.setdefault(key, value)

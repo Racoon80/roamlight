@@ -2,8 +2,8 @@
 {% block title %}First start — {{ site_title }}{% endblock %}
 {% block content %}
 <form class="signin" method="post" action="/setup">
-  {# ⚠ De Rigel vum éischte Start (FAMILY_SETUP_TOKEN) muss mat der
-     Ufro matgoen, soss gëtt de POST refuséiert. #}
+  {# ⚠ The first-run lock (FAMILY_SETUP_TOKEN) has to travel with the request,
+     or the POST is refused. #}
   {% if setup_token %}<input type="hidden" name="t" value="{{ setup_token }}">{% endif %}
   <h1>{{ site_title }}</h1>
   <p class="meta">Nobody has an account yet. This first one is the administrator —

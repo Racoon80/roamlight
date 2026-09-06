@@ -14,7 +14,7 @@ set -a; . "$ENV_FILE"; set +a
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # ⚠ De richtegen Interpreter ass deen, deen d'App selwer benotzt -- soss
-#   feelt pyvips oder Pillow an den Test brécht mat engem ImportError of.
+#   otherwise pyvips or Pillow is missing and the test dies on an ImportError.
 PY="${PYTHON:-}"
 if [ -z "$PY" ]; then
     for c in /opt/family/venv/bin/python /opt/roamlight/venv/bin/python3 python3; do
@@ -22,7 +22,7 @@ if [ -z "$PY" ]; then
         PY="$c"; break
     done
 fi
-ALL="convert gallery upload album album_undo owner tag share sync acl av"
+ALL="pages convert gallery upload album album_undo owner tag share sync acl av"
 WANT="${*:-$ALL}"
 
 pass=0; fail=0

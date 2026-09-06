@@ -103,9 +103,9 @@ def _startup() -> None:
     config.ensure_marker(config.WEB_DIR)
     db.init()
     auth.sweep()          # expired sessions can go
-    # ⚠ Soulaang et kee Kont gëtt, ass d'Setup-Säit op. Dat gehéiert an de Log,
-    #   an net kleng: op engem Netz mat anere Leit kritt deen den Administrateur,
-    #   deen d'Adress als éischten opmécht.
+    # ⚠ While there is no account, the setup page is open. That belongs in the
+    #   log, and not quietly: on a network with other people on it, whoever
+    #   opens the address first becomes the administrator.
     if config.AUTH_LOCAL and not auth.has_local_users():
         if config.SETUP_TOKEN:
             logging.getLogger("family").warning(
@@ -1016,8 +1016,8 @@ def page_setup(request: Request, error: str = ""):
         raise HTTPException(status_code=404, detail="not found")
     if auth.has_local_users():
         return RedirectResponse("/login", status_code=303)
-    # ⚠ Optionale Rigel fir den éischte Start (FAMILY_SETUP_TOKEN). Ouni en
-    #   ass d'Säit op -- soss kéint keen déi éischte Kéier eran.
+    # ⚠ An optional lock for the first start (FAMILY_SETUP_TOKEN). Without it
+    #   the page is open -- otherwise nobody could get in the first time.
     if config.SETUP_TOKEN and not hmac.compare_digest(
             request.query_params.get("t", ""), config.SETUP_TOKEN):
         raise HTTPException(status_code=404, detail="not found")
@@ -1162,7 +1162,7 @@ def page_settings(request: Request):
 
 
 # ---------------------------------------------------------------------------
-#  Apparater: d'iPhone-/iPad-App (app/devices.py)
+#  Devices: the iPhone and iPad app (app/devices.py)
 # ---------------------------------------------------------------------------
 @app.get("/api/app/authz")
 def api_app_authz(request: Request):

@@ -386,13 +386,13 @@ _local = threading.local()
 
 
 def _shut(path) -> None:
-    """D'Datebank zoumaachen: 0640 amplaz 0644.
+    """Shut the database: 0640 instead of 0644.
 
-    ⚠ SQLite leet d'Datei mat der umask un -- also normalerweis fir jiddereen
-      ze liesen. Dran stinn d'Memberen, d'Hashe vun de Sessiounen an de
-      Geräte-Tokenen an d'Passwuert-Hashe vun den Deel-Links. D'Grupp behält
-      d'Liesrecht, well d'Backup- an d'Ofgläich-Léif do lafen. Och d'-wal an
-      d'-shm, soss läit deeselwechten Inhalt niewendrun oppen.
+    ⚠ SQLite creates the file with the umask -- so, normally, readable by
+      anybody. In it are the members, the hashes of the sessions and the
+      device tokens and the password hashes of the share links. The group keeps
+      its read access, because the backup and the sync runs are there. The -wal
+      and the -shm too, or the same content lies open right next to it.
     """
     import os as _os
     from pathlib import Path as _P
@@ -514,8 +514,8 @@ def _backfill_album_columns(conn) -> int:
     return n
 
 
-# Fremdschlësselen, déi e ganz normaalt Läsche blockéiere WOLLTEN: si sinn all
-# "erënner dech drun, soulaang et do ass", net "dat hei dierf net fort".
+# Foreign keys that would block an ordinary delete. Every one of them means
+# "remember this while it is still there", not "this must not go".
 _FK_SET_NULL = (
     ("albums", "cover_photo_id"),
     ("upload_files", "photo_id"),
@@ -527,19 +527,19 @@ _FK_SET_NULL = (
 
 
 def _fix_fks(conn) -> list:
-    """`ON DELETE SET NULL` op Fremdschlësselen, déi als NO ACTION ugeluecht goufen.
+    """`ON DELETE SET NULL` on foreign keys that were created as NO ACTION.
 
-    ⚠ Firwat dat muss sinn: eng Foto vum Site huelen (`register.remove`) mécht
-      e `DELETE FROM photos`. Ass déiselwecht Foto d'Titelbild vun enger
-      Sammlung, blockéiert `albums.cover_photo_id` dat -- an de Klick stierft
-      mat `FOREIGN KEY constraint failed`, also engem 500 ouni Grond. Genee sou
-      bei enger Foto, déi nach an engem alen Upload-Protokoll steet.
+    ⚠ Why this has to be: taking a photograph off the site (`register.remove`)
+      does a `DELETE FROM photos`. If that same photograph is the cover of a
+      collection, `albums.cover_photo_id` blocks it -- and the click dies with
+      `FOREIGN KEY constraint failed`, a 500 for no reason. The same for a
+      photograph that still stands in an old upload record.
 
-    ⚠ SQLite kann e Fremdschlëssel net änneren. Also gëtt d'Tabell nei gebaut --
-      mat HIRER EEGENER Definitioun aus `sqlite_master`, just déi eng Zeil
-      gepatcht. Sou geet keng Kolonn, kee Standardwäert a keng Bedéngung
-      verluer. D'Indexen ginn nogebaut, an duerno gëtt d'Zuel vun den Zeilen
-      verglach -- ass se net déiselwecht, gëtt zréckgerullt.
+    ⚠ SQLite cannot change a foreign key. So the table is rebuilt -- from ITS
+      OWN definition out of `sqlite_master`, with only that one line patched.
+      That way no column, no default and no constraint is lost. The indexes are
+      recreated, and then the row count is compared -- if it differs, it rolls
+      back.
     """
     import re
     todo = []
@@ -562,7 +562,7 @@ def _fix_fks(conn) -> list:
             continue
         sql = row[0]
         for col in cols:
-            # nëmmen DÉI eng Kolonn-Zeil, an nëmmen wann do nach kee ON DELETE steet
+            # only THAT one column line, and only where no ON DELETE stands yet
             sql = re.sub(
                 rf"(^\s*{re.escape(col)}\s+[^,\n]*?REFERENCES\s+\w+\s*\([^)]*\))"
                 rf"(?![^,\n]*ON DELETE)",
@@ -570,16 +570,16 @@ def _fix_fks(conn) -> list:
         sql = sql.replace(f"TABLE {table}", f"TABLE {table}__new", 1)
         sql = sql.replace(f'TABLE "{table}"', f'TABLE "{table}__new"', 1)
         if "__new" not in sql:
-            log.warning("FK-Migratioun: %s konnt net ëmbenannt ginn -- iwwersprongen", table)
+            log.warning("fk migration: %s could not be renamed -- skipped", table)
             continue
         idx = [r[0] for r in conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
             (table,))]
         before = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         conn.execute("PRAGMA foreign_keys=OFF")
-        # ⚠ Nëmmen ufänken, wann nach keng leeft: `connect()` steet op
-        #   autocommit, mä e Rufer mat enger oppener Transaktioun géif hei
-        #   soss mat "cannot start a transaction within a transaction" ofbriechen.
+        # ⚠ Only begin one if none is running: `connect()` is in autocommit,
+        #   but a caller with an open transaction would otherwise fail here with
+        #   "cannot start a transaction within a transaction".
         own = not conn.in_transaction
         try:
             if own:
@@ -602,28 +602,27 @@ def _fix_fks(conn) -> list:
             if own and conn.in_transaction:
                 conn.execute("ROLLBACK")
             conn.execute(f"DROP TABLE IF EXISTS {table}__new")
-            log.error("FK-Migratioun fir %s ofgebrach: %s", table, exc)
+            log.error("fk migration for %s aborted: %s", table, exc)
         finally:
             conn.execute("PRAGMA foreign_keys=ON")
     return done
 
 
 def _repair(conn) -> int:
-    """Verwaist Zeilen ewechhuelen -- déi, déi op eppes weisen, wat et net gëtt.
+    """Remove orphaned rows -- the ones pointing at something that is not there.
 
-    ⚠ Firwat dat néideg ass: `sqlite3.connect()` mécht d'Fremdschlësselen AUS.
-      Kënnt iergendee Wee un d'Datei laanscht `connect()` (Ofnahm-Tester, eng
-      Reparatur vun Hand, en ale Stand vum Programm), da kann eng Foto geläscht
-      ginn an d'Zeilen an `album_photos`, `upload_files` an `share_hits`
-      bleiwen hänken.
+    ⚠ Why this is needed: `sqlite3.connect()` turns foreign keys OFF. If any
+      path reaches the file around `connect()` (an acceptance test, a repair by
+      hand, an old version of the program), a photograph can be deleted and the
+      rows in `album_photos`, `upload_files` and `share_hits` stay behind.
 
-      Déi Zeilen sinn net nëmmen Dreck: soubal eng ganz normal Aktioun se
-      uréiert -- eng Foto aus enger Sammlung huelen, wat d'Titelfoto nei setzt
-      -- brécht d'Ufro mat `FOREIGN KEY constraint failed` of, an de Benotzer
-      gesäit e 500 ouni Grond. Genee dat war um lieweg Site de Fall.
+      Those rows are not merely rubbish: as soon as an ordinary action touches
+      one -- taking a photograph out of a collection, which sets a new cover --
+      the request dies with `FOREIGN KEY constraint failed`, and the user gets a
+      500 for no reason. That is exactly what happened on the live site.
 
-    Geläscht gëtt NËMME wat op eppes weist, wat et net gëtt -- ni eng Foto, ni
-    en Album, ni eng Sammlung.
+    ONLY what points at something that does not exist is removed -- never a
+    photograph, never an album, never a collection.
     """
     gone = 0
     for row in list(conn.execute("PRAGMA foreign_key_check")):
@@ -645,8 +644,8 @@ def init() -> None:
     _fix_fks(conn)
     _repair(conn)
     set_state("schema_version", "6")
-    # ⚠ Nach eng Kéier: d'-wal an d'-shm entstinn eréischt beim éischte
-    #   Schreiwen, also NO der Verbindung -- an dann hu se erëm d'umask.
+    # ⚠ Once more: the -wal and the -shm only appear on the first write, that
+    #   is AFTER the connection -- and then they carry the umask again.
     _shut(config.DB_PATH)
 
 

@@ -321,13 +321,11 @@ def main():
     # -- 9. Nobody but the admin --------------------------------------------
     # ⚠ An account holder reaches the workshop but sees ONLY their own albums
     # (none here) -- and cannot rename somebody ELSE's album (the next check).
-    st, _, _ = req("/admin/albums", hdr={
-        **_env.headers("zz-test-viewer", VIEWER_GROUP),
-        "X-authentik-groups": VIEWER_GROUP})
+    st, _, _ = req("/admin/albums", hdr=_env.headers("zz-test-viewer", VIEWER_GROUP))
     chk("an account holder reaches the workshop (sees their own)", st == 200, st)
-    st, _, _ = req("/api/albums/edit", hdr={
-        **_env.headers("zz-test-viewer", VIEWER_GROUP),
-        "X-authentik-groups": VIEWER_GROUP}, method="POST", data={
+    st, _, _ = req("/api/albums/edit",
+                   hdr=_env.headers("zz-test-viewer", VIEWER_GROUP),
+                   method="POST", data={
         "year": "1998", "country": TEST_COUNTRY, "event": "Geriicht",
         "new_event": "Geklaut"})
     chk("a plain viewer cannot rename an album", st == 403, st)

@@ -13,7 +13,9 @@
 import os
 import sys
 
-_ENV_FILES = ("/etc/family/env", "/opt/roamlight/roamlight.env")
+_ENV_FILES = tuple(x for x in (os.environ.get("FAMILY_ENV"),
+                               "/etc/family/env",
+                               "/opt/roamlight/roamlight.env") if x)
 
 
 def _from_file(var):
@@ -26,6 +28,34 @@ def _from_file(var):
         except OSError:
             continue
     return None
+
+
+def load():
+    """Put the service's environment into ours -- once, at import.
+
+    ⚠ Without this, `_env` and `app.config` can disagree: `_env` reads the file,
+      `config` reads `os.environ`. A test started without the environment then
+      talks to one database while checking another -- or, worse, `config` falls
+      back to its defaults and quietly makes an empty one somewhere else. That
+      is not a failure you read off the screen; it is a test that passes against
+      nothing.
+
+    Values already in the environment win: a caller can still override.
+    """
+    import os
+    for path in _ENV_FILES:
+        try:
+            for line in open(path):
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        except OSError:
+            continue
+
+
+load()
 
 
 def need(var):

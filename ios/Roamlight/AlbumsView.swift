@@ -100,6 +100,13 @@ struct PhotosView: View {
     @State private var pages = 1
     @State private var total = 0
     @State private var loading = false
+    // ⚠ Which pages have been CLAIMED, not which have arrived. `loading` alone
+    //   is not enough: `.onAppear` can fire several times for the same cell
+    //   before the first Task has even started, all of them see `loading ==
+    //   false`, and the same page is fetched and appended twice. That is what
+    //   made the album scroll for ever with the same photographs coming round
+    //   again.
+    @State private var claimed: Set<Int> = []
     @State private var sharing = false
     @State private var link: ShareResult?
     @State private var failed: String?
@@ -127,9 +134,12 @@ struct PhotosView: View {
                         // ⚠ The next page is loaded when its LAST image
                         //   appears -- not at a scroll offset. That way a fast
                         //   swipe does not fire the same request twice.
-                        if p.id == photos.last?.id, page < pages, !loading {
-                            Task { await load(page: page + 1) }
-                        }
+                        guard p.id == photos.last?.id, page < pages else { return }
+                        let next = page + 1
+                        // The claim is made HERE, synchronously, and not inside
+                        // the Task -- see `claimed` above.
+                        guard claimed.insert(next).inserted else { return }
+                        Task { await load(page: next) }
                     }
                 }
             }
@@ -193,10 +203,23 @@ struct PhotosView: View {
         defer { loading = false }
         do {
             let res = try await state.api.photos(album: album, page: wanted, query: query)
-            if wanted == 1 { photos = res.photos } else { photos += res.photos }
+            if wanted == 1 {
+                photos = res.photos
+                claimed = [1]
+            } else {
+                // ⚠ Belt and braces: even with the claim above, never append a
+                //   photograph that is already in the list. SwiftUI needs the
+                //   ids in a ForEach to be unique -- with a duplicate it starts
+                //   drawing the wrong cells, which is exactly what "the same
+                //   photographs keep coming" looks like.
+                let known = Set(photos.map(\.id))
+                photos += res.photos.filter { !known.contains($0.id) }
+            }
             page = res.page; pages = res.pages; total = res.total
             failed = nil
         } catch {
+            // Give the page back, so a scroll can try it again.
+            claimed.remove(wanted)
             failed = error.localizedDescription
         }
     }

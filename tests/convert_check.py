@@ -8,6 +8,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
+
 os.environ.setdefault("FAMILY_REQUIRE_AUTH", "0")
 
 from app import config, convert, db, images, library, tree  # noqa: E402
@@ -81,7 +84,7 @@ def _abort_if_real_data():
             return True
     if root.exists() and any(p for p in root.rglob("*") if p.is_file() and _alien(p)):
         raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = sqlite3.connect(_env.need("FAMILY_DB"))
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", f"{TEST_YEAR}/{TEST_COUNTRY}/%")).fetchone()[0]
@@ -94,7 +97,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(_origins() / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
+    _sh.rmtree(Path(_env.need("FAMILY_WEB"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0
@@ -121,7 +124,7 @@ def make(path, w, h, dt, orient=1):
 
 
 def main():
-    dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+    dbf = _env.need("FAMILY_DB")
     _abort_if_real_data()
     foreign_before = _foreign(dbf)
     print("Ofnahm-Test — Konversioun (Etapp 5)")
@@ -129,7 +132,7 @@ def main():
     db.init()
     # Always starts on a clean database -- a previously failed run would
     # otherwise leave rows behind and the test breaks on a UNIQUE collision.
-    _cleanup(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    _cleanup(_env.need("FAMILY_DB"))
     tmp = Path("/tmp/convert_check"); shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir()
     year, country, event = "1999", "Testland", "Testevent"
     _wipe_test_tree()
@@ -229,7 +232,7 @@ def main():
     _wipe_test_tree()
     for pid in ids:
         shutil.rmtree(convert.derivative_dir(pid), ignore_errors=True)
-    _cleanup(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    _cleanup(_env.need("FAMILY_DB"))
 
     # ⚠ Only downwards is an error. Photographs turning UP during a run is
     # normal: somebody copies a folder into the originals tree and a scan takes

@@ -11,6 +11,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
 # ⚠ The group names are NOT hard-coded: they come from the same environment the
 # site itself reads. A test that assumes "admin" would fail on every
@@ -37,8 +39,8 @@ ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
          "X-authentik-groups": ADMIN_GROUP}
 FAMILY = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
           "X-authentik-groups": VIEWER_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
+ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
+WEB = Path(_env.need("FAMILY_WEB"))
 YEAR, COUNTRY, EVENT, PLACE = "1999", "Testland", "Testevent", "Testplaz"
 # ---------------------------------------------------------------------------
 #  The tests run against the LIVE database and the LIVE originals tree. So:
@@ -104,7 +106,7 @@ def _abort_if_real_data():
             return True
     if root.exists() and any(p for p in root.rglob("*") if p.is_file() and _alien(p)):
         raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = sqlite3.connect(_env.need("FAMILY_DB"))
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", f"{TEST_YEAR}/{TEST_COUNTRY}/%")).fetchone()[0]
@@ -118,7 +120,7 @@ def _open_for_tests():
     own album to its own viewer, or that viewer sees nothing and half the
     checks stop meaning anything."""
     import sqlite3 as _s
-    con = _s.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = _s.connect(_env.need("FAMILY_DB"))
     con.execute("INSERT OR IGNORE INTO album_acl (album_key, principal) VALUES (?,?)",
                 (f"{YEAR}/{COUNTRY}/{EVENT}", "user:zz-test-viewer"))
     con.commit(); con.close()
@@ -126,7 +128,7 @@ def _open_for_tests():
 
 def _drop_test_acl():
     import sqlite3 as _s
-    con = _s.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = _s.connect(_env.need("FAMILY_DB"))
     con.execute("DELETE FROM album_acl WHERE album_key LIKE ?", (TEST_YEAR + "/%",))
     con.commit(); con.close()
 
@@ -135,7 +137,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(ORIGINS / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
+    _sh.rmtree(Path(_env.need("FAMILY_WEB"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0
@@ -166,15 +168,14 @@ def _drop_test_members():
     viewing list because it was sitting there. A test must not invent a person
     who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(os.environ.get("FAMILY_DB",
-                                    "/opt/family/data/family.db"))
+    con = _s.connect(_env.need("FAMILY_DB"))
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()
 
 
 def main():
-    dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+    dbf = _env.need("FAMILY_DB")
     _abort_if_real_data()
     foreign_before = _foreign(dbf)
     print("Ofnahm-Test — Gallerie (Etapp 6)")
@@ -183,7 +184,7 @@ def main():
     _wipe_test_tree()
     _wipe_test_tree()
     import sqlite3
-    dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+    dbf = _env.need("FAMILY_DB")
     con = sqlite3.connect(dbf)
     _cleanup(dbf)
 
@@ -265,7 +266,8 @@ def main():
     # gallery asks for 1200 and 2000 -- so every photograph cost a second of
     # computing on the first look, sixty per page. That was the entire reason
     # the site was slow.
-    sys.path.insert(0, "/opt/family/app")   # this check looks on the disk
+    sys.path.insert(0, "/opt/family/app")
+   # this check looks on the disk
     from app import convert as _cv, config as _cfg
     d = _cv.derivative_dir(int(pid))
     # A width larger than the master is deliberately NOT built
@@ -398,7 +400,7 @@ def main():
     # normal: somebody copies a folder into the originals tree and a scan takes
     # it in. This used to be `==`, and then the test raised the alarm although
     # nothing had been lost.
-    after_ = _foreign(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    after_ = _foreign(_env.need("FAMILY_DB"))
     chk("no foreign photograph was lost", after_ >= foreign_before,
         f"{foreign_before} -> {after_}: the test deleted rows "
         f"that were not its own!")

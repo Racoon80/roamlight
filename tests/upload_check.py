@@ -16,6 +16,8 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
 # ⚠ The group names are NOT hard-coded: they come from the same environment the
 # site itself reads. A test that assumes "admin" would fail on every
@@ -40,8 +42,8 @@ BASE = "http://127.0.0.1:8080"
 SECRET = Path("/etc/family/proxy-secret").read_text().strip()
 HDR = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-admin",
        "X-authentik-groups": ADMIN_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
-INCOMING = Path(os.environ.get("FAMILY_INCOMING", "/opt/family/incoming"))
+ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
+INCOMING = Path(_env.need("FAMILY_INCOMING"))
 
 YEAR, COUNTRY, EVENT, PLACE = "1999", "Testland", "Testevent", "Testplaz"
 # ---------------------------------------------------------------------------
@@ -108,7 +110,7 @@ def _abort_if_real_data():
             return True
     if root.exists() and any(p for p in root.rglob("*") if p.is_file() and _alien(p)):
         raise SystemExit(f"ABORTED: {root} holds files that are not the test's")
-    con = sqlite3.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = sqlite3.connect(_env.need("FAMILY_DB"))
     n = con.execute("SELECT COUNT(*) FROM photos WHERE origin_path LIKE ? "
                     "AND origin_path NOT LIKE ?",
                     (TEST_YEAR + "/%", f"{TEST_YEAR}/{TEST_COUNTRY}/%")).fetchone()[0]
@@ -121,7 +123,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(ORIGINS / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
+    _sh.rmtree(Path(_env.need("FAMILY_WEB"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0
@@ -180,7 +182,7 @@ def _drop_test_members():
     `members.note_seen()` -- and afterwards it stands on the settings page
     among the family. A test must not invent a person who then looks real."""
     import sqlite3 as _s
-    con = _s.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    con = _s.connect(_env.need("FAMILY_DB"))
     con.execute("DELETE FROM members WHERE username LIKE 'zz-test-%' "
                 "AND seen_in_authentik=0")
     con.commit(); con.close()
@@ -191,7 +193,7 @@ def main():
     target = ORIGINS / YEAR / COUNTRY / EVENT
     _wipe_test_tree()
 
-    dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+    dbf = _env.need("FAMILY_DB")
     _abort_if_real_data()
     foreign_before = _foreign(dbf)
     print("Ofnahm-Test — Upload (Etapp 4)")
@@ -242,8 +244,8 @@ def main():
 
     # --- and the conversion hangs off the upload, with no second button ----
     import sqlite3, time
-    dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
-    web = Path(os.environ.get("FAMILY_WEB", "/srv/library")) / YEAR / COUNTRY / EVENT
+    dbf = _env.need("FAMILY_DB")
+    web = Path(_env.need("FAMILY_WEB")) / YEAR / COUNTRY / EVENT
     t0 = time.time()
     while time.time() - t0 < 120:
         con = sqlite3.connect(dbf)
@@ -302,7 +304,7 @@ def main():
     _wipe_test_tree()
     _wipe_test_tree()
     import sqlite3
-    db = sqlite3.connect(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    db = sqlite3.connect(_env.need("FAMILY_DB"))
     # The year at the end of the name always comes off -- and in BOTH trees,
     # because web_dir() runs through target_dir().
     from app import tree as _tree
@@ -319,13 +321,13 @@ def main():
         f"{_tree.target_dir('2016','Portugal','Porto 2016').name} / "
         f"{_tree.web_dir('2016','Portugal','Porto 2016').name}")
 
-    _cleanup(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    _cleanup(_env.need("FAMILY_DB"))
 
     # ⚠ Only downwards is an error. Photographs turning UP during a run is
     # normal: somebody copies a folder into the originals tree and a scan takes
     # it in. This used to be `==`, and then the test raised the alarm although
     # nothing had been lost.
-    after_ = _foreign(os.environ.get("FAMILY_DB", "/opt/family/data/family.db"))
+    after_ = _foreign(_env.need("FAMILY_DB"))
     chk("no foreign photograph was lost", after_ >= foreign_before,
         f"{foreign_before} -> {after_}: the test deleted rows "
         f"that were not its own!")
@@ -336,4 +338,5 @@ def main():
 
 if __name__ == "__main__":
     sys.path.insert(0, "/opt/family/app")
+
     sys.exit(main())

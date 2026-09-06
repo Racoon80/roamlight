@@ -35,10 +35,13 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
-DB = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+
+ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
+WEB = Path(_env.need("FAMILY_WEB"))
+DB = _env.need("FAMILY_DB")
 
 TEST_YEAR = "1999"
 TEST_COUNTRY = "Testland"

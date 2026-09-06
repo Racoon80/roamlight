@@ -38,10 +38,13 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
+
 
 BASE = "http://127.0.0.1:8080"
 SECRET = Path("/etc/family/proxy-secret").read_text().strip()
-DB = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+DB = _env.need("FAMILY_DB")
 
 ok = bad = 0
 

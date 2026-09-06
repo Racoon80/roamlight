@@ -17,6 +17,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _env                                              # noqa: E402
 
 # ⚠ The group names are NOT hard-coded: they come from the same environment the
 # site itself reads. A test that assumes "admin" would fail on every
@@ -41,9 +43,9 @@ BASE = "http://127.0.0.1:8080"
 SECRET = Path("/etc/family/proxy-secret").read_text().strip()
 ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
          "X-authentik-groups": ADMIN_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
-DB = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
+ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
+WEB = Path(_env.need("FAMILY_WEB"))
+DB = _env.need("FAMILY_DB")
 
 # ---------------------------------------------------------------------------
 #  Runs against the LIVE database and the LIVE originals tree -- the same rules
@@ -180,6 +182,7 @@ def _drop_test_members():
 
 def main():
     sys.path.insert(0, "/opt/family/app")
+
     _abort_if_real_data()
     alien_before = _foreign()
     print("Ofnahm-Test — Album-Wierkstat")

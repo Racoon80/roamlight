@@ -45,6 +45,20 @@ docker compose up -d
 Then open `http://<your-machine>:8080`. The first screen asks you to create the
 administrator account — until you do, nobody can sign in.
 
+If Docker cannot pull the image, build it yourself — it is the same thing, and
+it takes about three minutes:
+
+```bash
+git clone https://github.com/Racoon80/roamlight && cd roamlight
+docker compose up -d --build
+```
+
+⚠ **The folders you mount have to be writable by the user the container runs
+as** (`PUID`/`PGID`, 1000 by default). An empty folder is taken over on the
+first start; one that already holds files is left alone, and the container
+refuses to start and tells you which folder and which uid. That refusal is on
+purpose: without it, uploads are accepted and then quietly never converted.
+
 ⚠ **Set `FAMILY_SITE_URL` to the address people actually type.** It goes into
 share links, and a link built from `localhost` is useless to a guest.
 

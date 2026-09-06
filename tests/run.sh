@@ -13,7 +13,15 @@ ENV_FILE="${FAMILY_ENV:-/etc/family/env}"
 set -a; . "$ENV_FILE"; set +a
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PY="${PYTHON:-/opt/family/venv/bin/python}"
+# ⚠ De richtegen Interpreter ass deen, deen d'App selwer benotzt -- soss
+#   feelt pyvips oder Pillow an den Test brécht mat engem ImportError of.
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+    for c in /opt/family/venv/bin/python /opt/roamlight/venv/bin/python3 python3; do
+        [ -x "$c" ] || command -v "$c" >/dev/null 2>&1 || continue
+        PY="$c"; break
+    done
+fi
 ALL="convert gallery upload album album_undo owner tag share sync acl av"
 WANT="${*:-$ALL}"
 

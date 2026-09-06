@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, _env.app_root())
 
 ok = bad = 0
 

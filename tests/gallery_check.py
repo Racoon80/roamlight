@@ -266,7 +266,7 @@ def main():
     # gallery asks for 1200 and 2000 -- so every photograph cost a second of
     # computing on the first look, sixty per page. That was the entire reason
     # the site was slow.
-    sys.path.insert(0, "/opt/family/app")
+    sys.path.insert(0, _env.app_root())
    # this check looks on the disk
     from app import convert as _cv, config as _cfg
     d = _cv.derivative_dir(int(pid))

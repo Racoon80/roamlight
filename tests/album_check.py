@@ -181,7 +181,7 @@ def _drop_test_members():
 
 
 def main():
-    sys.path.insert(0, "/opt/family/app")
+    sys.path.insert(0, _env.app_root())
 
     _abort_if_real_data()
     alien_before = _foreign()

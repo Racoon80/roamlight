@@ -337,6 +337,6 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, "/opt/family/app")
+    sys.path.insert(0, _env.app_root())
 
     sys.exit(main())

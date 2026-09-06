@@ -58,3 +58,15 @@ def connect(path=None):
     con.execute("PRAGMA foreign_keys=ON")
     con.execute("PRAGMA busy_timeout=30000")
     return con
+
+
+def app_root():
+    """Wou de Programm läit -- sou datt en Test op JIDDER Instanz leeft.
+
+    ⚠ `/opt/family/app` war fest am Code. Domat konnt d'Suite nëmmen op der
+      enger Maschinn lafen -- an dat heescht: jidder Test gouf géint déi
+      liewege Bibliothéik gemaach, och deen, deen 30.000 Fotoen nei hash't.
+      `FAMILY_BASE` seet et; ass et net gesat, bleift dee ale Wee.
+    """
+    import os
+    return os.environ.get("FAMILY_BASE") or _from_file("FAMILY_BASE") or "/opt/family/app"

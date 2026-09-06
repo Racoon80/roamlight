@@ -34,7 +34,7 @@ def _group(var, fallback):
 ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
-sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, _env.app_root())
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _env                                              # noqa: E402
 

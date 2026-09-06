@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/opt/family/app")
+sys.path.insert(0, _env.app_root())
 from app import album, config, db  # noqa: E402
 
 O, W = Path(config.ORIGIN_DIR), Path(config.WEB_DIR)

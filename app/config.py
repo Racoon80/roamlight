@@ -290,5 +290,17 @@ def ensure_marker(root) -> None:
 
 
 def ensure_dirs() -> None:
+    """D'Ordner uleeën -- an se zoumaachen.
+
+    ⚠ 0750 an net 0755. An `data/` läit d'Datebank, an do stinn d'Memberen,
+      d'Album-Schlësselen, d'Hashe vun de Sessiounen an de Geräte-Tokenen, an
+      d'Passwuert-Hashe vun de Deel-Links. Standard wier 0755 -- also fir
+      JIDDEREN um Rechner ze liesen. D'Grupp bleift dobäi, well d'Ofgläich- an
+      d'Backup-Léif als dee selwechte Benotzer lafen.
+    """
     for d in (DATA_DIR, INCOMING_DIR, DERIVATIVE_DIR, TILE_CACHE):
         d.mkdir(parents=True, exist_ok=True)
+        try:
+            d.chmod(0o750)
+        except OSError:
+            pass

@@ -385,6 +385,26 @@ CREATE INDEX IF NOT EXISTS idx_upload_files   ON upload_files (batch_id, state);
 _local = threading.local()
 
 
+def _shut(path) -> None:
+    """D'Datebank zoumaachen: 0640 amplaz 0644.
+
+    ⚠ SQLite leet d'Datei mat der umask un -- also normalerweis fir jiddereen
+      ze liesen. Dran stinn d'Memberen, d'Hashe vun de Sessiounen an de
+      Geräte-Tokenen an d'Passwuert-Hashe vun den Deel-Links. D'Grupp behält
+      d'Liesrecht, well d'Backup- an d'Ofgläich-Léif do lafen. Och d'-wal an
+      d'-shm, soss läit deeselwechten Inhalt niewendrun oppen.
+    """
+    import os as _os
+    from pathlib import Path as _P
+    for suffix in ("", "-wal", "-shm"):
+        f = _P(str(path) + suffix)
+        try:
+            if f.exists() and (f.stat().st_mode & 0o777) != 0o640:
+                _os.chmod(f, 0o640)
+        except OSError:
+            pass
+
+
 def connect() -> sqlite3.Connection:
     conn = getattr(_local, "conn", None)
     if conn is None:
@@ -394,6 +414,7 @@ def connect() -> sqlite3.Connection:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA busy_timeout=30000")
+        _shut(config.DB_PATH)
         _local.conn = conn
     return conn
 
@@ -624,6 +645,9 @@ def init() -> None:
     _fix_fks(conn)
     _repair(conn)
     set_state("schema_version", "6")
+    # ⚠ Nach eng Kéier: d'-wal an d'-shm entstinn eréischt beim éischte
+    #   Schreiwen, also NO der Verbindung -- an dann hu se erëm d'umask.
+    _shut(config.DB_PATH)
 
 
 def get_state(key: str, default=None):

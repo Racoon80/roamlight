@@ -108,6 +108,43 @@ struct API {
         try await get("/api/albums", as: AlbumList.self).albums
     }
 
+    /// Add one photograph to an album that already exists.
+    ///
+    /// ⚠ This is the SAME route the web page uses
+    /// (`POST /y/<year>/<country>/<event>/contribute`), and it is open to every
+    /// registered person who may look at that album -- not only to a
+    /// contributor. It goes live, with no approval; the checks (type from the
+    /// content, virus scan) run on the server either way.
+    ///
+    /// ⚠ multipart/form-data with the field name `file`, because that is what
+    ///   the server reads. A JSON body would be silently ignored.
+    func contribute(album: Album, name: String, data: Data) async throws {
+        let boundary = "roamlight.\(UUID().uuidString)"
+        var body = Data()
+        func put(_ s: String) { body.append(s.data(using: .utf8)!) }
+        put("--\(boundary)\r\n")
+        put("Content-Disposition: form-data; name=\"file\"; filename=\"\(name)\"\r\n")
+        put("Content-Type: application/octet-stream\r\n\r\n")
+        body.append(data)
+        put("\r\n--\(boundary)--\r\n")
+
+        let path = "/y/\(esc(album.year))/\(esc(album.country))/\(esc(album.event))/contribute"
+        var r = try request(path, method: "POST", body: body, json: false)
+        r.setValue("multipart/form-data; boundary=\(boundary)",
+                   forHTTPHeaderField: "Content-Type")
+        // A photograph off a phone is several MB, and a mobile network is not
+        // the wifi at home.
+        r.timeoutInterval = 300
+        _ = try await run(r)
+    }
+
+    /// ⚠ Every part of the path has to be escaped on its own: an album called
+    ///   "Ostend / Belgium" would otherwise become two path segments.
+    private func esc(_ s: String) -> String {
+        s.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(
+            CharacterSet(charactersIn: "-._~"))) ?? s
+    }
+
     /// The values that already exist -- viewer-scoped, like everything else.
     func facets() async throws -> Facets {
         try await get("/api/facets", as: Facets.self)

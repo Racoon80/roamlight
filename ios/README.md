@@ -74,6 +74,7 @@ even though nothing is wrong with the Swift. Fix it with `xcodebuild
 | `API.facets` | `GET /api/facets` |
 | Images | `/photos/{id}/{400\|1200\|2000\|2800}.webp` |
 | `API.share` | `POST /api/albums/share` |
+| `API.contribute` | `POST /y/{year}/{country}/{event}/contribute` (multipart, field `file`) |
 | Uploading | `/api/upload/batch` → `…/file` → `…/chunk` → `…/done` → `…/commit` |
 
 ⚠ The fields in `Models.swift` are named as they are on the server. Rename one

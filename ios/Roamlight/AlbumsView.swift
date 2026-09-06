@@ -1,5 +1,6 @@
 //  The albums, and the photographs in them.
 
+import PhotosUI
 import SwiftUI
 
 struct AlbumsView: View {
@@ -62,14 +63,28 @@ struct AlbumCard: View {
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 4))
 
+            // ⚠ TWO lines, always -- also when the title needs only one.
+            //   Without `reservesSpace` a short title makes the card shorter,
+            //   the line underneath climbs up, and the row goes ragged: the
+            //   counts in one row then sit at three different heights.
             Text(album.title)
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(Theme.ink)
-                .lineLimit(2)
+                .lineLimit(2, reservesSpace: true)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            // ⚠ `\(album.n)` inside a Text is a LocalizedStringKey, and that
+            //   formats a number for the reader's language -- 1025 comes out as
+            //   "1.025" here. Fine for a count, but it must not be mistaken for
+            //   a decimal, so the word follows right after it.
             Text("\(album.year) · \(album.n) photograph\(album.n == 1 ? "" : "s")")
                 .font(.caption2.monospaced())
                 .foregroundStyle(Theme.inkMute)
+                .lineLimit(1)
         }
+        // The card fills its cell from the top, so a row of cards lines up
+        // whatever the titles do.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -88,6 +103,13 @@ struct PhotosView: View {
     @State private var sharing = false
     @State private var link: ShareResult?
     @State private var failed: String?
+
+    // Adding photographs to THIS album. ⚠ Open to everyone who may look at it,
+    // not only to a contributor -- that is what the web page does, and it is
+    // the whole point of "add a few of mine to the family album".
+    @State private var adding: [PhotosPickerItem] = []
+    @State private var sending = false
+    @State private var sent: String?
 
     private let cols = [GridItem(.adaptive(minimum: 110), spacing: 3)]
 
@@ -112,6 +134,16 @@ struct PhotosView: View {
                 }
             }
             .padding(3)
+            if sending {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Sending \(adding.count) photograph\(adding.count == 1 ? "" : "s")…")
+                        .font(.footnote).foregroundStyle(Theme.inkSoft)
+                }.padding()
+            }
+            if let sent {
+                Text(sent).font(.footnote).foregroundStyle(Theme.inkSoft).padding(.horizontal)
+            }
             if loading { ProgressView().tint(Theme.safelight).padding() }
             if let failed { Text(failed).foregroundStyle(.red).padding() }
         }
@@ -132,6 +164,25 @@ struct PhotosView: View {
                     .disabled(sharing)
                 }
             }
+            // ⚠ No rights check here beyond being signed in: the server decides
+            //   (404 if you may not see this album), and every account holder
+            //   may add to an album they can see. Hiding it behind `may.upload`
+            //   would take it away from exactly the people it is meant for.
+            if album != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PhotosPicker(selection: $adding, matching: .images,
+                                 photoLibrary: .shared()) {
+                        if sending { ProgressView() } else {
+                            Image(systemName: "plus.circle")
+                        }
+                    }
+                    .disabled(sending)
+                }
+            }
+        }
+        .onChange(of: adding) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await send(items) }
         }
         .sheet(item: $link) { l in ShareSheetView(link: l) }
         .task { if photos.isEmpty { await load(page: 1) } }
@@ -147,6 +198,37 @@ struct PhotosView: View {
             failed = nil
         } catch {
             failed = error.localizedDescription
+        }
+    }
+
+    /// Send the picked photographs into THIS album, one after another.
+    ///
+    /// ⚠ One at a time and not in one batch: the server checks and converts
+    ///   each file, and a batch would only report at the very end which of them
+    ///   it refused. This way a failure names the file.
+    private func send(_ items: [PhotosPickerItem]) async {
+        guard let album else { return }
+        sending = true
+        sent = nil
+        failed = nil
+        defer { sending = false; adding = [] }
+
+        var done = 0
+        for (i, item) in items.enumerated() {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else { continue }
+                let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+                try await state.api.contribute(album: album,
+                                               name: "IMG_\(i + 1).\(ext)", data: data)
+                done += 1
+            } catch {
+                failed = error.localizedDescription
+                break
+            }
+        }
+        if done > 0 {
+            sent = "\(done) photograph\(done == 1 ? "" : "s") added. The site is converting."
+            await load(page: 1)
         }
     }
 

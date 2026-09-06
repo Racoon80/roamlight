@@ -43,7 +43,9 @@ sys.path.insert(0, _env.app_root())
 
 
 BASE = "http://127.0.0.1:8080"
-SECRET = Path("/etc/family/proxy-secret").read_text().strip()
+# ⚠ Kee feste Wee méi: _env.headers() weess, wéi ee sech op DËSER
+#   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
+_ADMIN_H = _env.headers("siteadmin")
 DB = _env.need("FAMILY_DB")
 
 ok = bad = 0
@@ -58,8 +60,7 @@ def chk(name, cond, extra=""):
 
 
 def as_(user, groups=VIEWER_GROUP):
-    return {"X-Family-Proxy": SECRET, "X-authentik-username": user,
-            "X-authentik-groups": groups}
+    return dict(_env.headers(user, groups))
 
 
 def req(path, hdr, method="GET", data=None):

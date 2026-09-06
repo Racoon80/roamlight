@@ -40,9 +40,10 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 BASE = "http://127.0.0.1:8080"
-SECRET = Path("/etc/family/proxy-secret").read_text().strip()
-ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
-         "X-authentik-groups": ADMIN_GROUP}
+# ⚠ Kee feste Wee méi: _env.headers() weess, wéi ee sech op DËSER
+#   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
+_ADMIN_H = _env.headers("siteadmin")
+ADMIN = dict(_env.headers("siteadmin"))
 ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
 WEB = Path(_env.need("FAMILY_WEB"))
 DB = _env.need("FAMILY_DB")
@@ -321,11 +322,11 @@ def main():
     # ⚠ An account holder reaches the workshop but sees ONLY their own albums
     # (none here) -- and cannot rename somebody ELSE's album (the next check).
     st, _, _ = req("/admin/albums", hdr={
-        "X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
+        **_env.headers("zz-test-viewer", VIEWER_GROUP),
         "X-authentik-groups": VIEWER_GROUP})
     chk("an account holder reaches the workshop (sees their own)", st == 200, st)
     st, _, _ = req("/api/albums/edit", hdr={
-        "X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
+        **_env.headers("zz-test-viewer", VIEWER_GROUP),
         "X-authentik-groups": VIEWER_GROUP}, method="POST", data={
         "year": "1998", "country": TEST_COUNTRY, "event": "Geriicht",
         "new_event": "Geklaut"})

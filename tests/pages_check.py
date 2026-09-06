@@ -39,14 +39,8 @@ def chk(name, cond, extra=""):
 
 
 def _admin_headers():
-    """However this instance lets an administrator in."""
-    from app import config
-    if config.AUTH_PROXY:
-        secret = Path(config.PROXY_SECRET_FILE).read_text().strip()
-        group = sorted(config.ADMIN_GROUPS)[0]
-        return {"X-Family-Proxy": secret, "X-authentik-username": "pages-check",
-                "X-authentik-groups": group}
-    return {}
+    """However this instance lets an administrator in -- see tests/_env.py."""
+    return _env.headers("pages-check")
 
 
 def main():

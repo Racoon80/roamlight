@@ -70,3 +70,67 @@ def app_root():
     """
     import os
     return os.environ.get("FAMILY_BASE") or _from_file("FAMILY_BASE") or "/opt/family/app"
+
+
+def python():
+    """The interpreter the site itself uses -- it has pyvips and Pillow."""
+    import os
+    import shutil
+    for c in ("/opt/family/venv/bin/python", "/opt/roamlight/venv/bin/python3"):
+        if os.access(c, os.X_OK):
+            return c
+    return shutil.which("python3") or "python3"
+
+
+_TOKENS = {}
+
+
+def headers(user=None, groups=None):
+    """Headers that make a request THIS person -- on ANY instance.
+
+    ⚠ There are two ways in, and a test must not care which one an installation
+      uses. Behind an identity proxy it is the three headers plus the shared
+      secret. With local accounts there is no secret and no proxy -- but there
+      IS a device token, the road the phone app takes, and it carries exactly
+      the same identity. So a test asks for a person and gets whichever road
+      exists here.
+
+      Before this, every test read /etc/family/proxy-secret and died on any
+      installation without one -- which is every Docker and every plain LXC.
+      That is why the whole suite could only ever run against the live library.
+
+    `user=None` means "nobody": no headers at all. That is a guest.
+    """
+    import sys
+    sys.path.insert(0, app_root())
+    from app import config
+    if config.AUTH_PROXY:
+        secret = open(config.PROXY_SECRET_FILE).read().strip()
+        h = {"X-Family-Proxy": secret}
+        if user:
+            h["X-authentik-username"] = user
+            h["X-authentik-groups"] = groups or sorted(config.ADMIN_GROUPS)[0]
+        return h
+    if not user:
+        return {}
+    if user not in _TOKENS:
+        from app import auth, devices
+        con = connect()
+        row = con.execute("SELECT username FROM members WHERE username=? AND active=1",
+                          (user,)).fetchone()
+        con.close()
+        if row is None:
+            # ⚠ The account is made with the groups the test asked for -- and
+            #   `zz-` names are what the tests clean up afterwards.
+            import secrets as _s
+            try:
+                auth.create_user(user, _s.token_urlsafe(24), display_name=user,
+                                 groups=[groups or sorted(config.ADMIN_GROUPS)[0]])
+            except ValueError:
+                pass
+        code = devices.new_pairing(user)["code"]
+        got = devices.redeem(code, "acceptance test")
+        if not got:
+            sys.exit(f"ABORTED: no way to act as {user!r} on this installation")
+        _TOKENS[user] = got["token"]
+    return {"Authorization": "Bearer " + _TOKENS[user]}

@@ -40,11 +40,11 @@ sys.path.insert(0, _env.app_root())
 
 
 BASE = "http://127.0.0.1:8080"
-SECRET = Path("/etc/family/proxy-secret").read_text().strip()
-ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
-         "X-authentik-groups": ADMIN_GROUP}
-FAMILY = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
-          "X-authentik-groups": VIEWER_GROUP}
+# ⚠ Kee feste Wee méi: _env.headers() weess, wéi ee sech op DËSER
+#   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
+_ADMIN_H = _env.headers("siteadmin")
+ADMIN = dict(_env.headers("siteadmin"))
+FAMILY = dict(_env.headers("zz-test-viewer"))
 DB = _env.need("FAMILY_DB")
 VIR = "zz-test-"
 

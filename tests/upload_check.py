@@ -39,9 +39,10 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 BASE = "http://127.0.0.1:8080"
-SECRET = Path("/etc/family/proxy-secret").read_text().strip()
-HDR = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-admin",
-       "X-authentik-groups": ADMIN_GROUP}
+# ⚠ Kee feste Wee méi: _env.headers() weess, wéi ee sech op DËSER
+#   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
+_ADMIN_H = _env.headers("siteadmin")
+HDR = dict(_env.headers("zz-test-admin"))
 ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
 INCOMING = Path(_env.need("FAMILY_INCOMING"))
 

@@ -34,11 +34,11 @@ ADMIN_GROUP = _group("FAMILY_ADMIN_GROUPS", "admin")
 VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 BASE = "http://127.0.0.1:8080"
-SECRET = Path("/etc/family/proxy-secret").read_text().strip()
-ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
-         "X-authentik-groups": ADMIN_GROUP}
-FAMILY = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
-          "X-authentik-groups": VIEWER_GROUP}
+# ⚠ Kee feste Wee méi: _env.headers() weess, wéi ee sech op DËSER
+#   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
+_ADMIN_H = _env.headers("siteadmin")
+ADMIN = dict(_env.headers("siteadmin"))
+FAMILY = dict(_env.headers("zz-test-viewer"))
 ORIGINS = Path(_env.need("FAMILY_ORIGINS"))
 WEB = Path(_env.need("FAMILY_WEB"))
 YEAR, COUNTRY, EVENT, PLACE = "1999", "Testland", "Testevent", "Testplaz"
@@ -377,7 +377,7 @@ def main():
         str(orig))
 
     # Somebody in a group the site does not know does not get in at all.
-    stranger = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-friem",
+    stranger = {**_env.headers("zz-test-alien", "no-such-group"),
                 "X-authentik-groups": "Iergendeng-Grupp"}
     code, _, _ = req("/", hdr=stranger)
     chk("eng friem Grupp kritt 403", code == 403, code)

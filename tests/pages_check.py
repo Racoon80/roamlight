@@ -45,25 +45,11 @@ def _admin_headers():
 
 
 def main():
-    from app import config, db, gallery, main as app_main
+    from app import gallery, main as app_main
 
     hdr = _admin_headers()
     jar = cj.CookieJar()
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-
-    if not config.AUTH_PROXY:
-        # A local account: sign in with the one this instance keeps for tests.
-        pw_file = Path("/root/roamlight-test-admin.txt")
-        if not pw_file.exists():
-            sys.exit("ABORTED: local sign-in and no /root/roamlight-test-admin.txt")
-        pw = [l.split(": ", 1)[1].strip() for l in pw_file.read_text().splitlines()
-              if l.startswith("password")][0]
-        body = urllib.parse.urlencode({"username": "admin", "password": pw,
-                                       "next": "/"}).encode()
-        r = urllib.request.Request(BASE + "/login", data=body, method="POST")
-        r.add_header("Content-Type", "application/x-www-form-urlencoded")
-        r.add_header("Accept", "text/html")
-        op.open(r, timeout=60).read()
 
     # Real values, so a page is not empty by accident.
     alb = (gallery.albums() or [{}])[0]

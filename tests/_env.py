@@ -1,13 +1,14 @@
-"""Wou d'Fotoen a wou d'Datebank leien -- fir d'Tester.
+"""Where the photographs and the database are -- for the tests.
 
-⚠ HEI GËTT NET GEROD. E Standardwee, deen zoufälleg op eng aner Installatioun
-  passt, ass geféierlech: d'Prüfung, déi verhënnert datt en Test echt Fotoen
-  ureiert, kuckt dann an de falsche Bam a léisst alles duerch. Also: aus der
-  Ëmwelt, soss aus der Datei déi de Service liest, a soss GUER NET LAFEN.
+⚠ NOTHING IS GUESSED HERE. A default path that happens to fit somebody else's
+  installation is dangerous: the check that keeps a test from touching real
+  photographs would then be looking in the wrong tree and let everything
+  through. So: from the environment, else from the file the service reads, and
+  otherwise the test does not run at all.
 
-  Genee dat ass den 06.09.2026 geschitt: de Fallback gouf vun `/mnt/my-photos`
-  op `/srv/originals` gesat, an d'Tester hunn duerno op engem Bam geschafft,
-  deen et net gëtt -- an de Wiechter huet näischt gemierkt.
+  That is exactly what happened once: the fallback was changed from one
+  installation's mount point to a generic one, and afterwards the tests worked
+  on a tree that does not exist -- while the guard noticed nothing.
 """
 import os
 import sys
@@ -28,7 +29,7 @@ def _from_file(var):
 
 
 def need(var):
-    """De Wäert -- oder den Test leeft guer net."""
+    """The value -- or the test does not run at all."""
     v = os.environ.get(var) or _from_file(var)
     if not v:
         sys.exit(f"ABORTED: {var} is not set, and none of {_ENV_FILES} names it.\n"
@@ -38,18 +39,22 @@ def need(var):
 
 
 def connect(path=None):
-    """Eng Verbindung op d'Datebank -- ËMMER mat Fremdschlësselen UN.
+    """A connection to the database -- ALWAYS with foreign keys ON.
 
-    ⚠ `sqlite3.connect()` mécht se AUS. E Test dee mat esou enger Verbindung
-      Fotoen läscht, léisst d'Zeilen an `album_photos`, `upload_files` an
-      `share_hits` hänken -- an dann gëtt aus enger ganz normaler Aktioun um
-      Site e 500 (`FOREIGN KEY constraint failed`). Genee dat ass der lieweger
-      Datebank de 06.09.2026 passéiert: néng verwaist Zeilen, an d'Läsche vun
-      enger Sammlung ass ofgeflunn.
+    ⚠ `sqlite3.connect()` turns them OFF. A test that deletes photographs over
+      such a connection leaves the rows in `album_photos`, `upload_files` and
+      `share_hits` dangling -- and then a perfectly ordinary action on the site
+      dies with a 500 (`FOREIGN KEY constraint failed`). That is what happened
+      to the live database: ten orphaned rows, and deleting a collection blew
+      up. The guard meant to protect the data was damaging it.
+
+    ⚠ NOTHING ELSE is changed here -- above all no `row_factory`. A test that
+      compares `rows == [("Porto",)]` suddenly gets objects instead of tuples
+      with `sqlite3.Row` and goes red while nothing is wrong with the site.
+      Whoever wants `Row` sets it themselves, as before.
     """
     import sqlite3
     con = sqlite3.connect(path or need("FAMILY_DB"), timeout=30)
-    con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys=ON")
     con.execute("PRAGMA busy_timeout=30000")
     return con

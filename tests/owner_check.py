@@ -153,7 +153,7 @@ def main():
     rows = q("SELECT * FROM photos WHERE owner='zz-cleo'")
     chk("the photograph belongs to the member", len(rows) == 1 and rows[0]["owner"] == "zz-cleo")
     mine_id = rows[0]["id"]
-    chk("⚠ origin_root ass 'user' (kee NAS-Original)", rows[0]["origin_root"] == "user")
+    chk("⚠ origin_root is 'user' (no original in the originals tree)", rows[0]["origin_root"] == "user")
     chk("it was converted", rows[0]["state"] == "ok" and rows[0]["web_name"])
     chk("⚠ NO original in the originals tree",
         not list(Path(config.ORIGIN_DIR).glob(f"{YEAR}/**/*.jpg")),

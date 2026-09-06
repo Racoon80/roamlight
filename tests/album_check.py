@@ -199,10 +199,13 @@ def main():
     # -- 2. Scannen --------------------------------------------------------
     st, body, _ = req("/api/scan", hdr=ADMIN, method="POST", data={})
     res = json.loads(body) if st == 200 else {}
-    chk("Scan leeft", st == 200, f"{st} {body[:120]}")
-    chk("the scan takes both in", res.get("new", 0) >= 2, res)
+    # ⚠ /api/scan runs as a JOB and answers {"job": N, "started": true} --
+    #   it does NOT report how much it found. Waiting for the photographs is
+    #   the only honest check.
+    chk("the scan was started", st == 200 and res.get("started") is True,
+        f"{st} {body[:120]}")
     n = wait_converted(2)
-    chk("both converted", n == 2, n)
+    chk("the scan takes both in, and both are converted", n == 2, n)
 
     con = _env.connect(DB); con.row_factory = sqlite3.Row
     rows = con.execute("SELECT * FROM photos WHERE origin_path LIKE ?",
@@ -210,14 +213,14 @@ def main():
     con.close()
     chk("Album-Joer aus dem Wee", all(r["album_year"] == TEST_YEAR for r in rows),
         [r["album_year"] for r in rows])
-    chk("Album-Numm aus dem Wee", all(r["event"] == "Copied straight in" for r in rows),
+    chk("the album name comes out of the path", all(r["event"] == "Copied straight in" for r in rows),
         [r["event"] for r in rows])
-    chk("Land aus dem Wee", all(r["country"] == TEST_COUNTRY for r in rows),
+    chk("the country comes out of the path", all(r["country"] == TEST_COUNTRY for r in rows),
         [r["country"] for r in rows])
 
     st, body, _ = req("/admin/albums", hdr=ADMIN)
     chk("the album is in the workshop",
-        st == 200 and b"Direkt kop" in body, st)
+        st == 200 and b"Copied straight in" in body, st)
 
     # -- 3. Change all four fields at once ---------------------------------
     #    The name WITH the year after it: that has to come off.
@@ -240,7 +243,7 @@ def main():
     chk("the old folder is gone (originals)", not raw_.exists())
     chk("the old folder is gone (library)",
         not (WEB / TEST_YEAR / TEST_COUNTRY / "Copied straight in").exists())
-    chk("⚠ keng Foto verluer", len(list(new_o.glob("*.jpg"))) == 2)
+    chk("⚠ no photograph was lost", len(list(new_o.glob("*.jpg"))) == 2)
 
     # -- 5. D'Datebank ------------------------------------------------------
     con = _env.connect(DB); con.row_factory = sqlite3.Row
@@ -298,7 +301,8 @@ def main():
     con = _env.connect(DB)
     pl = con.execute("SELECT DISTINCT place FROM photos WHERE origin_path LIKE '1998/%'").fetchall()
     con.close()
-    chk("nei Uertschaft an der Datebank", pl == [("Aner Plaz",)], pl)
+    chk("the new place is in the database",
+        [tuple(r) for r in pl] == [("Aner Plaz",)], pl)
 
     # -- 8. What is not allowed --------------------------------------------
     for field, value_ in (("new_year", "abcd"), ("new_year", "99"),

@@ -177,7 +177,7 @@ def main():
     # -- 2. Without the password nothing comes out ---------------------------
     code, body = req(f"/s/{tok}", GAAST)
     chk("the page asks for a password", code == 200 and b"password" in body.lower(), code)
-    chk("⚠ a weist keng Foto", b"/img/" not in body)
+    chk("⚠ and it shows no photograph", b"/img/" not in body)
     code, _ = req(f"/s/{tok}/img/{ids[0]}/400.webp", GAAST)
     chk("⚠ an image without the password is a 404", code == 404, code)
     code, _ = req(f"/s/{tok}/img/{ids[0]}/master.jpg", GAAST)
@@ -320,20 +320,24 @@ def main():
     # Ouni Passwuert kee Upload
     raw, ct = multipart({"guest": "X"}, ("a.jpg", bild.read_bytes(), "image/jpeg"))
     code, _ = req(f"/s/{d4['token']}/upload", GAAST, "POST", body=raw, ctype=ct)
-    chk("⚠ ouni Passwuert kee Upload", code == 404, code)
+    chk("⚠ no upload without the password", code == 404, code)
 
     # Throw it out -- and the file is gone
     gid_ = q("SELECT id FROM share_uploads WHERE state='guest'")
-    code, _ = req("/api/shares", ADMIN, "POST", {
-        "action": "reject", "ids": [g["id"] for g in gid_]})
-    chk("the admin can throw it out", code == 200, code)
+    # ⚠ `g<id>`, not a bare number: a guest upload and a member upload can
+    #   carry the same id, so the reference says which list it comes from.
+    code, res_ = req("/api/shares", ADMIN, "POST", {
+        "action": "reject", "ids": [f"g{g['id']}" for g in gid_]})
+    chk("the admin can throw it out",
+        code == 200 and res_ and json.loads(res_).get("rejected") == len(gid_),
+        f"{code} {res_[:80] if res_ else res_}")
     chk("and the file is gone", not (quar / stored).exists())
 
     bild.unlink(missing_ok=True)
     _wipe()
     danach = q("SELECT COUNT(*) n FROM photos")[0]["n"]
     # Only downwards is an error -- photographs arrive while people work.
-    chk("keng Foto verluer", danach >= photos_before,
+    chk("no photograph was lost", danach >= photos_before,
         f"{photos_before} -> {danach}")
     print(f"\n  {ok} ok, {bad} failed")
     return 1 if bad else 0

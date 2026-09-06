@@ -291,18 +291,37 @@ def waiting() -> list:
     return out
 
 
+def _split(refs):
+    """`g<id>` -> Gaascht, `a<id>` -> Member. Alles anescht ass e Feeler.
+
+    ⚠ Fréier gouf alles, wat net mat `g` oder `a` ufänkt, einfach ignoréiert:
+      wien nach déi al Form (eng plakeg Zuel) geschéckt huet, krut e 200 an
+      d'Gefill, et wier ugeholl -- an et ass NÄISCHT geschitt. Eng Datei, déi
+      an der Quarantän bleift, well een op de falschen Knäppchen gedréckt huet,
+      ass genee dee Feeler, dee kee mierkt.
+    """
+    g, a = [], []
+    for x in refs or []:
+        s = str(x)
+        if s.startswith("g") and s[1:].isdigit():
+            g.append(int(s[1:]))
+        elif s.startswith("a") and s[1:].isdigit():
+            a.append(int(s[1:]))
+        else:
+            raise ValueError(f"unknown reference {s!r} -- expected g<id> or a<id>")
+    return g, a
+
+
 def accept_any(refs) -> dict:
     """A mixed click: `g<id>` are guest uploads, `a<id>` member uploads."""
-    g = [int(x[1:]) for x in refs if str(x).startswith("g")]
-    a = [int(x[1:]) for x in refs if str(x).startswith("a")]
+    g, a = _split(refs)
     ra, rb = accept(g), accept_member(a)
     return {"accepted": ra["accepted"] + rb["accepted"],
             "failed": ra["failed"] + rb["failed"]}
 
 
 def reject_any(refs) -> dict:
-    g = [int(x[1:]) for x in refs if str(x).startswith("g")]
-    a = [int(x[1:]) for x in refs if str(x).startswith("a")]
+    g, a = _split(refs)
     return {"rejected": reject(g)["rejected"] + reject_member(a)["rejected"]}
 
 

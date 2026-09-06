@@ -144,7 +144,7 @@ def main():
     #   same row twice, and that is the normal case.
     st, d, _ = req("/api/mark", method="POST", data={
         "kind": "person", "name": VIR + "Cleo", "ids": three, "on": True})
-    chk("zweemol setzen ass kee Feeler", st == 200, f"{st} {d}")
+    chk("setting it twice is not an error", st == 200, f"{st} {d}")
     n = q("SELECT COUNT(*) n FROM photo_people pp JOIN people p ON p.id=pp.person_id "
           "WHERE p.name=?", VIR + "Cleo")[0]["n"]
     chk("and there is no duplicate row", n == 3, n)
@@ -177,7 +177,7 @@ def main():
     st, d, _ = req("/api/mark", method="POST", data={
         "kind": "tag", "name": VIR + "Sonn", "ids": [one_], "on": True})
     chk("en Tag setzen", st == 200 and d["photos"] == 1, f"{st} {d}")
-    chk("en Tag ass keng Persoun",
+    chk("a tag is not a person",
         not any(x["name"] == VIR + "Sonn" for x in tagging.all_of("person")))
 
     # -- "Recent" -- what sits on the keys 1-9 -------------------------------

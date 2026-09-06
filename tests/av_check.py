@@ -40,7 +40,7 @@ def main():
     from app import av, config
     print("Ofnahm-Test — Virescan (ClamAV)\n")
     if not config.CLAMAV_ENABLED:
-        print("  --    FAMILY_CLAMAV=0 -- Scan ass ausgeschalt, Test iwwersprongen")
+        print("  --    FAMILY_CLAMAV=0 -- the scanner is off, the test is skipped")
         return 0
 
     chk("the scanner is configured", av.enabled())

@@ -1,0 +1,33 @@
+[Unit]
+Description=Roamlight — sync with the originals tree
+# Nothing runs without the site: the conversion hangs off the main service's worker.
+Requires=family.service
+After=family.service
+
+[Service]
+Type=oneshot
+User=family
+Group=family
+WorkingDirectory=/opt/family/app
+# ⚠ The environment MUST be the same as the main service's, or the sync works
+# on a different database and thinks every photograph is new.
+EnvironmentFile=/etc/family/env
+# `quick` or `deep` -- set by the timer.
+Environment="FAMILY_SYNC_KIND=quick"
+ExecStart=/opt/family/venv/bin/python3 -m app.sync_cli
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# ⚠ The scan and the sync only READ from the originals tree (ismount +
+# marker); what is written goes into data, incoming and the web tree.
+# So the originals are mounted READ-ONLY -- a parser failure here cannot
+# touch them.
+ReadWritePaths=/opt/family/data /opt/family/incoming /mnt/family-website
+ReadOnlyPaths=/mnt/my-photos
+ProtectKernelModules=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=

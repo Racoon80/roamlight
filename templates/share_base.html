@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_title }}{% endblock %}</title>
+<meta name="robots" content="noindex, nofollow, noimageindex, noarchive">
+{# ⚠ The token is in the address. Without this it would travel along in every
+   referer this page triggers. #}
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#1a1815">
+<link rel="icon" href="/static/icons/favicon.ico?v={{ static_ver }}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png?v={{ static_ver }}">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16.png?v={{ static_ver }}">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{ static_ver }}">
+<link rel="stylesheet" href="/static/site.css?v={{ static_ver }}">
+</head>
+<body class="sharebody">
+{# ⚠ No navigation, no album list, no user name, no search.
+   A guest sees the collection -- and that is all. #}
+<main class="wrap share">
+{% block content %}{% endblock %}
+</main>
+<footer class="share__foot">
+  <p class="meta">{{ site_title }} &middot; a private link</p>
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

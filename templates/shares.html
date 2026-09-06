@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Links — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Links</h1>
+  <p class="lede reveal d2">A link shares one <a class="link-u" href="/admin/collections">collection</a>
+     with people who have no account. Every link has an end and a password —
+     neither of those is optional.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  {% if fresh %}
+  {# ⚠ This is shown ONCE. Only the hash is stored. #}
+  <div class="fresh" role="status">
+    <b>Here it is — write it down now.</b>
+    <p class="meta">The site keeps only a hash of the password. This is the one time it is shown.</p>
+    <pre id="freshtext">{% if fresh.url %}{{ fresh.url }}
+Password:  {{ fresh.password }}
+Expires:   {{ fresh.expires_at[:10] }}{% else %}New password: {{ fresh.password }}{% endif %}</pre>
+    <button class="btn btn--go" id="copy" type="button">copy link, password and date</button>
+    <span class="meta" id="copysay"></span>
+  </div>
+  {% endif %}
+
+  <div class="step"><span class="step__n">01</span><h2>A new link</h2>
+    <span class="step__note">download on &middot; upload off unless you tick it</span></div>
+  <form class="newshare" id="newshare">
+    <label><span>Collection</span>
+      <select name="collection_id" required>
+        <option value="">pick one…</option>
+        {% for s in sets %}<option value="{{ s.id }}"{% if not s.n %} disabled{% endif %}>{{ s.title }} ({{ s.n }})</option>{% endfor %}
+      </select></label>
+    <label><span>Lasts</span>
+      <select name="days">
+        <option value="7">7 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="90">90 days</option>
+        <option value="365">a year — the most there is</option>
+      </select></label>
+    {% if is_admin %}
+    <label><span>Opens</span>
+      <select name="max_views">
+        <option value="off">unlimited</option>
+        <option value="1">once</option>
+        <option value="5">5 times</option>
+        <option value="10">10 times</option>
+      </select></label>
+    {% else %}
+    <span class="meta" style="align-self:end">opens once — a member's link is used a single time</span>
+    {% endif %}
+    <label class="tick"><input type="checkbox" name="allow_download" checked><span>downloading allowed</span></label>
+    <label class="tick"><input type="checkbox" name="allow_upload"><span>guests may add photographs</span></label>
+    <label class="tick"><input type="checkbox" name="keep_gps"><span>keep location data in downloads</span></label>
+    <button class="btn btn--go" type="submit">make the link</button>
+    <span class="meta" id="nsay" aria-live="polite"></span>
+  </form>
+
+  <div class="step"><span class="step__n">02</span><h2>The links</h2>
+    <span class="step__note">{{ links|length }}</span></div>
+  <table class="tbl tbl--links">
+    <tr><th>Collection</th><th>Link</th><th>State</th><th>Opened</th><th></th></tr>
+    {% for l in links %}
+    <tr class="lrow is-{{ l.state }}" data-id="{{ l.id }}">
+      <td><b>{{ l.title }}</b><br><span class="meta">{{ l.n }} photograph{{ '' if l.n == 1 else 's' }}
+        {%- if l.allow_download %} &middot; download{% endif %}
+        {%- if l.allow_upload %} &middot; guests may add{% endif %}
+        {%- if l.keep_gps %} &middot; keeps GPS{% endif %}</span></td>
+      <td><code class="lrow__url">{{ l.url }}</code></td>
+      <td>{% if l.state == 'live' %}until {{ l.expires_at[:10] }}
+          {% elif l.state == 'expired' %}<span class="warn">expired {{ l.expires_at[:10] }}</span>
+          {% elif l.state == 'used up' %}<span class="warn">used up</span>
+          {% else %}<span class="warn">turned off</span>{% endif %}
+          {% if l.fail_count %}<br><span class="meta">{{ l.fail_count }} wrong tries</span>{% endif %}</td>
+      <td class="meta">{{ l.opens }}&times;{% if l.max_views %} / {{ l.max_views }}{% else %} / &infin;{% endif %}
+          {% if l.last_open %}<br>{{ l.last_open[:16] }}{% endif %}</td>
+      <td class="lrow__act">
+        {% if is_admin and l.state in ('live', 'used up') %}
+        <label class="meta lrow__views">opens
+          <select data-views>
+            <option value="off"{% if not l.max_views %} selected{% endif %}>&infin;</option>
+            <option value="1"{% if l.max_views == 1 %} selected{% endif %}>1</option>
+            <option value="5"{% if l.max_views == 5 %} selected{% endif %}>5</option>
+            <option value="10"{% if l.max_views == 10 %} selected{% endif %}>10</option>
+          </select></label>
+        {% endif %}
+        {% if l.state in ('live', 'used up') %}
+        <button class="btn" type="button" data-pw>new password</button>
+        <button class="btn" type="button" data-revoke>turn off</button>
+        {% endif %}
+        <span class="meta lrow__say"></span>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="meta">No links yet.</td></tr>
+    {% endfor %}
+  </table>
+  <p class="meta">“Opened” counts how often the link was opened, not by how many people.
+     nginx only ever sees the proxy as its peer, and a client-supplied address
+     would be a guess dressed up as a fact.</p>
+
+  <div class="step"><span class="step__n">03</span><h2>The waiting room</h2>
+    <span class="step__note">{{ quarantine|length }} from guests</span></div>
+  {% if quarantine %}
+  <p class="meta">Photographs from <b>share-link guests</b> wait here — nothing is
+     on the site, and nothing is in the originals tree, until you say so.
+     (People with an account add to albums directly, without this step.)</p>
+  <table class="tbl" id="quar">
+    <tr><th></th><th>From</th><th>For</th><th>Size</th><th>When</th></tr>
+    {% for g in quarantine %}
+    <tr><td><input type="checkbox" value="{{ g.ref }}"></td>
+      <td><b>{{ g.who }}</b><br><span class="meta">{{ g.filename }}</span></td>
+      <td>{{ g.label }}</td>
+      <td class="meta">{{ (g.bytes / 1048576)|round(1) }} MB</td>
+      <td class="meta">{{ g.at[:16] }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="syncbar">
+    <button class="btn btn--go" id="acc" type="button">take these in</button>
+    <button class="btn" id="rej" type="button">throw away</button>
+    <span class="meta" id="qsay" aria-live="polite"></span>
+  </p>
+  {% else %}
+  <p class="meta">Nothing waiting.</p>
+  {% endif %}
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/shares.js?v={{ static_ver }}" defer></script>{% endblock %}

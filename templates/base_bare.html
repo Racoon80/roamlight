@@ -1,0 +1,21 @@
+{# A page with no masthead and no navigation -- for the two pages you see
+   BEFORE you are signed in. Whoever is not in yet should not see
+   Album-Nimm an der Navigatioun gesinn. #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_title }}{% endblock %}</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1a1815">
+<link rel="icon" href="/static/icons/favicon.ico?v={{ static_ver }}" sizes="any">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{ static_ver }}">
+<link rel="stylesheet" href="/static/site.css?v={{ static_ver }}">
+</head>
+<body class="barebody">
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

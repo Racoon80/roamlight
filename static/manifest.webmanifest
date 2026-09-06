@@ -1,0 +1,22 @@
+{
+  "name": "Roamlight — photographs, kept at home",
+  "short_name": "Roamlight",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1815",
+  "theme_color": "#1a1815",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Search", "short_name": "Search", "url": "/search" },
+    { "name": "My albums", "short_name": "Albums", "url": "/my/albums" }
+  ]
+}

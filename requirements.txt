@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+jinja2>=3.1
+python-multipart>=0.0.9
+Pillow>=10.3
+pillow-heif>=0.18
+pyvips>=2.2 ; platform_system == "Linux"
+rawpy>=0.24            # LibRaw-Bindings; brauch LibRaw >= 0.21 fir CR3
+argon2-cffi>=23.1      # Deel-Link-Passwierder (Sektioun 8 vum Plang)
+segno>=1.6             # the QR code for device pairing (pure Python, no dependencies)

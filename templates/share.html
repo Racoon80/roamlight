@@ -1,0 +1,79 @@
+{% extends "share_base.html" %}
+{% block title %}{{ row.title }} — {{ site_title }}{% endblock %}
+{% block content %}
+<header class="share__head">
+  <p class="plate">SHARED WITH YOU</p>
+  <h1>{{ row.title }}</h1>
+  <p class="meta">{{ res.total }} photograph{{ '' if res.total == 1 else 's' }}
+     &middot; this link stops working on {{ row.expires_at[:10] }}</p>
+  {% if row.allow_download %}
+  <div class="share__all">
+    <a class="btn btn--go" href="/s/{{ token }}/all.zip" id="dl-all" download>Download all {{ res.total }}</a>
+    <span class="meta">one zip &middot; 4000-pixel copies{% if not row.keep_gps %} &middot; location removed{% endif %} &middot; may take a moment</span>
+  </div>
+  {% endif %}
+</header>
+
+<div class="plates share__plates">
+  {% for p in res.photos %}
+  <figure class="plate-fig">
+    <div class="plate-fig__frame">
+      <div class="plate-fig__img" style="aspect-ratio:{{ p.width or 3 }}/{{ p.height or 2 }}">
+        {% if p.kind == 'video' %}
+        <video class="share__video" controls playsinline preload="none"
+               poster="/s/{{ token }}/img/{{ p.id }}/1200.webp">
+          <source src="/s/{{ token }}/img/{{ p.id }}/video.mp4" type="video/mp4">
+        </video>
+        {% else %}
+        <picture>
+          <source type="image/avif" sizes="(max-width: 60rem) 50vw, 33vw"
+                  srcset="/s/{{ token }}/img/{{ p.id }}/400.avif 400w, /s/{{ token }}/img/{{ p.id }}/800.avif 800w, /s/{{ token }}/img/{{ p.id }}/1200.avif 1200w, /s/{{ token }}/img/{{ p.id }}/2000.avif 2000w">
+          <source type="image/webp" sizes="(max-width: 60rem) 50vw, 33vw"
+                  srcset="/s/{{ token }}/img/{{ p.id }}/400.webp 400w, /s/{{ token }}/img/{{ p.id }}/800.webp 800w, /s/{{ token }}/img/{{ p.id }}/1200.webp 1200w, /s/{{ token }}/img/{{ p.id }}/2000.webp 2000w">
+          <img src="/s/{{ token }}/img/{{ p.id }}/800.webp" alt=""
+               width="{{ p.width or 1200 }}" height="{{ p.height or 800 }}"
+               loading="lazy" decoding="async">
+        </picture>
+        {% endif %}
+      </div>
+    </div>
+    <figcaption>
+      <span class="plate">PL.&nbsp;{{ '%03d'|format(loop.index) }}</span>
+      <div>
+        {% if p.taken_at %}<p class="shot-date meta">{{ p.taken_at[:10] }}</p>{% endif %}
+        {% if row.allow_download %}
+        <p><a class="meta link-u" href="/s/{{ token }}/img/{{ p.id }}/{{ 'video.mp4' if p.kind == 'video' else 'master.jpg' }}"
+              download>download</a></p>
+        {% endif %}
+      </div>
+    </figcaption>
+  </figure>
+  {% endfor %}
+</div>
+
+{% if row.allow_upload %}
+<section class="share__up">
+  <h2>Add your own</h2>
+  <p class="meta">They go to {{ site_title }}'s waiting room. Nothing appears on the
+     site until the owner has looked at it.</p>
+  <form id="gform" class="share__form">
+    <label for="gname">Your name</label>
+    <input id="gname" name="guest" autocomplete="name" placeholder="so we know who they are from">
+    <label for="gfile" class="btn">choose photographs</label>
+    <input id="gfile" type="file" multiple accept="image/*,video/*" hidden>
+  </form>
+  <div id="gout" class="meta" aria-live="polite"></div>
+</section>
+{% endif %}
+
+{% if row.allow_download %}
+<p class="meta share__note">Downloads give you a 4000-pixel copy.
+   {% if not row.keep_gps %}Location data has been removed.{% endif %}</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if row.allow_upload %}
+<script src="/static/json.js?v={{ static_ver }}" defer></script>
+<script src="/static/share.js?v={{ static_ver }}" defer></script>
+{% endif %}
+{% endblock %}

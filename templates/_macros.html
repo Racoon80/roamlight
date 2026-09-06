@@ -1,0 +1,107 @@
+{% macro plate(p, n) %}
+<figure class="plate-fig">
+  <div class="plate-fig__frame">
+    <div class="plate-fig__img"
+         style="aspect-ratio:{{ p.width or 3 }}/{{ p.height or 2 }}"
+         data-lightbox="{{ p.id }}" data-kind="{{ p.kind or 'photo' }}"
+         role="button" tabindex="0"
+         aria-label="{{ 'Play' if p.kind == 'video' else 'Enlarge plate' }} {{ '%03d'|format(n) }}">
+      {% if p.kind == 'video' %}<span class="snap__play" aria-hidden="true"></span>{% endif %}
+      <picture>
+        {%- set v = "?v=" ~ (p.rev or 0) %}
+        {#- ⚠ Only the widths that really exist for THIS photograph. A
+            `srcset` entry naming 2000w on a photograph that is 1200 wide is a
+            lie: the browser picks it because it looks like the best one. #}
+        {%- set stufen = [400, 800, 1200, 2000] | select("le", p.width or 2000) | list or [400] %}
+        <source type="image/avif" sizes="(max-width: 60rem) 50vw, 33vw"
+                srcset="{% for w in stufen %}/photos/{{ p.id }}/{{ w }}.avif{{ v }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+        <source type="image/webp" sizes="(max-width: 60rem) 50vw, 33vw"
+                srcset="{% for w in stufen %}/photos/{{ p.id }}/{{ w }}.webp{{ v }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+        <img src="/photos/{{ p.id }}/{{ stufen[:2][-1] }}.webp{{ v }}" alt="{{ p.title or p.place or '' }}"
+             width="{{ p.width or 1200 }}" height="{{ p.height or 800 }}"
+             loading="lazy" decoding="async">
+      </picture>
+    </div>
+  </div>
+  <figcaption>
+    <span class="plate">PL.&nbsp;{{ '%03d'|format(n) }}</span>
+    <div>
+      {% if p.taken_at %}<p class="shot-date meta">{{ p.taken_at[:10] }}</p>{% endif %}
+    </div>
+  </figcaption>
+</figure>
+{% endmacro %}
+
+{% macro plates(res) %}
+<div class="plates" id="grid">
+  {% for p in res.photos %}
+  {# Always two side by side: half a row per plate. The pairs are
+     virdru no Orientatioun geuerdent (gallery.pair_by_orientation), sou datt
+     two neighbouring plates the same height, so no holes appear. #}
+  <div class="plate-item" style="--cols:6">
+    {{ plate(p, loop.index + (res.page - 1) * res.page_size) }}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{# --- Collage: scattered like prints spilled on a table --------------------
+   Every photograph is a white-framed card, slightly turned and overlapping. On
+   hover one straightens itself and lifts to the front (see site.css and
+   site.js). D'Reiefolleg bleift streng no Datum (gallery: pair=False), an
+   the layout is measured in the browser by aspect ratio -- data-w/data-h are
+   on the element for that, so nothing shifts while it loads. #}
+{% macro collage(res) %}
+<div class="collage" id="collage" aria-label="Photographs">
+  {% for p in res.photos %}
+  <div class="snap" data-lightbox="{{ p.id }}" data-kind="{{ p.kind or 'photo' }}"
+       data-w="{{ p.width or 3 }}" data-h="{{ p.height or 2 }}"
+       role="button" tabindex="0"
+       aria-label="{{ 'Play' if p.kind == 'video' else 'Enlarge' }} {{ p.title or p.place or 'photograph' }}{% if p.taken_at %}, {{ p.taken_at[:10] }}{% endif %}">
+    {% if p.kind == 'video' %}<span class="snap__play" aria-hidden="true"></span>{% if p.duration_s %}<span class="snap__dur" aria-hidden="true">{{ '%d:%02d'|format(p.duration_s // 60, p.duration_s % 60) }}</span>{% endif %}{% endif %}
+    <picture>
+      {%- set v = "?v=" ~ (p.rev or 0) %}
+      {%- set stufen = [400, 800, 1200, 2000] | select("le", p.width or 2000) | list or [400] %}
+      <source type="image/avif" sizes="(max-width: 40rem) 45vw, 24vw"
+              srcset="{% for w in stufen %}/photos/{{ p.id }}/{{ w }}.avif{{ v }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+      <source type="image/webp" sizes="(max-width: 40rem) 45vw, 24vw"
+              srcset="{% for w in stufen %}/photos/{{ p.id }}/{{ w }}.webp{{ v }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+      {# ⚠ NOT `loading="lazy"` here: the collage gets its size only in the
+         browser (site.js), AFTER the browser has already decided what to
+         fetch. Before that it thinks the page is metres tall and holds back
+         almost everything -- which then only loads on hover. #}
+      <img src="/photos/{{ p.id }}/{{ stufen[:2][-1] }}.webp{{ v }}"
+           alt="{{ p.title or p.place or '' }}"
+           width="{{ p.width or 1200 }}" height="{{ p.height or 800 }}"
+           decoding="async">
+    </picture>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro pager(res, base) %}
+{% if res.pages > 1 %}
+<nav class="pager meta" aria-label="Pages"
+     style="display:flex;gap:.3rem;justify-content:center;margin-top:clamp(2rem,6vh,4rem)">
+  {% if res.page > 1 %}<a class="link-u" href="{{ base }}page={{ res.page - 1 }}">&larr; Back</a>{% endif %}
+  {% for n in range(1, res.pages + 1) %}
+    {% if n == res.page %}<span aria-current="page" style="color:var(--safelight)">{{ n }}</span>
+    {% elif n <= 2 or n > res.pages - 2 or (n - res.page)|abs <= 2 %}
+      <a class="link-u" href="{{ base }}page={{ n }}">{{ n }}</a>
+    {% elif (n - res.page)|abs == 3 %}<span>…</span>{% endif %}
+  {% endfor %}
+  {% if res.page < res.pages %}<a class="link-u" href="{{ base }}page={{ res.page + 1 }}">Next &rarr;</a>{% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# Back. At the top of EVERY admin page, and at the bottom of the long ones --
+   whoever has scrolled through 60 photographs should not have to go up again
+   to get out. A real link, not `history.back()`: that would not know where to
+   go if the page was opened directly or something was just saved. #}
+{% macro back(href, label) %}
+<nav class="backnav" aria-label="Back">
+  <a class="backnav__a" href="{{ href }}"><span class="backnav__ar" aria-hidden="true">&larr;</span>{{ label }}</a>
+</nav>
+{% endmacro %}

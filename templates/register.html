@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ heading }} — photographs{% endblock %}
+{% block content %}
+{{ m.back("/admin/albums", "Albums") }}
+<header class="wrap dest-head">
+  <span class="plate">PHOTOGRAPHS &mdash; {{ res.total }} plate{{ '' if res.total == 1 else 's' }}</span>
+  <h1 class="reveal d1">{{ heading }}</h1>
+  <div class="dest-head__sub reveal d2">
+    <span class="meta">{{ country }}</span>
+    <a class="meta link-u" href="/y/{{ year }}/{{ country|urlencode }}/{{ event|urlencode }}">see it as the family does &rarr;</a>
+  </div>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  <div class="reg-filter meta">
+    {% for key, label in (('all','Everything'), ('site','On the site'), ('hidden','Hidden')) %}
+      <a href="?show={{ key }}" {% if show == key %}aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  {# ⚠ Multiple selection had been there for a long time, but nobody saw it: the
+     bar was hidden until something was selected, and nowhere did it say that it
+     existed. A feature you cannot find does not exist. #}
+  <p class="meta taghelp reghelp">
+    <b>click</b> one &middot; <b>shift+click</b> a whole range &middot;
+    <b>&#8984;/ctrl+click</b> add one &middot; <b>arrows</b> move &middot;
+    <b>space</b> select &middot; <b>&#8984;+A</b> all on this page &middot;
+    <b>esc</b> none
+  </p>
+
+  <div class="reg-grid" id="reg" role="listbox" aria-multiselectable="true">
+    {% for p in res.photos %}
+    <figure class="reg-item{% if p.hidden %} is-hidden{% endif %}" data-id="{{ p.id }}" tabindex="0">
+      <img src="/photos/{{ p.id }}/400.webp?v={{ p.rev or 0 }}" alt="" loading="lazy" decoding="async">
+      <figcaption class="meta">PL.&nbsp;{{ '%03d'|format(loop.index + (res.page - 1) * res.page_size) }}
+        {% if p.hidden %}<span class="reg-item__flag">hidden</span>{% endif %}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+
+  {% if res.pages > 1 %}
+  <nav class="pager meta" style="display:flex;gap:.4rem;justify-content:center;margin-top:2rem">
+    {% for n in range(1, res.pages + 1) %}
+      {% if n == res.page %}<span style="color:var(--safelight)">{{ n }}</span>
+      {% else %}<a class="link-u" href="{{ base }}page={{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+</section>
+
+<div class="reg-bar" id="reg-bar">
+  <span class="meta" id="reg-count">0 selected</span>
+  <button class="btn" id="reg-all">select all</button>
+  <button class="btn" data-act="rotate_left">&#8630; rotate</button>
+  <button class="btn" data-act="rotate_right">&#8631; rotate</button>
+  <button class="btn" data-act="hide">hide</button>
+  <button class="btn" data-act="show">show</button>
+  <button class="btn" data-act="cover">make cover</button>
+  <button class="btn" data-act="remove" id="reg-remove">remove from site</button>
+  <button class="btn" id="reg-none" style="margin-left:auto">clear</button>
+  <span class="meta" id="reg-out"></span>
+</div>
+{{ m.back("/admin/albums", "Albums") }}
+{% endblock %}
+{% block scripts %}<script src="/static/register.js?v={{ static_ver }}" defer></script>{% endblock %}

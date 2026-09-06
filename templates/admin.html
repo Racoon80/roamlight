@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Admin — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/", "Gallery") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Workbench</h1>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  <div class="cards">
+    <a class="card" href="/admin/albums">
+      <b>Albums</b>
+      <span class="meta">scan the NAS &middot; fix year, country, name, place</span>
+    </a>
+    <a class="card" href="/admin/tag">
+      <b>Tagging</b>
+      <span class="meta">who is on these &middot; tags &middot; built for speed</span>
+    </a>
+    <a class="card" href="/admin/collections">
+      <b>Collections</b>
+      <span class="meta">saved selections &middot; what gets shared</span>
+    </a>
+    <a class="card" href="/admin/shares">
+      <b>Links</b>
+      <span class="meta">share a collection &middot; the waiting room</span>
+    </a>
+    <a class="card" href="/admin/settings">
+      <b>Settings</b>
+      <span class="meta">sign-in &middot; members &middot; who sees which album</span>
+    </a>
+    <a class="card" href="/admin/sync">
+      <b>Sync</b>
+      <span class="meta">mirror the originals &middot; the bin &middot; what the runs found</span>
+    </a>
+    <a class="card" href="/admin/upload">
+      <b>Upload</b>
+      <span class="meta">year · country · name · place, then the photographs</span>
+    </a>
+    <a class="card" href="/">
+      <b>Gallery</b>
+      <span class="meta">what the family sees</span>
+    </a>
+  </div>
+
+  <div class="step">
+    <span class="step__n">&middot;</span><h2>Photographs, album by album</h2>
+    <span class="step__note">rotate · hide · remove from site</span>
+  </div>
+  <div class="cards">
+    {% for a in albums %}
+    <a class="card" href="/admin/album/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}">
+      <b>{{ a.title }}</b>
+      <span class="meta">{{ a.country }} &middot; {{ a.n }} plate{{ '' if a.n == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="step">
+    <span class="step__n">&middot;</span><h2>State</h2>
+    <span class="step__note">{{ 'all good' if health.ok else 'needs a look' }}</span>
+  </div>
+
+  {# ⚠ No table any more. A number that matters should be visible at a
+     glance, and nobody reads a row with forty characters in one cell. What is
+     wrong turns red -- and that is the whole point of this page. #}
+  <div class="tiles">
+    <div class="tile">
+      <span class="tile__n">{{ health.counts.on_site }}</span>
+      <span class="tile__lab">on the site</span>
+    </div>
+    <div class="tile">
+      <span class="tile__n">{{ health.counts.photos }}</span>
+      <span class="tile__lab">known</span>
+    </div>
+    <div class="tile{{ ' is-bad' if health.counts.missing }}">
+      <span class="tile__n">{{ health.counts.missing }}</span>
+      <span class="tile__lab">missing</span>
+    </div>
+    <div class="tile{{ ' is-bad' if health.counts.infected }}">
+      <span class="tile__n">{{ health.counts.infected }}</span>
+      <span class="tile__lab">virus flagged</span>
+      {% if health.counts.infected %}<span class="tile__sub">not on the site</span>{% endif %}
+    </div>
+    <div class="tile{{ ' is-work' if health.counts.jobs_pending }}">
+      <span class="tile__n">{{ health.counts.jobs_pending }}</span>
+      <span class="tile__lab">in the queue</span>
+      {% if health.counts.jobs_pending %}
+      <span class="tile__sub">{{ health.worker.threads or 1 }} at a time</span>{% endif %}
+    </div>
+    <div class="tile{{ ' is-bad' if health.counts.jobs_error }}">
+      <span class="tile__n">{{ health.counts.jobs_error }}</span>
+      <span class="tile__lab">failed</span>
+    </div>
+    <div class="tile{{ ' is-bad' if not health.worker.running }}">
+      <span class="tile__n">{{ health.worker.done }}</span>
+      <span class="tile__lab">jobs done</span>
+      <span class="tile__sub">{{ 'worker running' if health.worker.running else 'WORKER STOPPED' }}</span>
+    </div>
+
+    <div class="tile tile--wide{{ ' is-bad' if not health.origins.ok }}">
+      <span class="tile__lab">Originals &middot; the originals tree</span>
+      <span class="tile__n tile__n--sm">{{ 'mounted' if health.origins.ok else 'NOT MOUNTED' }}</span>
+      <span class="tile__sub mono">{{ health.origins.free_gb or '?' }} GB free</span>
+    </div>
+    <div class="tile tile--wide{{ ' is-bad' if not health.web.ok }}">
+      <span class="tile__lab">Masters &middot; the library</span>
+      <span class="tile__n tile__n--sm">{{ 'mounted' if health.web.ok else 'NOT MOUNTED' }}</span>
+      <span class="tile__sub mono">{{ health.web.free_gb or '?' }} GB free</span>
+    </div>
+    <div class="tile tile--wide">
+      <span class="tile__lab">Share links</span>
+      <span class="tile__n tile__n--sm">{{ 'on' if health.shares_enabled else 'off' }}</span>
+      <span class="tile__sub">every link has an end and a password</span>
+    </div>
+  </div>
+
+  {% if health.worker.last_error %}
+  <p class="warn"><b>Last error in the worker</b><br>
+    <span class="mono">{{ health.worker.last_error }}</span></p>
+  {% endif %}
+
+  <div class="step">
+    <span class="step__n">&middot;</span><h2>Pick up what was copied by hand</h2>
+    <span class="step__note">reads only</span>
+  </div>
+  <p class="meta" style="text-transform:none;letter-spacing:.04em;max-width:44rem">
+    Photographs copied straight onto the NAS are not noticed on their own —
+    that watch comes with stage 8. This walks the tree, takes in what is not
+    known yet and converts it. It creates nothing, moves nothing, deletes nothing.
+  </p>
+  <p style="margin-top:1rem">
+    <button class="btn" id="scan">Scan now</button>
+    <span class="meta" id="scan-out" style="margin-left:1rem"></span>
+  </p>
+</section>
+{{ m.back("/", "Gallery") }}
+{% endblock %}
+{% block scripts %}<script src="/static/admin.js?v={{ static_ver }}" defer></script>{% endblock %}

@@ -1,0 +1,23 @@
+# Gebaut, net geschriwwen
+__pycache__/
+*.pyc
+.venv/
+fam.tgz
+
+# Data that lives on the server -- never in the repository
+data/
+incoming/
+
+# Lokal Maschinn
+.DS_Store
+.env
+.claude/settings.local.json
+
+# Xcode
+ios/build/
+ios/**/xcuserdata/
+ios/**/*.xcuserdatad
+DerivedData/
+
+# gebaute Archiven an .ipa
+build/

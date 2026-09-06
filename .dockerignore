@@ -1,0 +1,11 @@
+.git
+ios
+Animation
+*.md
+!requirements.txt
+Logo_Favicon*.png
+fam.tgz
+tools/deploy.py
+deploy/family.env
+tests
+**/__pycache__

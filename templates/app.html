@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Devices — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/", "Home") }}
+
+<header class="wrap dest-head">
+  <span class="plate">{{ user }}</span>
+  <h1 class="reveal d1">Your devices</h1>
+  <p class="lede reveal d2">A phone or a tablet signs in <em>once</em>, by scanning a code
+     on this screen. After that it stays signed in — until you take it off this list.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  <div class="step"><span class="step__n">01</span><h2>Connect a device</h2>
+    <span class="step__note">the code is good for five minutes, and for one device</span></div>
+
+  <div class="dev__pair">
+    <button class="btn btn--go" type="button" id="pair">Show the code</button>
+    <span class="meta" id="pairsay"></span>
+    {# The QR box stays empty until the button is pressed -- a code that sits on
+       the screen by itself is a code somebody photographs in passing. #}
+    <div class="dev__qr" id="qr" hidden>
+      <div class="dev__qrimg" id="qrimg"></div>
+      <p class="meta">Open the app, tap <b>scan</b>, and hold it at this square.
+         If the camera will not read it, type this instead:</p>
+      <p class="dev__code" id="code"></p>
+      <p class="meta" id="left"></p>
+    </div>
+  </div>
+
+  <div class="step"><span class="step__n">02</span><h2>Connected</h2>
+    <span class="step__note" id="devnote">—</span></div>
+
+  <div class="dev__list" id="list">
+    <p class="meta">…</p>
+  </div>
+
+  <p class="meta" style="margin-top:1.5rem">
+    A device sees exactly what you see on this site — no more. Take one off the
+    list and it is locked out at once, even if the phone is gone.</p>
+
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/app.js?v={{ static_ver }}" defer></script>{% endblock %}

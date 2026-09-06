@@ -1,0 +1,524 @@
+"""SQLite in WAL mode, with migrations and the job queue.
+
+The schema carries `origin_root` from the start even though there is only one
+value today -- when a second library is added one day, that is a migration of
+one row and not a rewrite.
+"""
+import sqlite3
+import threading
+from contextlib import contextmanager
+
+from . import config
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS folders (
+    id          INTEGER PRIMARY KEY,
+    tree        TEXT NOT NULL,                    -- origin | web
+    path        TEXT NOT NULL,                    -- relativ zur Wuerzel vum Bam
+    kind        TEXT NOT NULL,                    -- year | country | event
+    year        INTEGER,
+    country     TEXT,
+    event       TEXT,
+    UNIQUE (tree, path)
+);
+
+CREATE TABLE IF NOT EXISTS photos (
+    id                  INTEGER PRIMARY KEY,
+    web_folder_id       INTEGER REFERENCES folders(id),
+    web_name            TEXT,
+    origin_root         TEXT NOT NULL DEFAULT 'my_photos',   -- my_photos | photos | user
+    -- ⚠ Who uploaded the photograph. NULL = an administrator, or the library
+    -- itself. A contributor's photograph (origin_root='user') has NO original
+    -- in the library -- the upload was thrown away after the conversion and it
+    -- lives only as the master. The owner may delete, turn and share their own
+    -- photographs; nobody else (except an administrator) may.
+    owner               TEXT,
+    origin_path         TEXT NOT NULL,
+    origin_sha256       TEXT,
+    origin_bytes        INTEGER,
+    origin_mtime        REAL,
+    origin_kind         TEXT,
+    master_source_path  TEXT,
+    master_source_sha256 TEXT,
+    master_built_at     TEXT,
+    country             TEXT,
+    place               TEXT,
+    taken_at            TEXT,
+    taken_source        TEXT,                     -- exif | file | manual
+    width               INTEGER,
+    height              INTEGER,
+    camera              TEXT,
+    lens                TEXT,
+    iso                 INTEGER,
+    aperture            TEXT,
+    shutter             TEXT,
+    gps_lat             REAL,
+    gps_lon             REAL,
+    kind                TEXT NOT NULL DEFAULT 'photo',       -- photo | video
+    duration_s          REAL,
+    rating              INTEGER NOT NULL DEFAULT 0,
+    hidden              INTEGER NOT NULL DEFAULT 0,
+    rev                 INTEGER NOT NULL DEFAULT 0,   -- raised when it is turned
+    -- ⚠ The album year and the album name are FIELDS OF THEIR OWN, not derived.
+    -- They used to come from `substr(taken_at,1,4)` and from cutting up
+    -- `origin_path`. That made them impossible to change: a photograph taken on
+    -- 31 December sat in the wrong album, and renaming a folder went unnoticed
+    -- by the site entirely. They are set from the path when the row is created
+    -- and kept in step when it is edited (album.edit).
+    album_year          TEXT,
+    event               TEXT,
+    title               TEXT,
+    note                TEXT,
+    state               TEXT NOT NULL DEFAULT 'new',
+        -- new | ok | changed | moved | missing | gone | infected
+    missing_since       TEXT,
+    xmp_changed_at      TEXT,
+    last_seen_scan_id   INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (origin_root, origin_path)
+);
+
+CREATE TABLE IF NOT EXISTS variants (
+    id          INTEGER PRIMARY KEY,
+    photo_id    INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    path        TEXT NOT NULL,
+    ext         TEXT,
+    bytes       INTEGER,
+    mtime       REAL,
+    sha256      TEXT,
+    is_master_source INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (photo_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS upload_batches (
+    id           INTEGER PRIMARY KEY,
+    token        TEXT NOT NULL UNIQUE,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    committed_at TEXT,
+    year         TEXT,
+    country      TEXT,
+    event        TEXT,
+    place        TEXT,
+    share_id     INTEGER REFERENCES shares(id)   -- gesat bei Gaascht-Uploads
+);
+
+CREATE TABLE IF NOT EXISTS upload_files (
+    id            INTEGER PRIMARY KEY,
+    batch_id      INTEGER NOT NULL REFERENCES upload_batches(id) ON DELETE CASCADE,
+    original_name TEXT,          -- what the client said. NEVER reaches the file system.
+    ext           TEXT,
+    size          INTEGER,
+    sha256        TEXT,
+    taken_at      TEXT,
+    taken_source  TEXT,
+    camera        TEXT,
+    lens          TEXT,
+    gps_lat       REAL,
+    gps_lon       REAL,
+    kind          TEXT,
+    dup_of        INTEGER REFERENCES photos(id),
+    photo_id      INTEGER REFERENCES photos(id),
+    state         TEXT NOT NULL DEFAULT 'uploading',
+        -- uploading | ready | rejected | stored
+    note          TEXT
+);
+
+CREATE TABLE IF NOT EXISTS removed (
+    origin_root TEXT NOT NULL,
+    origin_path TEXT NOT NULL,
+    sha256      TEXT,
+    at          TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (origin_root, origin_path)
+);
+
+CREATE TABLE IF NOT EXISTS places (
+    place        TEXT NOT NULL,
+    country      TEXT NOT NULL DEFAULT '',
+    lat          REAL,
+    lon          REAL,
+    display_name TEXT,
+    region       TEXT,
+    source       TEXT,
+    looked_up_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (place, country)
+);
+
+CREATE TABLE IF NOT EXISTS members (
+    username          TEXT PRIMARY KEY,
+    display_name      TEXT NOT NULL DEFAULT '',
+    email             TEXT NOT NULL DEFAULT '',
+    active            INTEGER NOT NULL DEFAULT 1,
+    groups_json       TEXT NOT NULL DEFAULT '[]',
+    seen_in_authentik INTEGER NOT NULL DEFAULT 0,
+    last_seen_at      TEXT,
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Who sees an album.
+--
+-- ⚠ The rule: **no row = THE ADMINISTRATOR ONLY**. A photograph has to BE on
+-- a list before anybody sees it. Closed until somebody opens it.
+--
+-- ⚠⚠ This comment once said the opposite ("no row = everybody"), and at that
+-- time it was true. The rule was then turned around. A comment that no longer
+-- matches the code is more dangerous than none at all: sooner or later
+-- somebody fixes the code to match the comment -- and then the whole library
+-- stands open.
+--
+-- `principal` is `user:<name>` or `group:<name>`.
+CREATE TABLE IF NOT EXISTS album_acl (
+    album_key TEXT NOT NULL,              -- <Joer>/<Land>/<Numm>
+    principal TEXT NOT NULL,
+    added_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (album_key, principal)
+);
+CREATE INDEX IF NOT EXISTS idx_acl_key ON album_acl (album_key);
+
+-- Which albums have been gone through.
+--
+-- A folder picked up by a scan is not finished yet: year, name, place and
+-- country come out of the path, and that path does not have to be right. Only
+-- once somebody has saved the row is the album done. Hence this table --
+-- otherwise new albums would slide in among the finished ones and nobody
+-- would see what was still to do.
+CREATE TABLE IF NOT EXISTS album_published (
+    album_key TEXT PRIMARY KEY,           -- <Joer>/<Land>/<Numm>
+    at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The journey: a departure and a means of travel per album. The destination
+-- comes from the album itself (GPS or the looked-up place), so NOT here.
+CREATE TABLE IF NOT EXISTS album_journey (
+    album_key TEXT PRIMARY KEY,           -- <year>/<country>/<name>
+    departure TEXT NOT NULL,              -- the name as typed (e.g. "Rumelange")
+    dep_lat   REAL,
+    dep_lon   REAL,
+    transport TEXT NOT NULL DEFAULT 'car', -- car | bus | train | plane
+    route     TEXT,                       -- JSON [[lat,lon],...] for car/bus, else NULL
+    legs      TEXT                        -- JSON [{name,lat,lon,transport,route}], optional multi-hop
+);
+
+-- ---------------------------------------------------------------------------
+--  Devices (the iPhone and iPad app). See app/devices.py.
+-- ---------------------------------------------------------------------------
+-- A pairing code is what stands in the QR code on the /app page: short-lived
+-- and good for one use. It is what the app trades for its real token.
+CREATE TABLE IF NOT EXISTS app_pairings (
+    code       TEXT PRIMARY KEY,
+    username   TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    used_at    TEXT
+);
+
+-- One connected device. ⚠ Only the HASH of the token is stored; the value
+-- itself is shown exactly once (when it is scanned) and is then gone.
+CREATE TABLE IF NOT EXISTS app_devices (
+    id          INTEGER PRIMARY KEY,
+    ref         TEXT NOT NULL UNIQUE,   -- the public half: what is searched on
+    username    TEXT NOT NULL,
+    name        TEXT NOT NULL DEFAULT '',
+    secret_hash TEXT NOT NULL,          -- sha256 of the secret (see devices.py)
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen   TEXT,
+    last_ip     TEXT,
+    revoked_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user ON app_devices(username);
+
+-- A sign-in with a password. ⚠ As with devices: only the hash of the secret
+-- is stored, and the lookup key sits next to it.
+CREATE TABLE IF NOT EXISTS sessions (
+    ref         TEXT PRIMARY KEY,
+    username    TEXT NOT NULL,
+    secret_hash TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at  TEXT NOT NULL,
+    last_seen   TEXT,
+    agent       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username);
+
+CREATE TABLE IF NOT EXISTS scans (
+    id            INTEGER PRIMARY KEY,
+    kind          TEXT NOT NULL,                  -- quick | deep
+    started_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at   TEXT,
+    n_new         INTEGER NOT NULL DEFAULT 0,
+    n_changed     INTEGER NOT NULL DEFAULT 0,
+    n_moved       INTEGER NOT NULL DEFAULT 0,
+    n_missing     INTEGER NOT NULL DEFAULT 0,
+    halted_reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS albums (
+    id             INTEGER PRIMARY KEY,
+    slug           TEXT NOT NULL UNIQUE,
+    title          TEXT NOT NULL,
+    cover_photo_id INTEGER REFERENCES photos(id),
+    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS album_photos (
+    album_id   INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    photo_id   INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    sort_index INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (album_id, photo_id)
+);
+
+CREATE TABLE IF NOT EXISTS tags (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS photo_tags (
+    photo_id INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    tag_id   INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (photo_id, tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS people (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS photo_people (
+    photo_id  INTEGER NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+    person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+    PRIMARY KEY (photo_id, person_id)
+);
+
+CREATE TABLE IF NOT EXISTS shares (
+    id              INTEGER PRIMARY KEY,
+    album_id        INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    token           TEXT NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,                -- argon2id
+    expires_at      TEXT NOT NULL,                -- Flicht, kee Link ouni Enn
+    allow_download  INTEGER NOT NULL DEFAULT 1,
+    allow_upload    INTEGER NOT NULL DEFAULT 0,
+    keep_gps        INTEGER NOT NULL DEFAULT 0,
+    guest_max_files INTEGER NOT NULL DEFAULT 50,
+    guest_max_bytes INTEGER NOT NULL DEFAULT 2147483648,
+    fail_count      INTEGER NOT NULL DEFAULT 0,
+    locked_until    TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    revoked_at      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS share_hits (
+    id       INTEGER PRIMARY KEY,
+    share_id INTEGER NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
+    at       TEXT NOT NULL DEFAULT (datetime('now')),
+    ip_hash  TEXT,
+    ua       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS share_uploads (
+    id         INTEGER PRIMARY KEY,
+    share_id   INTEGER NOT NULL REFERENCES shares(id) ON DELETE CASCADE,
+    at         TEXT NOT NULL DEFAULT (datetime('now')),
+    guest_name TEXT,
+    filename   TEXT,
+    bytes      INTEGER,
+    sha256     TEXT,
+    state      TEXT NOT NULL DEFAULT 'guest',     -- guest | accepted | rejected
+    photo_id   INTEGER REFERENCES photos(id)
+);
+
+-- A signed-in family member adds a photograph to ONE album. Same rule as for
+-- guest uploads (guests.py): nothing lands on the site by itself, everything
+-- waits for an administrator's click. The difference: the target is ONE
+-- existing album (year/country/name), not a "guests" folder.
+CREATE TABLE IF NOT EXISTS album_uploads (
+    id         INTEGER PRIMARY KEY,
+    at         TEXT NOT NULL DEFAULT (datetime('now')),
+    year       TEXT,
+    country    TEXT,
+    event      TEXT,
+    uploader   TEXT,                              -- member name (metadata, never a file name)
+    filename   TEXT,
+    bytes      INTEGER,
+    sha256     TEXT,
+    state      TEXT NOT NULL DEFAULT 'guest',     -- guest | accepted | rejected
+    photo_id   INTEGER REFERENCES photos(id)
+);
+
+CREATE TABLE IF NOT EXISTS moves (
+    id        INTEGER PRIMARY KEY,
+    batch_id  TEXT NOT NULL,
+    at        TEXT NOT NULL DEFAULT (datetime('now')),
+    src       TEXT NOT NULL,
+    dst       TEXT NOT NULL,
+    sha256    TEXT,
+    undone_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id        INTEGER PRIMARY KEY,
+    kind      TEXT NOT NULL,
+    payload   TEXT,
+    status    TEXT NOT NULL DEFAULT 'pending',    -- pending | running | done | error
+    attempts  INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    run_after TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS state (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_photos_folder  ON photos (web_folder_id);
+CREATE INDEX IF NOT EXISTS idx_photos_taken   ON photos (taken_at);
+CREATE INDEX IF NOT EXISTS idx_photos_state   ON photos (state);
+CREATE INDEX IF NOT EXISTS idx_photos_sha     ON photos (origin_sha256);
+CREATE INDEX IF NOT EXISTS idx_photos_country ON photos (country);
+CREATE INDEX IF NOT EXISTS idx_jobs_pending   ON jobs (status, id);
+CREATE INDEX IF NOT EXISTS idx_variants_photo ON variants (photo_id);
+CREATE INDEX IF NOT EXISTS idx_share_hits     ON share_hits (share_id, at);
+CREATE INDEX IF NOT EXISTS idx_upload_files   ON upload_files (batch_id, state);
+"""
+
+_local = threading.local()
+
+
+def connect() -> sqlite3.Connection:
+    conn = getattr(_local, "conn", None)
+    if conn is None:
+        config.ensure_dirs()
+        conn = sqlite3.connect(config.DB_PATH, timeout=30, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=30000")
+        _local.conn = conn
+    return conn
+
+
+@contextmanager
+def tx():
+    conn = connect()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        yield conn
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    conn.execute("COMMIT")
+
+
+# New columns on existing tables. SQLite has no "ADD COLUMN IF NOT EXISTS",
+# so what is already there is looked up. Only columns that can be ADDED --
+# anything else belongs in a real migration step.
+MIGRATIONS = [
+    ("photos", "rev", "INTEGER NOT NULL DEFAULT 0"),
+    ("photos", "album_year", "TEXT"),
+    ("photos", "event", "TEXT"),
+    ("photos", "owner", "TEXT"),
+    ("albums", "owner", "TEXT"),
+    ("shares", "owner", "TEXT"),
+    # Undo of an album rebuild: the old and new state, as JSON.
+    ("moves", "meta", "TEXT"),
+    # The view limit of a share link: how often it may be opened. NULL =
+    # unlimited. A user's link stands at 1, the admin sets it themselves.
+    ("shares", "max_views", "INTEGER"),
+    # A cover set by hand ("make cover"): that photograph carries
+    # is_cover=1. Otherwise the newest one is used automatically.
+    ("photos", "is_cover", "INTEGER NOT NULL DEFAULT 0"),
+    # The journey: the road route for car/bus (JSON), computed once.
+    ("album_journey", "route", "TEXT"),
+    ("album_journey", "legs", "TEXT"),
+    # Multi-hop on/off. Default 1, so albums that already have stops keep
+    # working unchanged.
+    ("album_journey", "legs_on", "INTEGER NOT NULL DEFAULT 1"),
+    # Local sign-in (for installations without SSO).
+    # `password_hash` is argon2id; `is_local` tells an account of this site
+    # apart from one that came out of a directory.
+    ("members", "password_hash", "TEXT"),
+    ("members", "is_local", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+def _migrate(conn) -> None:
+    for table, column, decl in MIGRATIONS:
+        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    _backfill_album_columns(conn)
+    _seed_published(conn)
+
+
+def _seed_published(conn) -> int:
+    """Anything with a viewing list has already been gone through.
+
+    When the table is introduced: an album where somebody ticked the names is
+    one that was worked on. Anything else would be rude -- it would mean going
+    through every finished album a second time.
+    """
+    if conn.execute("SELECT COUNT(*) FROM album_published").fetchone()[0]:
+        return 0
+    n = conn.execute(
+        "INSERT OR IGNORE INTO album_published (album_key) "
+        "SELECT DISTINCT album_key FROM album_acl").rowcount
+    return n or 0
+
+
+def _backfill_album_columns(conn) -> int:
+    """Fill in `album_year` and `event` from the path where they are empty.
+
+    The path is <year>/<country>/<name>/<file>. Older rows have three parts
+    (<year>/<name>/<file>) -- no country there, and the name is the second
+    part. Done once; after that it is always zero rows.
+    """
+    rows = conn.execute(
+        "SELECT id, origin_path, taken_at FROM photos "
+        "WHERE album_year IS NULL OR event IS NULL").fetchall()
+    n = 0
+    for r in rows:
+        parts = (r["origin_path"] or "").split("/")
+        if len(parts) >= 4:
+            year, event = parts[0], parts[2]
+        elif len(parts) == 3:
+            year, event = parts[0], parts[1]
+        else:
+            year, event = (r["taken_at"] or "")[:4], (parts[-2] if len(parts) >= 2 else "")
+        if not (year or "").isdigit() or len(year or "") != 4:
+            year = (r["taken_at"] or "")[:4] or None
+        conn.execute("UPDATE photos SET album_year=?, event=? WHERE id=?",
+                     (year or None, event or None, r["id"]))
+        n += 1
+    return n
+
+
+def init() -> None:
+    conn = connect()
+    conn.executescript(SCHEMA)
+    _migrate(conn)
+    set_state("schema_version", "6")
+
+
+def get_state(key: str, default=None):
+    row = connect().execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def set_state(key: str, value) -> None:
+    connect().execute(
+        "INSERT INTO state (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, str(value)),
+    )
+
+
+def counts() -> dict:
+    c = connect()
+    def one(sql, *a):
+        return c.execute(sql, a).fetchone()[0]
+    return {
+        "photos": one("SELECT COUNT(*) FROM photos"),
+        "on_site": one("SELECT COUNT(*) FROM photos WHERE state='ok' AND hidden=0"),
+        "missing": one("SELECT COUNT(*) FROM photos WHERE state='missing'"),
+        "infected": one("SELECT COUNT(*) FROM photos WHERE state='infected'"),
+        "jobs_pending": one("SELECT COUNT(*) FROM jobs WHERE status='pending'"),
+        "jobs_error": one("SELECT COUNT(*) FROM jobs WHERE status='error'"),
+    }

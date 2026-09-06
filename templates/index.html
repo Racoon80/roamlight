@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block content %}
+
+<div class="splash" id="splash" role="dialog" aria-label="Welcome" hidden>
+  <div class="splash__scene">
+    <svg class="splash__svg" id="splash-svg" viewBox="0 0 1000 1000" aria-hidden="true">
+      <defs><symbol id="icon-plane" viewBox="0 0 48 48">
+  <path fill="currentColor" d="
+    M45 24
+    L34 19.8
+    L27.5 6
+    L22.8 6
+    L25.2 18
+    L12.5 15.2
+    L8 9.5
+    L4.5 9.5
+    L7 20.2
+    L3 22
+    L3 26
+    L7 27.8
+    L4.5 38.5
+    L8 38.5
+    L12.5 32.8
+    L25.2 30
+    L22.8 42
+    L27.5 42
+    L34 28.2
+    Z"/>
+</symbol>
+<symbol id="icon-car" viewBox="0 0 48 32">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M5 22
+    L5 18
+    Q5 16 7 15.5
+    L12.5 14
+    L17 8
+    Q18 6.5 20 6.5
+    L31 6.5
+    Q33 6.5 34.2 8
+    L38.8 14
+    L43 15.3
+    Q45 16 45 18
+    L45 22
+    Q45 24 43 24
+    L40.2 24
+    A5 5 0 0 0 30.2 24
+    L17.8 24
+    A5 5 0 0 0 7.8 24
+    L7 24
+    Q5 24 5 22
+    Z
+
+    M19.5 9.5
+    L15.9 14
+    L24 14
+    L24 9.5
+    Z
+
+    M27 9.5
+    L27 14
+    L35.5 14
+    L32 9.5
+    Z
+
+    M12.8 21
+    A3 3 0 1 0 12.8 27
+    A3 3 0 1 0 12.8 21
+    Z
+
+    M35.2 21
+    A3 3 0 1 0 35.2 27
+    A3 3 0 1 0 35.2 21
+    Z"/>
+</symbol>
+<symbol id="icon-bus" viewBox="0 0 48 32">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M4 6
+    Q4 4 6 4
+    L40 4
+    Q44 4 44 8
+    L44 23
+    Q44 25 42 25
+    L40 25
+    A4.5 4.5 0 0 0 31 25
+    L16 25
+    A4.5 4.5 0 0 0 7 25
+    L6 25
+    Q4 25 4 23
+    Z
+
+    M8 8
+    L8 15
+    L14 15
+    L14 8
+    Z
+    M17 8
+    L17 15
+    L23 15
+    L23 8
+    Z
+    M26 8
+    L26 15
+    L32 15
+    L32 8
+    Z
+    M35 8
+    L35 15
+    L41 15
+    L41 8
+    Z
+
+    M11.5 22
+    A2.8 2.8 0 1 0 11.5 27.6
+    A2.8 2.8 0 1 0 11.5 22
+    Z
+
+    M35.5 22
+    A2.8 2.8 0 1 0 35.5 27.6
+    A2.8 2.8 0 1 0 35.5 22
+    Z"/>
+</symbol>
+<symbol id="icon-train" viewBox="0 0 48 32">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M4 24
+    L4 12
+    L10 12
+    L10 7
+    L15 7
+    L15 12
+    L29 12
+    L29 8
+    L34 8
+    L34 12
+    L38 12
+    Q41 12 43 15
+    L46 20
+    L46 24
+    L42 24
+    A4 4 0 0 0 34 24
+    L18 24
+    A4 4 0 0 0 10 24
+    Z
+
+    M8 15
+    L8 19
+    L15 19
+    L15 15
+    Z
+
+    M18 15
+    L18 19
+    L26 19
+    L26 15
+    Z
+
+    M32 15
+    L32 19
+    L41 19
+    Q40 16 37.5 15
+    Z
+
+    M14 21
+    A3 3 0 1 0 14 27
+    A3 3 0 1 0 14 21
+    Z
+
+    M38 21
+    A3 3 0 1 0 38 27
+    A3 3 0 1 0 38 21
+    Z"/>
+</symbol>
+<symbol id="family-group" viewBox="0 0 228 88">
+  <g transform="translate(0 88)" fill="currentColor">
+
+    <!-- Adult 1 -->
+    <circle cx="20" cy="-70" r="9"/>
+    <path d="
+      M11 -58
+      Q20 -62 29 -58
+      L32 -31
+      L27 -31
+      L26 -5
+      L22 -5
+      L20 -28
+      L18 -5
+      L14 -5
+      L13 -31
+      L8 -31
+      Z"/>
+
+    <!-- Child 1 -->
+    <circle cx="56" cy="-50" r="7"/>
+    <path d="
+      M49 -40
+      Q56 -44 63 -40
+      L66 -22
+      L62 -21
+      L61 -4
+      L58 -4
+      L56 -19
+      L54 -4
+      L51 -4
+      L50 -21
+      L46 -22
+      Z"/>
+
+    <!-- Adult 2 -->
+    <circle cx="94" cy="-75" r="9"/>
+    <path d="
+      M85 -63
+      Q94 -67 103 -63
+      L106 -34
+      L101 -33
+      L100 -5
+      L96 -5
+      L94 -31
+      L92 -5
+      L88 -5
+      L87 -33
+      L82 -34
+      Z"/>
+
+    <!-- Child 2 -->
+    <circle cx="132" cy="-45" r="7"/>
+    <path d="
+      M125 -35
+      Q132 -39 139 -35
+      L142 -19
+      L138 -18
+      L137 -4
+      L134 -4
+      L132 -17
+      L130 -4
+      L127 -4
+      L126 -18
+      L122 -19
+      Z"/>
+
+    <!-- Child 3 -->
+    <circle cx="164" cy="-54" r="7"/>
+    <path d="
+      M157 -44
+      Q164 -48 171 -44
+      L174 -23
+      L170 -22
+      L169 -4
+      L166 -4
+      L164 -21
+      L162 -4
+      L159 -4
+      L158 -22
+      L154 -23
+      Z"/>
+
+    <!-- Adult 3 -->
+    <circle cx="204" cy="-68" r="9"/>
+    <path d="
+      M195 -56
+      Q204 -60 213 -56
+      L217 -30
+      L212 -29
+      L211 -5
+      L207 -5
+      L204 -27
+      L201 -5
+      L197 -5
+      L196 -29
+      L191 -30
+      Z"/>
+
+    <!-- subtle hand links -->
+    <path d="M29 -47 L49 -37 L47 -33 L27 -42 Z"/>
+    <path d="M63 -36 L86 -49 L88 -45 L65 -32 Z"/>
+    <path d="M102 -48 L126 -32 L124 -28 L100 -43 Z"/>
+    <path d="M139 -29 L158 -39 L160 -35 L141 -25 Z"/>
+    <path d="M171 -38 L196 -44 L197 -40 L172 -34 Z"/>
+  </g>
+</symbol>
+<symbol id="icon-camera" viewBox="0 0 48 36">
+  <path fill="currentColor" fill-rule="evenodd" d="
+    M6 9
+    L13 9
+    L16 5
+    Q17 4 19 4
+    L29 4
+    Q31 4 32 5
+    L35 9
+    L42 9
+    Q45 9 45 12
+    L45 30
+    Q45 33 42 33
+    L6 33
+    Q3 33 3 30
+    L3 12
+    Q3 9 6 9
+    Z
+
+    M24 12
+    A8 8 0 1 0 24 28
+    A8 8 0 1 0 24 12
+    Z
+
+    M24 16
+    A4 4 0 1 1 24 24
+    A4 4 0 1 1 24 16
+    Z
+
+    M37 12
+    L41 12
+    L41 15
+    L37 15
+    Z"/>
+</symbol>
+<symbol id="viewfinder-frame" viewBox="0 0 1000 1000">
+  <g
+    fill="none"
+    stroke="currentColor"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-linejoin="round">
+
+    <!-- top left -->
+    <path d="M70 210 L70 70 L210 70"/>
+
+    <!-- top right -->
+    <path d="M790 70 L930 70 L930 210"/>
+
+    <!-- bottom right -->
+    <path d="M930 790 L930 930 L790 930"/>
+
+    <!-- bottom left -->
+    <path d="M210 930 L70 930 L70 790"/>
+  </g>
+</symbol>
+<symbol id="map-western-central-europe" viewBox="0 0 1000 1000">
+  <path fill="currentColor" d="
+    M102.5 885.2
+    L109.9 853.9
+    L105.4 829.4
+    L83.5 825.7
+    L71.9 810.5
+    L75.8 784.3
+    L95.2 769.8
+    L108.8 729.6
+    L107.8 712.6
+    L98 698.3
+    L95.9 684.8
+    L98.3 656.3
+    L78.4 638.9
+    L147.4 610.1
+    L207.1 617.3
+    L272.6 617
+    L324.5 623.9
+    L365 621.8
+    L443.8 623.1
+    L469.1 599.1
+    L478.4 519.4
+    L428 477.4
+    L392 457.2
+    L317.5 441.8
+    L312.6 412.6
+    L375.8 403.9
+    L457.7 414.2
+    L442.3 368.9
+    L488.3 386.1
+    L601.9 354.9
+    L616.5 322.1
+    L698.3 306.2
+    L723.4 295.2
+    L766.1 236.3
+    L832.9 219.6
+    L873.4 220.7
+    L882.9 212.2
+    L923.7 210.1
+    L932.8 218.9
+    L965.9 199.2
+    L954.7 184.2
+    L952.5 161.5
+    L989.4 166.8
+    L1000 164.7
+    L1000 595.3
+    L970.2 585.3
+    L947.7 590.8
+    L919.5 609.3
+    L899.3 612.2
+    L855.1 634.8
+    L758.9 624
+    L687.8 637
+    L682.2 661.1
+    L684.9 684.3
+    L638.6 711
+    L576.1 719.4
+    L571.8 732.9
+    L541.8 755
+    L523 787.6
+    L542 810.5
+    L513.8 828.3
+    L503.2 854.3
+    L466.4 862.3
+    L431.9 893
+    L323.5 892.9
+    L292.9 907
+    L274.3 922.1
+    L250.4 918.8
+    L232.4 905.3
+    L218.5 882.3
+    L173 876.1
+    L153.4 886.5
+    L127.7 880.8
+    Z
+
+    M964.7 696.7
+    L953.4 669.7
+    L963.2 654.9
+    L994.6 639.6
+    L1000 661.8
+    L1000 679.5
+    L986.8 704.8
+    Z
+
+    M986.1 790.4
+    L966.2 803.7
+    L947.7 793.1
+    L945.8 744.9
+    L934.6 722
+    L961.5 724
+    L985.9 711.6
+    L1000 725.3
+    L1000 792
+    Z
+
+    M300.3 168.4
+    L288.7 157.5
+    L306.4 139.7
+    L290.3 128.6
+    L264.1 147.6
+    L261.2 109
+    L236.6 88.6
+    L254.3 47.2
+    L292.2 14.8
+    L331.1 18
+    L390 14.6
+    L337.9 57.9
+    L387.6 52.4
+    L441 52.6
+    L428.3 85.2
+    L384.4 121
+    L434.9 123.6
+    L482.2 175
+    L515.6 181.4
+    L545.6 227
+    L559.5 242.8
+    L618.6 250.4
+    L612.7 276
+    L587.8 287.7
+    L607.3 308.4
+    L563.4 329.4
+    L498.2 329
+    L415.1 340
+    L392.4 332.1
+    L360.1 350.9
+    L315 346.3
+    L280.7 361.6
+    L254.8 353.6
+    L326.3 311.6
+    L370 303
+    L293.4 296.3
+    L279.6 280.3
+    L330.6 267.9
+    L303.9 246.4
+    L313.2 220.2
+    L385.8 223.8
+    L392.9 200.6
+    L359.5 175.4
+    Z
+
+    M89.4 245.4
+    L64 204.7
+    L167.2 154.7
+    L208.1 153.1
+    L260.4 177.8
+    L234.2 205.3
+    L242.3 233.9
+    L205.4 269.6
+    L118.9 293.2
+    L49.9 287.2
+    Z"/>
+</symbol><path id="rt-train" class="sp-route" d="M835.6,375.6 Q772.0,321.1 689.3,307.6" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.20s" dur="0.5s" fill="freeze"/></path><path id="rt-plane" class="sp-route" d="M835.6,375.6 Q475.2,530.5 321.0,891.2" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.50s" dur="0.5s" fill="freeze"/></path><path id="rt-bus" class="sp-route" d="M835.6,375.6 Q705.0,508.2 675.6,692.0" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.80s" dur="0.5s" fill="freeze"/></path><path id="rt-car" class="sp-route" d="M835.6,375.6 Q434.6,484.7 126.8,764.0" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="1.10s" dur="0.5s" fill="freeze"/></path></defs>
+      <path class="sp-land" fill-rule="evenodd" d="M1364.9,435.1 L1361.2,451.4 L1333.7,451.5 L1343.1,460.2 L1326.9,485.9 L1317.6,492.7 L1275.0,493.7 L1250.4,502.7 L1210.1,499.6 L1140.3,489.3 L1129.4,475.4 L1081.2,482.3 L1075.5,489.9 L1046.0,484.3 L1021.1,483.2 L999.0,475.9 L1006.5,466.1 L1004.6,459.0 L1019.3,456.8 L1044.0,467.9 L1051.0,457.3 L1094.0,459.0 L1128.8,451.9 L1152.2,453.1 L1167.4,461.3 L1172.0,454.5 L1165.1,428.4 L1182.6,423.4 L1199.8,404.9 L1236.0,417.8 L1263.5,401.4 L1280.7,398.4 L1318.5,410.6 L1341.4,408.6 L1363.9,416.1 L1360.0,421.2 L1364.9,435.1Z M698.3,306.2 L734.0,309.3 L779.2,301.0 L810.1,318.5 L836.9,327.9 L831.4,354.9 L818.7,356.4 L813.4,378.8 L770.7,360.6 L745.7,363.7 L711.6,344.8 L688.9,328.8 L666.3,328.1 L659.2,314.1 L698.3,306.2Z M1004.6,459.0 L1006.5,466.1 L999.0,475.9 L1021.1,483.2 L1046.0,484.3 L1042.1,500.7 L1020.6,507.4 L984.5,502.4 L974.0,518.5 L950.7,519.8 L942.3,513.5 L914.9,527.0 L891.4,528.9 L870.4,520.4 L853.7,502.8 L830.4,509.1 L831.1,491.0 L866.8,468.5 L865.2,458.3 L887.4,462.0 L900.8,455.2 L942.3,455.5 L952.3,446.8 L1004.6,459.0Z M1363.9,416.1 L1341.4,408.6 L1318.5,410.6 L1280.7,398.4 L1263.5,401.4 L1236.0,417.8 L1199.8,404.9 L1172.3,387.7 L1147.4,378.1 L1142.2,361.2 L1133.7,349.3 L1169.1,340.6 L1187.2,330.7 L1222.3,322.9 L1234.5,315.3 L1247.4,319.9 L1269.1,315.7 L1292.2,328.6 L1328.7,332.1 L1325.7,343.1 L1352.2,351.4 L1359.5,341.0 L1392.9,345.5 L1397.5,358.0 L1433.8,360.5 L1456.3,380.2 L1441.7,380.2 L1434.1,387.4 L1423.0,389.1 L1419.8,398.2 L1410.4,400.1 L1409.1,403.9 L1392.4,408.0 L1370.8,407.3 L1363.9,416.1Z M1020.6,160.7 L1021.4,176.1 L1070.7,185.5 L1070.2,199.7 L1119.8,192.1 L1147.2,181.2 L1202.3,197.0 L1225.4,209.7 L1236.7,230.1 L1223.1,240.7 L1240.9,255.0 L1252.9,276.4 L1249.1,290.2 L1269.1,315.7 L1247.4,319.9 L1234.5,315.3 L1222.3,322.9 L1187.2,330.7 L1169.1,340.6 L1133.7,349.3 L1142.2,361.2 L1147.4,378.1 L1172.3,387.7 L1199.8,404.9 L1182.6,423.4 L1165.1,428.4 L1172.0,454.5 L1167.4,461.3 L1152.2,453.1 L1128.8,451.9 L1094.0,459.0 L1051.0,457.3 L1044.0,467.9 L1019.3,456.8 L1004.6,459.0 L952.3,446.8 L942.3,455.5 L900.8,455.2 L907.0,426.7 L931.7,399.3 L861.4,391.9 L838.4,381.4 L841.1,363.9 L831.4,354.9 L836.9,327.9 L828.7,285.9 L858.0,285.9 L870.4,270.9 L882.5,234.2 L873.4,220.7 L882.9,212.2 L923.7,210.1 L932.8,218.9 L965.9,199.2 L954.7,184.2 L952.5,161.5 L989.4,166.8 L1020.6,160.7Z M1155.6,135.6 L1126.3,168.0 L1075.3,145.4 L1068.5,128.8 L1140.0,115.5 L1155.6,135.6Z M1068.9,101.7 L1057.0,116.7 L1042.4,112.4 L1007.3,141.2 L1020.6,160.7 L989.4,166.8 L952.5,161.5 L932.7,139.3 L931.2,98.4 L939.3,87.6 L953.3,75.6 L996.3,73.1 L1013.4,62.1 L1052.7,50.8 L1051.0,71.4 L1036.6,84.4 L1042.4,95.6 L1068.9,101.7Z M95.9,684.8 L98.3,656.3 L78.4,638.9 L147.4,610.1 L207.1,617.3 L272.6,617.0 L324.5,623.9 L365.0,621.8 L443.8,623.1 L463.3,638.6 L553.1,656.8 L570.8,648.2 L625.7,666.3 L682.2,661.1 L684.9,684.3 L638.6,711.0 L576.1,719.4 L571.8,732.9 L541.8,755.0 L523.0,787.6 L542.0,810.5 L513.8,828.3 L503.2,854.3 L466.4,862.3 L431.9,893.0 L370.0,893.6 L323.5,892.9 L292.9,907.0 L274.3,922.1 L250.4,918.8 L232.4,905.3 L218.5,882.3 L173.0,876.1 L168.9,862.8 L187.0,847.8 L193.7,837.0 L176.9,825.1 L190.3,798.8 L170.8,774.8 L191.9,771.5 L193.8,752.6 L201.8,746.8 L202.4,715.6 L224.9,704.7 L211.3,684.7 L182.9,683.3 L174.5,688.3 L145.7,688.4 L133.5,668.8 L113.6,674.6 L95.9,684.8Z M1002.9,673.9 L986.8,704.8 L964.7,696.7 L953.4,669.7 L963.2,654.9 L994.6,639.6 L1002.9,673.9Z M711.6,344.8 L745.7,363.7 L770.7,360.6 L813.4,378.8 L824.3,382.3 L838.4,381.4 L861.4,391.9 L931.7,399.3 L907.0,426.7 L900.8,455.2 L887.4,462.0 L865.2,458.3 L866.8,468.5 L831.1,491.0 L830.4,509.1 L853.7,502.8 L870.4,520.4 L868.4,531.7 L882.8,546.7 L865.9,558.9 L878.4,589.8 L904.9,594.9 L899.3,612.2 L855.1,634.8 L758.9,624.0 L687.8,637.0 L682.2,661.1 L625.7,666.3 L570.8,648.2 L553.1,656.8 L463.3,638.6 L443.8,623.1 L469.1,599.1 L478.4,519.4 L428.0,477.4 L392.0,457.2 L317.5,441.8 L312.6,412.6 L375.8,403.9 L457.7,414.2 L442.3,368.9 L488.3,386.1 L601.9,354.9 L616.5,322.1 L659.2,314.1 L666.3,328.1 L688.9,328.8 L711.6,344.8Z M260.4,177.8 L234.2,205.3 L197.4,197.1 L167.2,197.6 L177.3,176.2 L167.2,154.7 L208.1,153.1 L260.4,177.8Z M390.0,14.6 L337.9,57.9 L387.6,52.4 L441.0,52.6 L428.3,85.2 L384.4,121.0 L434.9,123.6 L438.7,127.8 L482.2,175.0 L515.6,181.4 L545.6,227.0 L559.5,242.8 L618.6,250.4 L612.7,276.0 L587.8,287.7 L607.3,308.4 L563.4,329.4 L498.2,329.0 L415.1,340.0 L392.4,332.1 L360.1,350.9 L315.0,346.3 L280.7,361.6 L254.8,353.6 L326.3,311.6 L370.0,303.0 L369.6,302.9 L293.4,296.3 L279.6,280.3 L330.6,267.9 L303.9,246.4 L313.2,220.2 L385.7,223.8 L385.8,223.8 L392.9,200.6 L360.3,176.0 L359.5,175.4 L300.3,168.4 L288.7,157.5 L306.4,139.7 L290.3,128.6 L264.1,147.6 L261.2,109.0 L236.6,88.6 L254.3,47.2 L292.2,14.8 L331.1,18.0 L390.0,14.6Z M234.2,205.3 L242.3,233.9 L205.4,269.6 L118.9,293.2 L49.9,287.2 L89.4,245.4 L64.0,204.7 L130.3,173.4 L167.2,154.7 L177.3,176.2 L167.2,197.6 L197.4,197.1 L234.2,205.3Z M1293.7,830.8 L1276.1,862.2 L1283.4,874.6 L1273.2,895.2 L1235.9,880.1 L1211.1,875.8 L1143.0,855.5 L1149.8,834.9 L1206.9,838.6 L1256.6,834.2 L1293.7,830.8Z M985.9,711.6 L1015.1,740.0 L1008.3,792.9 L986.1,790.4 L966.2,803.7 L947.7,793.1 L945.8,744.9 L934.6,722.0 L961.5,724.0 L985.9,711.6Z M1140.3,489.3 L1210.1,499.6 L1204.8,519.3 L1216.5,536.4 L1177.6,530.5 L1138.0,544.7 L1140.7,564.6 L1134.7,576.0 L1150.7,596.3 L1196.4,616.5 L1221.0,649.6 L1275.2,681.8 L1313.5,681.5 L1325.4,690.4 L1311.7,698.4 L1355.4,712.8 L1391.2,724.9 L1433.0,745.8 L1438.1,753.2 L1428.9,767.6 L1401.9,748.9 L1359.5,742.3 L1339.0,768.2 L1374.2,783.0 L1368.4,803.9 L1348.1,806.3 L1322.0,840.6 L1301.7,843.6 L1301.9,831.4 L1311.8,810.0 L1322.4,801.4 L1303.4,778.2 L1288.5,758.1 L1268.2,753.1 L1253.8,735.8 L1222.5,728.5 L1201.4,712.5 L1165.3,709.9 L1127.2,691.8 L1082.5,665.8 L1049.4,642.7 L1034.1,603.2 L1009.9,598.5 L970.2,585.3 L947.7,590.8 L919.5,609.3 L899.3,612.2 L904.9,594.9 L878.4,589.8 L865.9,558.9 L882.8,546.7 L868.4,531.7 L870.4,520.4 L891.4,528.9 L914.9,527.0 L942.3,513.5 L950.7,519.8 L974.0,518.5 L984.5,502.4 L1020.6,507.4 L1042.1,500.7 L1046.0,484.3 L1075.5,489.9 L1081.2,482.3 L1129.4,475.4 L1140.3,489.3Z M831.4,354.9 L841.1,363.9 L838.4,381.4 L824.3,382.3 L813.4,378.8 L818.7,356.4 L831.4,354.9Z M832.9,219.6 L873.4,220.7 L882.5,234.2 L870.4,270.9 L858.0,285.9 L828.7,285.9 L836.9,327.9 L810.1,318.5 L779.2,301.0 L734.0,309.3 L698.3,306.2 L723.4,295.2 L766.1,236.3 L832.9,219.6Z M95.9,684.8 L113.6,674.6 L133.5,668.8 L145.7,688.4 L174.5,688.3 L182.9,683.3 L211.3,684.7 L224.9,704.7 L202.4,715.6 L201.8,746.8 L193.8,752.6 L191.9,771.5 L170.8,774.8 L190.3,798.8 L176.9,825.1 L193.7,837.0 L187.0,847.8 L168.9,862.8 L173.0,876.1 L153.4,886.5 L127.7,880.8 L102.5,885.2 L109.9,853.9 L105.4,829.4 L83.5,825.7 L71.9,810.5 L75.8,784.3 L95.2,769.8 L98.7,753.6 L108.8,729.6 L107.8,712.6 L98.0,698.3 L95.9,684.8Z"/>
+      <path id="rt-train" class="sp-route" d="M835.6,375.6 Q772.0,321.1 689.3,307.6" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.20s" dur="0.5s" fill="freeze"/></path><path id="rt-plane" class="sp-route" d="M835.6,375.6 Q475.2,530.5 321.0,891.2" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.50s" dur="0.5s" fill="freeze"/></path><path id="rt-bus" class="sp-route" d="M835.6,375.6 Q705.0,508.2 675.6,692.0" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="0.80s" dur="0.5s" fill="freeze"/></path><path id="rt-car" class="sp-route" d="M835.6,375.6 Q434.6,484.7 126.8,764.0" fill="none" stroke-width="2.6" stroke-dasharray="5 8" stroke-linecap="round" opacity="0"><animate attributeName="opacity" from="0" to="0.7" begin="1.10s" dur="0.5s" fill="freeze"/></path>
+      <g class="sp-veh sp-train" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="0.4s" dur="0.3s" fill="freeze"/><animate attributeName="opacity" from="1" to="0" begin="2.60s" dur="0.5s" fill="freeze"/><animateMotion begin="0.4s" dur="2.2s" fill="freeze"><mpath href="#rt-train"/></animateMotion><g transform="scale(-2.0,2.0)"><use href="#icon-train" x="-24.0" y="-16.0" width="48" height="32"/></g></g><g class="sp-veh sp-plane" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="0.7s" dur="0.3s" fill="freeze"/><animate attributeName="opacity" from="1" to="0" begin="3.50s" dur="0.5s" fill="freeze"/><animateMotion begin="0.7s" dur="2.8s" fill="freeze" rotate="auto"><mpath href="#rt-plane"/></animateMotion><g transform="scale(1.7)"><use href="#icon-plane" x="-24.0" y="-24.0" width="48" height="48"/></g></g><g class="sp-veh sp-bus" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="1.0s" dur="0.3s" fill="freeze"/><animate attributeName="opacity" from="1" to="0" begin="4.00s" dur="0.5s" fill="freeze"/><animateMotion begin="1.0s" dur="3.0s" fill="freeze"><mpath href="#rt-bus"/></animateMotion><g transform="scale(-2.0,2.0)"><use href="#icon-bus" x="-24.0" y="-16.0" width="48" height="32"/></g></g><g class="sp-veh sp-car" opacity="0"><animate attributeName="opacity" from="0" to="1" begin="1.3s" dur="0.3s" fill="freeze"/><animate attributeName="opacity" from="1" to="0" begin="4.70s" dur="0.5s" fill="freeze"/><animateMotion begin="1.3s" dur="3.4s" fill="freeze"><mpath href="#rt-car"/></animateMotion><g transform="scale(-2.0,2.0)"><use href="#icon-car" x="-24.0" y="-16.0" width="48" height="32"/></g></g>
+      <g class="sp-pin"><circle cx="835.6" cy="375.6" r="6" fill="none" stroke="var(--safelight)" stroke-width="2" opacity="0"><animate attributeName="r" values="6;24" begin="0.3s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0.7;0" begin="0.3s" dur="0.9s" fill="freeze"/></circle><circle cx="835.6" cy="375.6" r="0" fill="var(--safelight)"><animate attributeName="r" values="0;9;6" keyTimes="0;0.6;1" begin="0.3s" dur="0.5s" fill="freeze"/></circle></g><g class="sp-pin"><circle cx="321.0" cy="891.2" r="6" fill="none" stroke="var(--safelight)" stroke-width="2" opacity="0"><animate attributeName="r" values="6;24" begin="3.65s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0.7;0" begin="3.65s" dur="0.9s" fill="freeze"/></circle><circle cx="321.0" cy="891.2" r="0" fill="var(--safelight)"><animate attributeName="r" values="0;9;6" keyTimes="0;0.6;1" begin="3.65s" dur="0.5s" fill="freeze"/></circle></g><g class="sp-pin"><circle cx="126.8" cy="764.0" r="6" fill="none" stroke="var(--safelight)" stroke-width="2" opacity="0"><animate attributeName="r" values="6;24" begin="4.8500000000000005s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0.7;0" begin="4.8500000000000005s" dur="0.9s" fill="freeze"/></circle><circle cx="126.8" cy="764.0" r="0" fill="var(--safelight)"><animate attributeName="r" values="0;9;6" keyTimes="0;0.6;1" begin="4.8500000000000005s" dur="0.5s" fill="freeze"/></circle></g><g class="sp-pin"><circle cx="689.3" cy="307.6" r="6" fill="none" stroke="var(--safelight)" stroke-width="2" opacity="0"><animate attributeName="r" values="6;24" begin="2.75s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0.7;0" begin="2.75s" dur="0.9s" fill="freeze"/></circle><circle cx="689.3" cy="307.6" r="0" fill="var(--safelight)"><animate attributeName="r" values="0;9;6" keyTimes="0;0.6;1" begin="2.75s" dur="0.5s" fill="freeze"/></circle></g><g class="sp-pin"><circle cx="675.6" cy="692.0" r="6" fill="none" stroke="var(--safelight)" stroke-width="2" opacity="0"><animate attributeName="r" values="6;24" begin="4.15s" dur="0.9s" fill="freeze"/><animate attributeName="opacity" values="0.7;0" begin="4.15s" dur="0.9s" fill="freeze"/></circle><circle cx="675.6" cy="692.0" r="0" fill="var(--safelight)"><animate attributeName="r" values="0;9;6" keyTimes="0;0.6;1" begin="4.15s" dur="0.5s" fill="freeze"/></circle></g>
+      <text class="sp-lab" x="849.6" y="363.6" opacity="0"><animate attributeName="opacity" from="0" to="0.95" begin="0.3s" dur="0.5s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 10" to="0 0" begin="0.3s" dur="0.5s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>Luxembourg</text><text class="sp-lab" x="337.0" y="913.2" opacity="0"><animate attributeName="opacity" from="0" to="0.95" begin="3.6999999999999997s" dur="0.5s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 10" to="0 0" begin="3.6999999999999997s" dur="0.5s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>Málaga</text><text class="sp-lab" x="142.8" y="770.0" opacity="0"><animate attributeName="opacity" from="0" to="0.95" begin="4.9s" dur="0.5s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 10" to="0 0" begin="4.9s" dur="0.5s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>Chão de Couce</text><text class="sp-lab" x="683.3" y="289.6" opacity="0"><animate attributeName="opacity" from="0" to="0.95" begin="2.8s" dur="0.5s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 10" to="0 0" begin="2.8s" dur="0.5s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>Blankenberge</text><text class="sp-lab" x="691.6" y="708.0" opacity="0"><animate attributeName="opacity" from="0" to="0.95" begin="4.2s" dur="0.5s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 10" to="0 0" begin="4.2s" dur="0.5s" fill="freeze" calcMode="spline" keySplines="0.16 1 0.3 1"/>Lloret de Mar</text>
+      <g class="sp-family" opacity="0" transform="translate(500,992) scale(1.25)"><animate attributeName="opacity" from="0" to="1" begin="5.00s" dur="0.7s" fill="freeze"/><use href="#family-group" x="-114" y="-88" width="228" height="88"/></g>
+      <g class="sp-viewfinder"><use href="#viewfinder-frame" x="0" y="0" width="1000" height="1000"/></g>
+      <g class="sp-cam" transform="translate(96,86) scale(1.5)"><use href="#icon-camera" x="-24" y="-18" width="48" height="36"/><circle class="sp-rec" cx="34" cy="-12" r="4"/></g>
+      <rect class="sp-flash" x="0" y="0" width="1000" height="1000"><animate attributeName="opacity" values="0;0.5;0" keyTimes="0;0.3;1" begin="5.40s" dur="0.6s"/></rect>
+    </svg>
+    <button class="splash__skip" id="splash-skip" type="button">skip &times;</button>
+  </div>
+</div>
+
+{% if hero %}
+<section class="hero">
+  <div class="hero__frame">
+    <picture>
+      {#- ⚠ The cover photograph can be small. A phone photograph is 1200 wide,
+          and a fixed request for 2800 did not exist there -- which gave a broken
+          image. So the step that fits is taken here. #}
+      {%- set hs = [800, 1200, 2000, 2800] | select("le", hero_width or 2800) | list or [400] %}
+      <source type="image/avif" sizes="100vw"
+              srcset="{% for w in hs %}/photos/{{ hero }}/{{ w }}.avif?v={{ hero_rev or 0 }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+      <source type="image/webp" sizes="100vw"
+              srcset="{% for w in hs %}/photos/{{ hero }}/{{ w }}.webp?v={{ hero_rev or 0 }} {{ w }}w{{ ", " if not loop.last }}{% endfor %}">
+      <img src="/photos/{{ hero }}/{{ hs[-1] }}.webp?v={{ hero_rev or 0 }}" alt=""
+           fetchpriority="high" decoding="sync">
+    </picture>
+  </div>
+  <div class="hero__title">
+    <h1 class="reveal d1">{{ site_title }} <em>&amp;</em><br>everyone</h1>
+    <div class="hero__caption reveal d2">
+      <span class="plate">PL.&nbsp;001</span>
+      <span class="meta">{{ total }} photograph{{ '' if total == 1 else 's' }}
+        &middot; {{ album_count }} album{{ '' if album_count == 1 else 's' }}</span>
+      <span class="meta">{{ structure|length }} year{{ '' if structure|length == 1 else 's' }}</span>
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="wrap section">
+  <h1 style="font-family:var(--display);font-size:clamp(3rem,10vw,7rem);font-weight:400;
+             line-height:.9;margin:0">{{ site_title }}</h1>
+  {# ⚠ "No photographs" is wrong when there are some and they are simply not
+     being shown. An empty page with no reason is the one you cannot act on. #}
+  <div class="emptystate">
+    {% if is_admin %}
+      <p class="meta">No photographs yet. Start at
+        <a class="link-u" href="/admin/upload">Upload</a>.</p>
+    {% elif stale_admin %}
+      <p class="warn">Your sign-in does not carry the <b>Website-Admin</b> group,
+         so this page shows you only what has been shared with you — and that is
+         nothing yet.</p>
+      <p class="meta">Sign out and sign in again, and it will be there.</p>
+    {% else %}
+      <p class="meta">Nothing has been shared with you yet.</p>
+      <p class="meta">The albums are there — somebody has to tick your name on them.</p>
+    {% endif %}
+  </div>
+  {% if is_admin %}<p style="margin-top:1.5rem">
+    <a class="btn btn--go" href="/admin/upload">Upload the first ones</a></p>{% endif %}
+</section>
+{% endif %}
+
+{% if albums %}
+<section class="wrap section" id="albums">
+  <div class="section__head">
+    <h2>The albums</h2>
+    <span class="meta">{{ albums|length }} album{{ '' if albums|length == 1 else 's' }}
+      &middot; most recent first</span>
+  </div>
+
+  <div class="index">
+    {% for a in albums %}
+    <a class="index__row" href="/y/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}">
+      <span class="plate">PL.&nbsp;{{ '%03d'|format(loop.index) }}</span>
+      <span>
+        <span class="index__name">{{ a.title }}</span>
+        <span class="index__where meta">{{ a.country }}</span>
+      </span>
+      <span class="index__count meta">{{ a.n }} plate{{ '' if a.n == 1 else 's' }}</span>
+      {% if a.cover %}
+      <img class="index__thumb" src="/photos/{{ a.cover }}/400.webp?v={{ a.cover_rev or 0 }}" alt="" loading="lazy" decoding="async">
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if map_points %}
+<section class="wrap section" id="atlas">
+  <div class="section__head">
+    <h2>The atlas</h2>
+    <span class="meta">{{ map_points|length }} located</span>
+  </div>
+  <div class="map-shell"><div id="map" data-max-zoom="{{ map_max_zoom | default(18) }}"></div></div>
+</section>
+{% endif %}
+
+{% endblock %}
+
+{% block head %}
+{% if map_points %}
+<link rel="stylesheet" href="/static/vendor/leaflet.css?v={{ static_ver }}">
+{# Leaflet has to come BEFORE site.js: deferred scripts run in document
+   order, and then window.L is there when the map is built. #}
+<script src="/static/vendor/leaflet.js?v={{ static_ver }}" defer></script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if map_points %}<script id="map-data" type="application/json">{{ map_json|safe }}</script>{% endif %}
+{% endblock %}

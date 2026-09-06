@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Tagging — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Who is on these?</h1>
+  <p class="lede reveal d2">There is no AI here. The site knows who is on a photograph
+     only because someone said so — so this page is built to be <em>fast</em>,
+     not pretty. Select, then press a number.</p>
+</header>
+
+<section class="wrap section tagpage" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  <form class="tagfilter" method="get" action="/admin/tag">
+    <label><span>Year</span>
+      <select name="year"><option value="">any</option>
+        {% for y in facets.years %}<option value="{{ y }}"{{ ' selected' if sel.year == y }}>{{ y }}</option>{% endfor %}
+      </select></label>
+    <label><span>Country</span>
+      <select name="country"><option value="">any</option>
+        {% for c in facets.countries %}<option value="{{ c }}"{{ ' selected' if sel.country == c }}>{{ c }}</option>{% endfor %}
+      </select></label>
+    <label><span>Person</span>
+      <select name="person"><option value="">any</option>
+        {% for p in people %}<option value="{{ p.name }}"{{ ' selected' if sel.person == p.name }}>{{ p.name }} ({{ p.n }})</option>{% endfor %}
+      </select></label>
+    <label><span>Tag</span>
+      <select name="tag"><option value="">any</option>
+        {% for g in tags %}<option value="{{ g.name }}"{{ ' selected' if sel.tag == g.name }}>{{ g.name }} ({{ g.n }})</option>{% endfor %}
+      </select></label>
+    <label class="tagfilter__todo">
+      <input type="checkbox" name="todo" value="1"{{ ' checked' if sel.todo }}>
+      <span>only ones with nobody on them yet</span></label>
+    <button class="btn" type="submit">show</button>
+    <span class="meta">{{ todo_total }} left to do in the whole library</span>
+  </form>
+
+  <p class="meta taghelp">
+    <b>click</b> select &middot; <b>shift+click</b> a range &middot; <b>&#8984;/ctrl+click</b> add
+    &middot; <b>arrows</b> move &middot; <b>space</b> select &middot; <b>1&ndash;9</b> set that person
+    &middot; <b>shift+1&ndash;9</b> take away &middot; <b>R</b> repeat the last one
+    &middot; <b>&#8984;+A</b> all on this page &middot; <b>esc</b> none
+  </p>
+
+  {% if res.total == 0 %}
+    <p class="meta">Nothing matches. Widen the filter above.</p>
+  {% else %}
+  <div class="tgrid" id="grid" role="listbox" aria-multiselectable="true"
+       aria-label="Photographs">
+    {% for p in res.photos %}
+    <figure class="tcell" data-id="{{ p.id }}" role="option" aria-selected="false" tabindex="-1">
+      <img src="/photos/{{ p.id }}/400.webp?v={{ p.rev or 0 }}" alt=""
+           loading="lazy" decoding="async"
+           width="{{ p.width or 3 }}" height="{{ p.height or 2 }}">
+      <figcaption class="tcell__who">
+        {%- for who in people_on.get(p.id, []) %}<span class="pill">{{ who }}</span>{% endfor -%}
+        {%- for g in tags_on.get(p.id, []) %}<span class="pill pill--tag">{{ g }}</span>{% endfor -%}
+        {%- for s in sets_on.get(p.id, []) %}<span class="pill pill--set">{{ s }}</span>{% endfor -%}
+      </figcaption>
+      {% if p.hidden %}<span class="tcell__hidden" title="hidden from the family">hidden</span>{% endif %}
+    </figure>
+    {% endfor %}
+  </div>
+  {{ m.pager(res, base_tag) }}
+  {% endif %}
+</section>
+
+<!-- The bar. It is ALWAYS there -- a two-hour session with no feedback is
+     exactly the point at which people give up. -->
+<div class="tbar" id="tbar" hidden>
+  <span class="tbar__n" id="tcount">0 selected</span>
+
+  <div class="tbar__keys" id="tkeys">
+    {% for p in recent %}
+    <button class="keycap" type="button" data-name="{{ p.name }}" data-kind="person">
+      <b>{{ loop.index }}</b> {{ p.name }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="tbar__add">
+    <input id="newname" placeholder="a person, or several…" list="l-allpeople"
+           autocomplete="off" size="18"
+           title="Several at once: separate them with a comma">
+    <button class="btn" type="button" id="addperson">add person</button>
+    <input id="newtag" placeholder="a tag, or several…" autocomplete="off" size="16"
+           list="l-alltags" title="Several at once: separate them with a comma">
+    <button class="btn" type="button" id="addtag">add tag</button>
+  </div>
+
+  <details class="tagbank">
+    <summary class="btn">tags &hellip;</summary>
+    <div class="tagbank__body">
+      {% if tagpick.used %}
+      <div class="tagbank__grp">
+        <span class="tagbank__lab">In use here</span>
+        {% for g in tagpick.used %}
+        <button class="chip chip--used" type="button" data-tag="{{ g.name }}">{{ g.name }}
+          <b>{{ g.n }}</b></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% for gruppe, nimm in tagpick.suggested.items() %}
+      <div class="tagbank__grp">
+        <span class="tagbank__lab">{{ gruppe }}</span>
+        {% for n in nimm %}<button class="chip" type="button" data-tag="{{ n }}">{{ n }}</button>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+
+  <div class="tbar__set">
+    <select id="setpick">
+      <option value="">a collection…</option>
+      {% for s in sets %}<option value="{{ s.id }}">{{ s.title }} ({{ s.n }})</option>{% endfor %}
+      <option value="__new">+ new collection…</option>
+    </select>
+    <button class="btn" type="button" id="addset">put in</button>
+  </div>
+
+  <span class="tbar__say meta" id="tsay" aria-live="polite"></span>
+  <button class="btn" type="button" id="tnone">clear</button>
+</div>
+<datalist id="l-allpeople">{% for n in peoplepick.all %}<option value="{{ n }}">{% endfor %}</datalist>
+<datalist id="l-alltags">{% for n in tagpick.all %}<option value="{{ n }}">{% endfor %}</datalist>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/tag.js?v={{ static_ver }}" defer></script>{% endblock %}

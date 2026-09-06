@@ -1,0 +1,70 @@
+[Unit]
+Description=Roamlight — a private photo library
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=family
+Group=family
+WorkingDirectory=/opt/family/app
+
+# Every FAMILY_* setting lives in one file, because the two sync runs need
+# them TOO -- and two copies drift apart over time.
+EnvironmentFile=/etc/family/env
+
+# --host 127.0.0.1 is not a setting, it is lock 5. On 0.0.0.0 the app would be
+# reachable from the whole network -- without nginx, without the identity
+# provider, without anything.
+#
+# --no-proxy-headers is not a detail: uvicorn has proxy-headers ON by default,
+# and then it sets `client.host` to whatever stands in X-Forwarded-For -- and
+# the direct peer (127.0.0.1) is trusted. The peer check in app/security.py
+# would then be checking a HEADER instead of the TCP peer, and that is exactly
+# viru deem de SECURITY-REVIEW.md warnt. D'echt Client-IP liese mer selwer aus
+# deem X-Forwarded-For, deen nginx setzt.
+ExecStart=/opt/family/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080 --no-proxy-headers
+Restart=on-failure
+RestartSec=5
+
+# ⚠ Limits. Other things run on the same machine: if this service runs away (a
+# photograph of 60,000 x 60,000 pixels, a guest upload that breaks the decoder),
+# the house should not go with it.
+# ⚠ 1500M was too tight: 3 conversions in parallel (up to 50 MP) plus the scan
+# pushed the cgroup over the limit -> OOM kill -> restart -> scan from the top
+# -> OOM again (a loop, seen 20 times). The container has 4 GB with ~2.4 GB
+# free, so the service gets more -- and the number of workers goes from 3 to 2
+# (FAMILY_WORKERS), to keep the peak smaller.
+MemoryHigh=2200M
+MemoryMax=2500M
+TasksMax=256
+OOMPolicy=continue
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+# ⚠ Judged safe for this workload: Python + libvips + exiftool children +
+# urllib. NO MemoryDenyWriteExecute (liborc JITs SIMD), NO PrivateNetwork on the
+# main service (nginx has to reach 127.0.0.1:8080), NO PrivateDevices without
+# testing it in the container first.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0027
+ReadWritePaths=/opt/family/data /opt/family/incoming /mnt/my-photos /mnt/family-website
+
+[Install]
+WantedBy=multi-user.target

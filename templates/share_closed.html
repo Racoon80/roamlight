@@ -1,0 +1,26 @@
+{% extends "share_base.html" %}
+{% block title %}This link is closed — {{ site_title }}{% endblock %}
+{% block content %}
+<div class="share__gate">
+  <p class="plate">CLOSED</p>
+  {# Nothing from the collection: no title, no count, no thumbnail. Expired
+     means expired. #}
+  {% if reason == 'expired' %}
+    <h1>This link has expired</h1>
+    <p class="lede">Every link here has an end — that is on purpose.
+       Ask for a new one.</p>
+  {% elif reason == 'revoked' %}
+    <h1>This link was turned off</h1>
+    <p class="lede">Ask for a new one.</p>
+  {% elif reason == 'locked' %}
+    <h1>Too many tries</h1>
+    <p class="lede">This link is closed for a quarter of an hour.
+       Check the password you were sent, then try again.</p>
+  {% elif reason == 'used up' %}
+    <h1>This link has already been opened</h1>
+    <p class="lede">It was made to be opened once. Ask for a new one.</p>
+  {% else %}
+    <h1>Nothing here</h1>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Roamlight — nightly quick run
+
+[Timer]
+# 03:00 local. `Persistent` means: if the machine was off, it is caught up --
+# otherwise a run would simply be skipped and nobody would notice.
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% macro albumrow(a, acls, members, groups, admins, tags_on, neu) %}
+    {% set key = a.year ~ '/' ~ a.country ~ '/' ~ a.event %}
+    {% set liste = acls.get(key, []) %}
+    {% set drop = tags_on.get(key, {}) %}
+    <form class="alb2__row{{ ' is-new' if neu }}" data-year="{{ a.year }}"
+          data-country="{{ a.country }}" data-event="{{ a.event }}"
+          data-new="{{ '1' if neu else '0' }}">
+
+      <div class="alb2__pic">
+        {% if a.cover %}
+        <img src="/photos/{{ a.cover }}/400.webp" alt="" loading="lazy" decoding="async">
+        {% else %}<span class="alb__nopic">no plate</span>{% endif %}
+      </div>
+
+      <div class="alb2__main">
+        {# 1. The order: year, name, place, country. The way you say it. #}
+        <div class="alb2__fields">
+          <label><span>Year</span>
+            <input name="new_year" value="{{ a.year }}" inputmode="numeric"></label>
+          <label><span>Name</span>
+            <input name="new_event" value="{{ a.event }}"></label>
+          <label><span>Place / town</span>
+            <input name="new_place" value="{{ a.place }}" list="l-places"></label>
+          <label><span>Country</span>
+            <input name="new_country" value="{{ a.country }}" list="l-countries"></label>
+        </div>
+
+        <div class="alb2__state">
+          <code class="alb__path">{{ a.rel }}</code>
+          <span class="meta">
+            {{ a.n }} photograph{{ '' if a.n == 1 else 's' }}
+            {%- if a.hidden %} &middot; {{ a.hidden }} hidden{% endif %}
+            {%- if a.waiting %} &middot; {{ a.waiting }} still converting{% endif %}
+            {%- if a.von %} &middot; {{ a.von[:10] }}{% if a.bis[:10] != a.von[:10] %} – {{ a.bis[:10] }}{% endif %}{% endif %}
+            &middot;
+            {% if a.on_disk %}<b class="ok-dot">&#9679;</b>{% else %}<b class="bad-dot">&#9679;</b>{% endif %} originals
+            {% if a.web_on_disk %}<b class="ok-dot">&#9679;</b>{% else %}<b class="bad-dot">&#9679;</b>{% endif %} library
+          </span>
+        </div>
+
+        {# 3. Tag straight away -- on EVERY photograph of the album at once. #}
+        <div class="alb2__tag">
+          <span class="alb2__lab">On these</span>
+          <span class="alb2__have">
+            {%- for x in drop.get('people', []) %}<span class="pill">{{ x.name }} {{ x.n }}</span>{% endfor -%}
+            {%- for x in drop.get('tags', []) %}<span class="pill pill--tag">{{ x.name }} {{ x.n }}</span>{% endfor -%}
+            {%- if not drop %}<span class="meta">nobody yet</span>{% endif -%}
+          </span>
+          <input class="alb2__who" placeholder="a person, or several…" list="l-people"
+                 autocomplete="off" title="Several at once: separate them with a comma">
+          <button class="btn" type="button" data-mark="person">add to all</button>
+          <input class="alb2__whotag" placeholder="a tag, or several…" list="l-tags"
+                 autocomplete="off" title="Several at once: separate them with a comma">
+          <button class="btn" type="button" data-mark="tag">add to all</button>
+        </div>
+      </div>
+
+      {# 2. Who may look -- right next to it, not on another page. #}
+      <div class="alb2__acl">
+        <span class="alb2__lab">Who may see it
+          <b class="alb2__who-state">{{ 'only you' if not liste else liste|length ~ ' picked' }}</b></span>
+        <div class="ticks">
+          {% set gewosst = members|map(attribute='username')|list %}
+          {% for p in members %}
+          <label class="tick"><input type="checkbox" data-acl value="user:{{ p.username }}"
+                 {{ 'checked' if 'user:' ~ p.username in liste }}>
+            <span>{{ p.display_name }}</span></label>
+          {% endfor %}
+          {# ⚠ Somebody on the list who is no longer in the loaded groups still
+             gets their tick. Without that, one click on "save" would quietly
+             throw them out -- and it would only be noticed once the album was
+             gone for them. #}
+          {% for pr in liste if pr.startswith('user:') and pr[5:] not in gewosst
+                       and pr[5:] not in admins %}
+          <label class="tick tick--gone"><input type="checkbox" data-acl value="{{ pr }}" checked>
+            <span>{{ pr[5:] }} <em>not in a site group</em></span></label>
+          {% endfor %}
+        </div>
+        <details class="alb2__more">
+          <summary class="meta">whole groups…</summary>
+          <div class="ticks ticks--groups">
+            {% for g in groups %}
+            <label class="tick tick--group"><input type="checkbox" data-acl value="group:{{ g }}"
+                   {{ 'checked' if 'group:' ~ g in liste }}>
+              <span>{{ g }}</span></label>
+            {% endfor %}
+          </div>
+        </details>
+        <p class="meta">Nothing ticked = nobody but you.
+           Administrators are not listed — they see everything anyway.</p>
+      </div>
+
+      {# 3. The journey: departure + means of transport. The destination is the
+         album itself -- opening it plays a short animation on the map. #}
+      <div class="alb2__journey">
+        <span class="alb2__lab">Journey to here</span>
+        <input class="alb2__dep" placeholder="from… (e.g. Rumelange)" value="{{ a.departure }}"
+               autocomplete="off" title="Where the trip started — looked up once on the map">
+        <select class="alb2__mode">
+          <option value="car"{{ ' selected' if a.transport == 'car' }}>car</option>
+          <option value="bus"{{ ' selected' if a.transport == 'bus' }}>bus</option>
+          <option value="train"{{ ' selected' if a.transport == 'train' }}>train</option>
+          <option value="plane"{{ ' selected' if a.transport == 'plane' }}>plane</option>
+        </select>
+        <button class="btn" type="button" data-journey>save trip</button>
+        <span class="meta alb2__jsay" aria-live="polite"></span>
+        {# Optionally multi-stop: "by <mode> to <place>", in order. Overrides the
+           simple trip. The last leg is the destination. #}
+        {# The switch. ⚠ Off does NOT mean gone: the legs stay saved and the box
+           is merely hidden (`journey.set_journey`, `legs_on`). #}
+        <label class="tick alb2__multi">
+          <input type="checkbox" data-multi{{ ' checked' if a.multi }}>
+          <span>stops (multi-hop) — overrides the simple trip</span>
+        </label>
+        <div class="alb2__legs-wrap"{{ '' if a.multi else ' hidden' }}>
+          <div class="alb2__legs">
+            {% for leg in a.legs %}
+            <div class="alb2__leg">
+              <select class="alb2__leg-mode">
+                <option value="car"{{ ' selected' if leg.transport == 'car' }}>car</option>
+                <option value="bus"{{ ' selected' if leg.transport == 'bus' }}>bus</option>
+                <option value="train"{{ ' selected' if leg.transport == 'train' }}>train</option>
+                <option value="plane"{{ ' selected' if leg.transport == 'plane' }}>plane</option>
+              </select>
+              <input class="alb2__leg-name" placeholder="to… (e.g. Findel)" value="{{ leg.name }}" autocomplete="off">
+              <button class="btn" type="button" data-leg-del title="remove this stop">&times;</button>
+            </div>
+            {% endfor %}
+          </div>
+          <button class="btn" type="button" data-leg-add>+ add stop</button>
+          <p class="meta">Each stop is “by MODE to PLACE”, in order — e.g. car→Findel,
+             plane→Málaga, bus→Estepona. The last stop is where the album is.
+             Switch this off and the simple trip above is used — the stops stay.</p>
+        </div>
+      </div>
+
+      <div class="alb2__act">
+        <button class="btn btn--go" type="submit">{{ "publish" if neu else "save" }}</button>
+        <a class="btn" href="/admin/album/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}"
+           title="Pick single photographs and turn, hide or remove them">photographs</a>
+        <a class="btn" href="/y/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}"
+           title="See this album the way the family sees it">look</a>
+        <button class="btn alb2__remove" type="button" data-remove
+                title="Take this whole album off the site — the originals are NOT touched">remove from site</button>
+        <span class="alb__say" aria-live="polite"></span>
+      </div>
+    </form>
+{% endmacro %}
+
+{% block title %}Albums — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Albums</h1>
+  <p class="lede reveal d2">Copy a folder onto the NAS, scan it, then set it right here.
+     Year, name and country are the folder — in <em>both</em> trees. The place is for the map.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  {% if is_admin %}
+  <div class="step">
+    <span class="step__n">01</span><h2>Pick up what is new</h2>
+    <span class="step__note">reads only — nothing is written, moved or deleted</span>
+  </div>
+  <p>
+    <button class="btn" id="scan">scan the NAS now</button>
+    <span class="meta" id="scanout"></span>
+  </p>
+  {% endif %}
+
+  {% set nei = albums | rejectattr("published") | list %}
+  {% set done = albums | selectattr("published") | list %}
+
+  <p class="meta legend">
+    <b>publish</b> / <b>save</b> writes the four fields and the viewing list
+    &middot; <b>photographs</b> opens the album to turn, hide or remove single
+    ones &middot; <b>look</b> shows it the way the family sees it.
+  </p>
+
+  <div class="step">
+    <span class="step__n">{{ '02' if is_admin else '01' }}</span><h2>{{ 'New scanned albums' if is_admin else 'Not shared yet' }}</h2>
+    <span class="step__note">{{ nei|length }} waiting</span>
+  </div>
+  {% if nei %}
+  <p class="meta">These came in from the NAS. Year, name and country are only
+     what the folder happened to be called — nobody has looked at them yet, and
+     nobody but you can see them. Set them right, tick who may see them, and
+     press <b>publish</b>.</p>
+  <div class="alb2" id="new-albums">
+    {% for a in nei %}{{ albumrow(a, acls, members, groups, admins, tags_on, true) }}{% endfor %}
+  </div>
+  {% else %}
+  <p class="meta">Nothing waiting. Everything that has been scanned is set.</p>
+  {% endif %}
+
+  <div class="step">
+    <span class="step__n">{{ '03' if is_admin else '02' }}</span><h2>{{ 'Published albums' if is_admin else 'Your albums' }}</h2>
+    <span class="step__note">{{ done|length }}</span>
+  </div>
+  <div class="alb2" id="albums">
+    {% for a in done %}{{ albumrow(a, acls, members, groups, admins, tags_on, false) }}{% endfor %}
+  </div>
+
+  <datalist id="l-countries">{% for c in facets.countries %}<option value="{{ c }}">{% endfor %}</datalist>
+  <datalist id="l-places">{% for c in facets.places %}<option value="{{ c }}">{% endfor %}</datalist>
+  <datalist id="l-people">{% for n in peoplepick.all %}<option value="{{ n }}">{% endfor %}</datalist>
+  <datalist id="l-tags">{% for n in tagpick.all %}<option value="{{ n }}">{% endfor %}</datalist>
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/albums.js?v={{ static_ver }}" defer></script>{% endblock %}

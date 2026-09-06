@@ -1,0 +1,1886 @@
+/* ============================================================================
+   Roamlight — the same hand as the travel site it grew out of.
+   The base is the same file; underneath stand only the parts a family site has
+   on top: the album list, the upload form, the admin pages.
+
+   ⚠ The fonts are SELF-HOSTED here, not loaded from Google: the site's CSP
+     says `font-src 'self'`, and the share pages must pull nothing at all from
+     a third party.
+   ========================================================================= */
+@font-face{font-family:"Bodoni Moda";src:url(/static/fonts/bodoni-moda-400.woff2)format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Bodoni Moda";src:url(/static/fonts/bodoni-moda-500.woff2)format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Bodoni Moda";src:url(/static/fonts/bodoni-moda-600.woff2)format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:Spectral;src:url(/static/fonts/spectral-300.woff2)format("woff2");font-weight:300;font-display:swap}
+@font-face{font-family:Spectral;src:url(/static/fonts/spectral-300-italic.woff2)format("woff2");font-weight:300;font-style:italic;font-display:swap}
+@font-face{font-family:Spectral;src:url(/static/fonts/spectral-400.woff2)format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/static/fonts/ibm-plex-mono-400.woff2)format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/static/fonts/ibm-plex-mono-500.woff2)format("woff2");font-weight:500;font-display:swap}
+
+:root {
+  /* ⚠ Without this, Chrome's "auto dark" turns the colours round a SECOND
+     time: the amber came out as a blue (#6aa9e0), measured in the browser.
+     `color-scheme` tells the browser the page is already dark -- and it keeps
+     its hands off. It also colours the browser's own controls (scrollbars,
+     select lists,
+     Datumsfelder) richteg. */
+  color-scheme: dark;
+
+  --ground:      #1a1815;
+  --ground-warm: #221f1b;
+  --ground-lift: #2a2621;
+  --ink:         #f2ede4;
+  --ink-soft:    #c5bcae;
+  --ink-mute:    #8d8375;
+  --rule:        rgba(242, 237, 228, 0.14);
+  --rule-strong: rgba(242, 237, 228, 0.30);
+  --safelight:   #e2673b;
+  --safelight-d: #b64a24;
+
+  --display: "Bodoni Moda", "Didot", "Playfair Display", Georgia, serif;
+  --body:    "Spectral", Georgia, "Times New Roman", serif;
+  --mono:    "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+
+  --gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --measure: 34rem;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-weight: 300;
+  font-size: clamp(1rem, 0.96rem + 0.2vw, 1.075rem);
+  line-height: 1.72;
+  font-feature-settings: "liga" 1, "kern" 1;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Film grain. Fixed, so it sits still while the page scrolls underneath —
+   which is what makes it read as emulsion rather than as a pattern. */
+body::after {
+  content: "";
+  position: fixed; inset: -50%;
+  pointer-events: none; z-index: 9999;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; text-decoration: none; }
+
+::selection { background: var(--safelight); color: var(--ground); }
+
+:focus-visible {
+  outline: 2px solid var(--safelight);
+  outline-offset: 3px;
+}
+
+.skip {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--safelight); color: var(--ground);
+  padding: 0.6rem 1rem; z-index: 10000; font-family: var(--mono);
+}
+.skip:focus { left: 0; }
+
+/* --- shared type ---------------------------------------------------------- */
+
+.meta {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.plate {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  color: var(--safelight);
+}
+
+.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+.wrap { padding-inline: var(--gutter); }
+
+.link-u {
+  border-bottom: 1px solid var(--rule-strong);
+  transition: border-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+.link-u:hover { color: var(--safelight); border-color: var(--safelight); }
+
+/* --- masthead ------------------------------------------------------------- */
+
+.masthead {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.15rem var(--gutter);
+  background: color-mix(in srgb, var(--ground) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--rule);
+}
+.masthead__mark {
+  font-family: var(--display);
+  font-size: 1.15rem; font-weight: 600;
+  letter-spacing: 0.02em;
+  /* On a 320px phone the em-dash wrapped under the word and the sticky bar
+     grew to 101px -- a third of the screen given to the header on every page.
+     The mark needs 87px on one line and has room for it at that width. */
+  white-space: nowrap;
+}
+.masthead__mark em { font-style: italic; color: var(--safelight); }
+/* The mark next to the wordmark. `width/height` in the HTML are the REAL pixels
+   of the PNG (128) -- it is drawn here at 1.3 rem, so it does not go soft on a
+   retina screen. `-0.15em` puts it on the baseline of the Bodoni, because the
+   masthead uses `align-items: baseline`. */
+.masthead__logo {
+  /* ⚠ `display:inline-block` ass Flicht: uewen an der Datei steet
+     `img { display: block }` for the photographs, and a block image tears the
+     wordmark onto a second line. */
+  display: inline-block;
+  width: 1.3rem; height: 1.3rem;
+  margin-right: 0.45rem; vertical-align: -0.15em;
+}
+.masthead nav { display: flex; gap: 1.6rem; }
+/* The mark stopped wrapping, which is right, but that put the bar 3px over the
+   edge of a 320px screen once a scrollbar took its 15. The nav gives the room
+   back: three words do not need 1.6rem between them at that width. */
+@media (max-width: 24rem) {
+  .masthead { gap: 0.75rem; }
+  .masthead nav { gap: 0.85rem; }
+  /* ⚠ On a 320 px phone that line is already measured to the millimetre (see
+     above). A 1.3 rem mark plus its spacing would push it over the edge again
+     -- so at that width it stays away. */
+  .masthead__logo { display: none; }
+}
+
+/* --- User menu (top right) ----------------------------------------------- */
+.masthead nav { align-items: center; }
+.usermenu { position: relative; align-self: center; }
+.usermenu__btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: none; border: 0; cursor: pointer; color: inherit;
+  font: inherit; padding: 0.1rem 0.2rem;
+}
+.usermenu__avatar {
+  display: grid; place-items: center; width: 1.7rem; height: 1.7rem;
+  border-radius: 50%; background: var(--safelight); color: var(--ground);
+  font-family: var(--display); font-weight: 600; font-size: 0.9rem; line-height: 1;
+}
+.usermenu__name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usermenu__caret { font-size: 0.6rem; opacity: 0.7; }
+@media (max-width: 40rem) { .usermenu__name { display: none; } }
+.usermenu__panel {
+  position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 70;
+  min-width: 15rem; padding: 0.4rem; border-radius: 6px;
+  background: var(--ground-warm); border: 1px solid var(--rule-strong);
+  box-shadow: 0 14px 40px rgba(10,9,7,0.5);
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+/* ⚠ The `display:flex` above overrides the HTML `hidden` attribute -- without
+   this line the menu would never close. */
+.usermenu__panel[hidden] { display: none; }
+.usermenu__who { padding: 0.5rem 0.6rem 0.55rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.usermenu__who b { font-family: var(--display); font-size: 1rem; }
+.usermenu__panel a {
+  display: flex; flex-direction: column; gap: 0.05rem;
+  padding: 0.5rem 0.6rem; border-radius: 4px; text-decoration: none; color: var(--ink);
+}
+.usermenu__panel a b { font-weight: 600; letter-spacing: 0.01em; }
+.usermenu__panel a:hover, .usermenu__panel a:focus-visible { background: color-mix(in srgb, var(--safelight) 16%, transparent); }
+.usermenu__rule { border: 0; border-top: 1px solid var(--rule); margin: 0.3rem 0.3rem; }
+.usermenu__out b, .usermenu__out { color: var(--safelight); }
+.masthead nav a { position: relative; }
+.masthead nav a::after {
+  content: ""; position: absolute; left: 0; right: 100%; bottom: -4px;
+  height: 1px; background: var(--safelight);
+  transition: right 0.4s var(--ease);
+}
+.masthead nav a:hover::after { right: 0; }
+
+/* --- hero ----------------------------------------------------------------- */
+
+.hero { position: relative; }
+
+.hero__frame {
+  position: relative;
+  height: min(88vh, 62rem);
+  min-height: 30rem;
+  overflow: hidden;
+  background: var(--ground-warm);
+}
+.hero__frame img {
+  width: 100%; height: 100%; object-fit: cover;
+  transform: scale(1.06);
+  animation: heroSettle 2.4s var(--ease) forwards;
+}
+@keyframes heroSettle { to { transform: scale(1); } }
+
+/* Vignette plus a scrim off the bottom, so the title stays readable whatever the
+   photograph happens to be. It has to survive the worst case, not the average
+   one: a bright midday sky behind cream-coloured Bodoni washes out completely
+   with a gentle gradient, so this reaches well up the frame -- the title runs to
+   13rem and is nowhere near only the bottom.
+   It used to reach to 88% at 0.92 opacity, which did keep the type readable and
+   also covered the photograph. The scrim now stops where the type stops: heavy
+   under the title, gone by the middle of the frame, so the picture on the front
+   page is a picture again. */
+.hero__frame::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 30%, transparent 45%, rgba(26,24,21,0.42) 100%),
+    linear-gradient(to top,
+      var(--ground) 0%,
+      rgba(26,24,21,0.86) 14%,
+      rgba(26,24,21,0.45) 34%,
+      rgba(26,24,21,0.12) 55%,
+      transparent 72%),
+    /* the title is left-anchored and its top half sits above the bottom scrim,
+       so a bright sky up there still swallows it; this darkens the column the
+       type actually occupies, and only that column */
+    linear-gradient(to right,
+      rgba(26,24,21,0.54) 0%,
+      rgba(26,24,21,0.22) 34%,
+      transparent 60%);
+}
+
+.hero__title {
+  position: absolute; left: var(--gutter); right: var(--gutter); bottom: clamp(2rem, 6vh, 5rem);
+  z-index: 2;
+}
+.hero__title h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(3.5rem, 15vw, 13rem);
+  line-height: 0.84;
+  letter-spacing: -0.025em;
+  margin: 0 0 1.25rem;
+  text-wrap: balance;
+  /* a wide, soft shadow rather than a hard one: at this size a tight drop
+     shadow reads as a printing fault on a didone */
+  text-shadow: 0 0.15em 1.6rem rgba(6, 5, 4, 0.55);
+}
+.hero__title h1 em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--safelight);
+}
+.hero__caption {
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; align-items: baseline;
+  padding-top: 1rem; border-top: 1px solid var(--rule-strong);
+  max-width: 46rem;
+}
+
+/* staggered entrance */
+.reveal { opacity: 0; transform: translateY(1.4rem); animation: reveal 1s var(--ease) forwards; }
+@keyframes reveal { to { opacity: 1; transform: none; } }
+.d1 { animation-delay: 0.15s; } .d2 { animation-delay: 0.3s; }
+.d3 { animation-delay: 0.45s; } .d4 { animation-delay: 0.6s; }
+
+/* --- section furniture ---------------------------------------------------- */
+
+.section { padding-block: clamp(4rem, 11vh, 9rem); }
+/* the masthead is sticky, so anchored sections need somewhere to land */
+[id] { scroll-margin-top: 5rem; }
+
+.section__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap;
+  padding-bottom: 1.1rem; margin-bottom: clamp(2rem, 5vh, 4rem);
+  border-bottom: 1px solid var(--rule);
+}
+.section__head h2 {
+  font-family: var(--display);
+  font-weight: 400; font-style: italic;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* --- destination index ---------------------------------------------------- */
+/* A printed index, not a card grid: rows of plate number, place and country,
+   with the cover photograph appearing alongside as the cursor travels. */
+
+.index { border-top: 1px solid var(--rule); }
+
+.index__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: center;
+  gap: 1.5rem;
+  padding: clamp(1rem, 2.4vh, 1.9rem) 0;
+  border-bottom: 1px solid var(--rule);
+  transition: padding-left 0.5s var(--ease), background-color 0.5s var(--ease);
+}
+.index__row:hover { padding-left: 1.25rem; background: var(--ground-warm); }
+
+.index__name {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(1.6rem, 4.2vw, 3.25rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  transition: color 0.4s var(--ease);
+}
+.index__row:hover .index__name { color: var(--safelight); }
+.index__where { display: block; margin-top: 0.35rem; }
+.index__count { text-align: right; white-space: nowrap; }
+
+.index__thumb {
+  position: absolute; right: 9rem; top: 50%;
+  width: 15rem; aspect-ratio: 3 / 2;
+  transform: translateY(-50%) scale(0.94) rotate(-1.5deg);
+  opacity: 0; pointer-events: none;
+  object-fit: cover;
+  box-shadow: 0 1.5rem 3rem rgba(0,0,0,0.6);
+  transition: opacity 0.45s var(--ease), transform 0.55s var(--ease);
+  z-index: 3;
+}
+.index__row:hover .index__thumb {
+  opacity: 1; transform: translateY(-50%) scale(1) rotate(-1.5deg);
+}
+@media (max-width: 60rem) {
+  .index__thumb { display: none; }
+  .index__row { grid-template-columns: 3rem 1fr; }
+  .index__count { grid-column: 2; text-align: left; }
+}
+
+/* --- plate grid ----------------------------------------------------------- */
+
+/* Every page that shows plates uses the same grid, and the column count comes
+   from the build, per photograph, as --cols: two across when they lie down,
+   three when they stand up, packed into rows by assign_spans() because only the
+   build knows which way each photograph stands.
+
+   There used to be an editorial rhythm here with the occasional full-bleed and
+   nine-column plate, and a phone got one photograph per row. Both were wrong in
+   the same way: one picture across the width is just a very large picture, and
+   on a phone it is the entire screen. The counts hold at every width. */
+.plates {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: clamp(0.75rem, 2.5vw, 2.25rem);
+}
+.plate-item { grid-column: span var(--cols, 4); }
+/* Three across is a wide-screen rhythm. On a phone a third of the width is a
+   stamp, so the row goes back to two and the plate keeps its own shape. */
+@media (max-width: 60rem) {
+  .plate-item { grid-column: span 6; }
+}
+
+/* At half a phone screen the plate number cannot keep a column of its own, and
+   the caption has to give up the room it takes on a desktop. */
+@media (max-width: 60rem) {
+  /* Wrapping flex, not block: the plate number takes the first line to itself
+     and the date keeps the second, which leaves the Text button somewhere to
+     sit at the right-hand end of that line instead of on a third one. */
+  .plates .plate-fig figcaption {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1rem;
+    padding-top: 0.5rem; margin-top: 0.5rem;
+  }
+  .plates .plate-fig figcaption .plate { flex: 0 0 100%; margin-bottom: 0.15rem; }
+  /* Three lines, then stop -- for the caption and for the landmark's article
+     alike, since they are the same kind of text and clipping only one of them
+     is what made two neighbouring plates read as two designs. Under a
+     photograph a third of a phone wide, a written-out caption ran seven lines
+     and became the loudest thing in the row. Tapping the photograph still
+     shows both of them whole in the lightbox. */
+  .plates .plate-fig figcaption .plate-cap {
+    font-size: 0.8125rem; line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* --- contact sheet (front page) ------------------------------------------- */
+
+/* Same grid, shorter captions. Two lines: a written-out caption under a
+   thumbnail runs longer than the photograph is tall, and since a grid row is as
+   tall as its tallest cell, one chatty caption opens a hole under everything
+   beside it. The full text is on the destination page. There is no landmark
+   rule here any more -- the front page builds its plates without landmarks at
+   all, so the one that used to hide them was hiding nothing. */
+.plates--contact { gap: clamp(0.5rem, 2vw, 1.75rem); }
+.plates--contact .plate-fig figcaption .plate-cap {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.plate-fig { margin: 0; }
+
+.plate-fig__img {
+  position: relative;
+  overflow: hidden;
+  background: var(--ground-warm) no-repeat center / cover;
+  cursor: zoom-in;
+}
+.plate-fig__img img {
+  width: 100%;
+  transition: transform 1.2s var(--ease), opacity 0.8s var(--ease);
+}
+.plate-fig__img:hover img { transform: scale(1.035); }
+/* the LQIP sits underneath as a background; the real image fades over it */
+.plate-fig__img img[data-loading] { opacity: 0; }
+
+.plate-fig figcaption {
+  display: flex; gap: 1rem; align-items: baseline;
+  padding-top: 0.85rem; margin-top: 0.85rem;
+  border-top: 1px solid var(--rule);
+}
+.plate-fig figcaption p { margin: 0; }
+/* One rhythm for the whole column, set once. Every line under a plate -- date,
+   caption, article, credit -- is a paragraph, and giving each of them its own
+   margin is exactly how the gaps drifted apart before: a rule aimed at `p` is
+   more specific than a rule aimed at one class, so half the margins were
+   silently thrown away and the same two plates sat differently. */
+.plate-fig figcaption > div > * + * { margin-top: .5rem; }
+/* The running text under a plate. The caption, the explanation of what the
+   thing is, the article about the landmark that was matched: one face, one
+   size, one colour for all three. Where a fact came from is not a reason to
+   set it in different type -- the credit line underneath says where it came
+   from, and that is the honest place to say it.
+
+   Sizing lives on this class and not on the bare p, because the small
+   monospaced lines beside it are paragraphs too and a rule aimed at all of
+   them wins over .meta on specificity alone. */
+.plate-fig figcaption .plate-cap {
+  font-size: 0.9375rem; color: var(--ink-soft); line-height: 1.55;
+}
+
+/* The way in to the text.
+   A description under a photograph made the grid row as tall as its tallest
+   cell, so one seven-line article opened a hole under every plate beside it.
+   The text now lives in the lightbox, which was already showing it, and the
+   caption line stays one line on every plate whatever it has to say.
+
+   A short fixed word, not the name: the names run from 111px to 792px wide and
+   only ~346px fit beside the date, so a name here would have wrapped and given
+   back the uneven rows this is meant to remove. The name is the first thing in
+   the lightbox instead. */
+.plate-more {
+  margin-left: auto; flex: none;
+  background: none; border: 0; padding: .1rem 0; cursor: pointer;
+  font-family: var(--mono); font-size: .625rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--rule-strong);
+  transition: color .3s var(--ease), border-color .3s var(--ease);
+}
+.plate-more::after { content: " \002B"; }
+.plate-more:hover, .plate-more:focus-visible {
+  color: var(--safelight); border-color: var(--safelight);
+}
+/* Only a scripted page folds. Without .js the button opens nothing, so it is
+   not drawn at all -- and .plate-note stays where it is written, in ordinary
+   flow under the photograph, exactly as the text has always been. */
+.plate-more { display: none; }
+.js .plate-more { display: inline-block; }
+/* Wherever the grid is two across, the sign goes alone. "27 August 2026" is
+   117px and the word another 42, which does not follow it into a 162px cell --
+   the button dropped to a line of its own and handed back the uneven rows this
+   whole thing exists to remove. The boundary is the layout's own: one plate per
+   half-screen is a thumbnail, and a thumbnail wants the smallest mark that
+   still says there is more. aria-label still reads the whole thing out, and the
+   padding keeps a finger-sized target behind a nine-pixel sign. */
+@media (max-width: 60rem) {
+  .plate-more__label { position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .plate-more {
+    border-bottom: 0; font-size: .875rem; position: relative;
+    /* Its line box must stay inside the date's 18.9px, or a plate with a
+       button sits a pixel or three lower than one without and the row is
+       uneven again -- small, but it is the same fault. Under one, so a 14px
+       glyph makes a 10.5px box and the date alone decides the height. */
+    line-height: .75;
+  }
+  /* The finger-sized target is a pseudo-element, not padding: padding on the
+     button made the caption ten pixels taller wherever there was a button, so
+     the rows went uneven again -- by the very hand that was evening them. */
+  .plate-more::before { content: ""; position: absolute; inset: -.6rem -.7rem; }
+}
+/* At a third of a phone the cell is 127px and "27 August 2026" alone is 117 of
+   them, so nothing follows the date. The plate number's line is nearly empty
+   though -- "PL. 001" is about fifty pixels -- so the button moves up beside it.
+   `order` on the date column, not on the button: flex lays items out in order,
+   and a full-width date declared before the button would have pushed it onto a
+   third line rather than sharing the first. */
+@media (max-width: 24rem) {
+  .plates .plate-fig figcaption .plate { flex: 0 1 auto; margin-bottom: 0; }
+  .plates .plate-fig figcaption > div { flex: 0 0 100%; order: 1; }
+}
+
+
+/* The credit: what the thing is called, and where that was read. The subject
+   lookup and the landmark match are two different machines, and they used to
+   arrive in two different typefaces -- one letterspaced and shouting, one not.
+   A reader has no way of knowing which machine spoke and no reason to care, so
+   there is one treatment under one set of class names -- the lightbox builds
+   the same .credit__name and .credit__src in JavaScript. */
+.plate-fig figcaption .credit,
+.lightbox__bar .credit {
+  color: var(--ink-mute); line-height: 1.6;
+  /* the line's own type, not just its children's: the space between the name
+     and the link is set in whatever face the paragraph carries, and at the body
+     size that gap was three times the one inside the words beside it */
+  font-family: var(--mono); font-size: .6875rem;
+}
+.credit__name {
+  color: var(--safelight); font-weight: 400;
+  font-family: var(--mono); font-size: .6875rem;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.credit__src {
+  margin-left: .5rem; font-family: var(--mono); font-size: .625rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  border-bottom: 1px solid var(--rule-strong); white-space: nowrap;
+  transition: color .3s var(--ease), border-color .3s var(--ease);
+}
+.credit__src:hover {
+  color: var(--safelight); border-color: var(--safelight);
+}
+
+/* --- not found ------------------------------------------------------------ */
+/* The page a visitor reaches by mistake is still a page of this site. It reuses
+   the plate slug and the display face rather than inventing a second voice for
+   the one moment somebody is already lost. */
+.notfound { max-width: 46rem; }
+.notfound h1 {
+  font-family: var(--display); font-weight: 400;
+  font-size: clamp(2.25rem, 7vw, 4.5rem); line-height: 0.98;
+  letter-spacing: -0.02em;
+  margin: 0.6rem 0 0;
+  text-wrap: balance;
+}
+.notfound__text {
+  margin: 1.6rem 0 0;
+  font-size: 0.9375rem; color: var(--ink-soft); line-height: 1.55;
+}
+.notfound__ways {
+  display: flex; flex-wrap: wrap; gap: 1.25rem 2rem;
+  margin-top: 2.5rem; padding-top: 1.1rem;
+  border-top: 1px solid var(--rule);
+}
+
+/* --- the note over a plate ------------------------------------------------ */
+
+/* A panel over the photograph, opened by Read and closed by the X or by a click
+   beside it. Pressing Read used to open the lightbox, which blew the picture up
+   full-screen -- but that is what pressing the picture is for, and having two
+   controls do the one thing left the text with no door of its own. */
+.plate-fig__frame { position: relative; }
+.plate-note { margin-top: 0.85rem; }
+.js .plate-note {
+  display: none;
+  /* Anchored to the foot of the photograph and grown to fit what it holds,
+     never stretched to the frame: a plate whose whole note is one credit line
+     was opening a panel the size of the picture with a single line adrift in
+     it. It stops at the top of the photograph and scrolls from there. */
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 100%;
+  z-index: 40; margin: 0;
+  padding: 1.25rem 1.4rem;
+  background: color-mix(in srgb, var(--ground) 94%, transparent);
+  backdrop-filter: blur(10px) saturate(120%);
+  border: 1px solid var(--rule-strong);
+  overflow-y: auto; overscroll-behavior: contain;
+  cursor: auto;
+}
+.js .plate-note.is-open { display: block; }
+.plate-note__body > * + * { margin-top: .5rem; }
+.plate-note__close {
+  display: none;
+  position: sticky; top: 0; float: right;
+  margin: -.35rem -.5rem .25rem .75rem;
+  background: none; border: 0; cursor: pointer; padding: .2rem .45rem;
+  font-family: var(--mono); font-size: 1rem; line-height: 1;
+  color: var(--ink-mute);
+  transition: color .3s var(--ease);
+}
+.js .plate-note__close { display: block; }
+.plate-note__close:hover,
+.plate-note__close:focus-visible { color: var(--safelight); }
+
+/* Over a 563px photograph the panel reads well. Over a half-phone thumbnail it
+   would not, so below the two-across breakpoint it leaves the grid and becomes
+   an ordinary centred card on a dimmed page -- the same panel, the same X, the
+   same click beside it to close. */
+@media (max-width: 60rem) {
+  .js .plate-note {
+    position: fixed; inset: auto 1rem; top: 50%; transform: translateY(-50%);
+    max-height: 72vh; z-index: 8500;
+    box-shadow: 0 1.5rem 4rem rgba(0,0,0,.7);
+  }
+  .js body.note-open::after {
+    content: ""; position: fixed; inset: 0; z-index: 8400;
+    background: rgba(8, 7, 6, .82);
+  }
+}
+
+/* --- destination page header ---------------------------------------------- */
+
+.dest-head { padding-block: clamp(3rem, 9vh, 7rem) clamp(1rem, 3vh, 2rem); }
+.dest-head h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  /* The cap comes from the page: a name of one word still fills the screen,
+     a long one steps down instead of eating the photographs below it. */
+  font-size: clamp(3rem, 11vw, var(--title-max, 9rem));
+  line-height: 0.86;
+  letter-spacing: -0.03em;
+  margin: 0.5rem 0 0;
+  text-wrap: balance;
+}
+/* What was in brackets: the same voice, a quarter of the volume. */
+.dest-head__qualifier {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: clamp(1.15rem, 2.2vw, 1.75rem);
+  line-height: 1.2;
+  color: var(--ink-soft);
+  margin: 0.7rem 0 0;
+  max-width: 40rem;
+}
+.dest-head__sub {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
+  margin-top: 1.5rem; padding-top: 1.1rem;
+  border-top: 1px solid var(--rule-strong);
+}
+.dest-intro {
+  max-width: var(--measure);
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+  font-size: 1.1875rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.dest-intro p { margin: 0 0 1rem; }
+
+.source-note {
+  margin-top: 1.25rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  max-width: var(--measure);
+  line-height: 1.9;
+}
+.source-note a { color: var(--ink-soft); border-bottom: 1px solid var(--rule-strong); }
+.source-note a:hover { color: var(--safelight); border-color: var(--safelight); }
+
+/* --- map ------------------------------------------------------------------ */
+
+.map-shell {
+  position: relative;
+  height: clamp(22rem, 56vh, 38rem);
+  border: 1px solid var(--rule);
+  background: var(--ground-warm);
+}
+/* OSM ships one bright cartography. Rather than pay for a dark basemap, the
+   tiles are pushed into this palette here — filtered on the tile layer only, so
+   the pins, popups and controls keep their real colours. */
+.map-shell .leaflet-tile-pane {
+  /* Enough to sit in the palette, not so much that the place names go. The
+     previous values (grayscale 1, brightness 0.78) left a map you could not
+     read on a phone in daylight. */
+  filter: grayscale(0.75) invert(0.9) contrast(0.9) brightness(0.95) sepia(0.25) hue-rotate(-8deg);
+}
+.map-shell .leaflet-container { background: var(--ground-warm); font-family: var(--mono); }
+.map-shell .leaflet-control-attribution {
+  background: rgba(26,24,21,0.8); color: var(--ink-mute);
+  font-family: var(--mono); font-size: 0.625rem;
+}
+.map-shell .leaflet-control-attribution a { color: var(--ink-soft); }
+/* Leaflet ships a white browser-chrome button, which on this page was the one
+   bright object in a dark frame. Same hand as the lightbox arrows: transparent,
+   a hairline, and the safelight only on hover. */
+.map-shell .leaflet-bar,
+.map-shell .leaflet-bar a {
+  background: rgba(26,24,21,0.82); color: var(--ink);
+  border-color: var(--rule-strong);
+  font-family: var(--mono); font-weight: 400;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+}
+.map-shell .leaflet-bar { box-shadow: none; border: 1px solid var(--rule-strong); }
+.map-shell .leaflet-bar a:hover,
+.map-shell .leaflet-bar a:focus {
+  background: var(--safelight); color: var(--ground); border-color: var(--safelight);
+}
+.map-shell .leaflet-bar a.leaflet-disabled { color: var(--ink-mute); background: rgba(26,24,21,0.82); }
+/* the close cross reads as part of the popup, not as a browser widget */
+.map-shell .leaflet-popup-close-button { color: var(--ink-mute); }
+.map-shell .leaflet-popup-close-button:hover { color: var(--safelight); background: transparent; }
+.map-pin {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%;
+  background: var(--safelight);
+  box-shadow: 0 0 0 0.3rem rgba(226,103,59,0.22), 0 0 1.4rem rgba(226,103,59,0.55);
+  transition: transform 0.35s var(--ease);
+}
+.map-pin:hover { transform: scale(1.45); }
+.map-shell .leaflet-popup-content-wrapper {
+  background: var(--ground-lift); color: var(--ink);
+  border-radius: 0; border: 1px solid var(--rule-strong);
+}
+.map-shell .leaflet-popup-tip { background: var(--ground-lift); }
+/* A popup is an index row in miniature and is set from the same parts: the
+   place in the display face, the count as .meta, the way in with the underline
+   every other link on the site carries. Leaflet's own rules are element-level,
+   so these have to be reached through .map-shell to outrank them. */
+.map-shell .leaflet-popup-content {
+  margin: 0.75rem 1rem; font-family: var(--mono); font-size: 0.6875rem;
+}
+/* the grid sits on the node the script builds, not on Leaflet's own wrapper:
+   that wrapper holds exactly one child, so a gap set there spaces nothing */
+.map-popup { display: grid; gap: 0.4rem; justify-items: start; }
+.map-shell .leaflet-popup-content strong {
+  font-family: var(--display); font-size: 1.05rem; font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.map-shell .leaflet-popup-content a.link-u {
+  /* ink-soft, not safelight: .link-u:hover moves to safelight, and starting
+     there would have made the hover do nothing */
+  color: var(--ink-soft); text-decoration: none;
+  font-family: var(--mono); font-size: 0.625rem;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+
+/* --- lightbox ------------------------------------------------------------- */
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 9000;
+  display: none;
+  background: rgba(8, 7, 6, 0.97);
+  backdrop-filter: blur(6px);
+}
+/* minmax(0, 1fr), not 1fr: a plain 1fr has an automatic minimum of the image's
+   min-content height, so a tall photograph pushes the caption bar off screen
+   instead of being scaled down to fit. */
+.lightbox[open], .lightbox.is-open { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+/* The breathing room is the stage's MARGIN, not its padding, because the
+   photograph below is positioned against the stage and would cover any padding.
+   */
+.lightbox__stage {
+  position: relative;
+  margin: clamp(1rem, 4vh, 3.5rem) clamp(1rem, 6vw, 6rem) 0;
+  min-height: 0;
+  overflow: hidden;
+}
+/* An <img> is a replaced element: told to size itself automatically it uses its
+   own pixel dimensions, and "max-height: 100%" only helps when the box it sits
+   in has a height a percentage can be measured against. In a grid area it has
+   not, so a standing photograph kept its full 2553 px and the overflow rule cut
+   the bottom two thirds off -- measured in the browser, not guessed. Given an
+   explicit box and object-fit, there is no percentage left to fail: the box is
+   the stage, and the picture is fitted inside it whichever way round it is. */
+.lightbox__stage img {
+  position: absolute; inset: 0; margin: 0;
+  width: 100%; height: 100%;
+  max-width: none; max-height: none;
+  object-fit: contain;
+  /* clicks fall through to the stage, which is what closes the lightbox */
+  pointer-events: none;
+  animation: lbIn 0.5s var(--ease);
+}
+@keyframes lbIn { from { opacity: 0; transform: scale(0.985); } }
+
+.lightbox__bar {
+  display: flex; gap: 1.5rem; align-items: baseline; flex-wrap: wrap;
+  padding: 1.1rem clamp(1rem, 6vw, 6rem) clamp(1.25rem, 4vh, 2.5rem);
+  border-top: 1px solid var(--rule);
+  margin-top: 1.25rem;
+}
+.lightbox__bar p { margin: 0; color: var(--ink-soft); flex: 1 1 18rem; }
+#lb-article { line-height: 1.55; }
+/* The credit over a photograph is the same line as the credit under one; it is
+   styled with the page's rule above, which is written as a class so it outranks
+   `.lightbox__bar p` and does not hand this line the caption's colour. */
+
+.lb-btn {
+  position: fixed; top: 50%; transform: translateY(-50%);
+  width: 3.25rem; height: 3.25rem;
+  display: grid; place-items: center;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  font-family: var(--mono); font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s var(--ease), border-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+.lb-btn:hover { background: var(--safelight); border-color: var(--safelight); color: var(--ground); }
+.lb-prev { left: clamp(0.5rem, 2vw, 1.5rem); }
+.lb-next { right: clamp(0.5rem, 2vw, 1.5rem); }
+.lb-close { top: clamp(0.75rem, 3vh, 1.75rem); right: clamp(0.5rem, 2vw, 1.5rem); transform: none; }
+
+/* --- footer --------------------------------------------------------------- */
+
+.colophon {
+  padding: clamp(3rem, 8vh, 6rem) var(--gutter) clamp(2rem, 5vh, 3.5rem);
+  border-top: 1px solid var(--rule);
+  display: grid; gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.colophon h3 {
+  font-family: var(--display); font-weight: 400; font-style: italic;
+  font-size: 1.5rem; margin: 0 0 0.5rem;
+}
+.colophon ul { list-style: none; margin: 0; padding: 0; }
+.colophon li { margin-bottom: 0.35rem; }
+
+/* ==========================================================================
+   What the family site has on top of the travel site
+   ========================================================================== */
+
+/* --- Album list: a drawer, not a column -----------------------------------
+   A column would have squeezed the hero and the plate grid. A drawer that
+   slides over them leaves the site as it is -- and one click opens and shuts it. */
+.drawer{position:fixed;inset-block:0;inset-inline-start:0;width:min(21rem,86vw);
+  z-index:80;background:var(--ground-warm);border-inline-end:1px solid var(--rule-strong);
+  padding:5.5rem 1.5rem 3rem;overflow:auto;transform:translateX(-102%);
+  transition:transform .45s var(--ease);box-shadow:2rem 0 4rem rgba(0,0,0,.45)}
+.drawer[data-open="1"]{transform:none}
+.drawer__scrim{position:fixed;inset:0;z-index:79;background:rgba(10,9,7,.55);
+  opacity:0;pointer-events:none;transition:opacity .4s var(--ease)}
+.drawer[data-open="1"] ~ .drawer__scrim{opacity:1;pointer-events:auto}
+.drawer h2{font-family:var(--mono);font-size:.6875rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--ink-mute);font-weight:400;margin:0 0 1.2rem}
+.drawer details{border-top:1px solid var(--rule)}
+.drawer summary{cursor:pointer;list-style:none;padding:.7rem 0;
+  font-family:var(--display);font-size:1.5rem;font-weight:400;
+  display:flex;align-items:baseline;gap:.6rem}
+.drawer summary::-webkit-details-marker{display:none}
+.drawer summary em{font-style:normal;margin-left:auto;font-family:var(--mono);
+  font-size:.625rem;letter-spacing:.14em;color:var(--ink-mute)}
+.drawer summary:hover{color:var(--safelight)}
+.drawer .country{font-family:var(--mono);font-size:.625rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-mute);margin:.7rem 0 .25rem}
+.drawer a.ev{display:block;padding:.28rem 0;color:var(--ink-soft);font-size:1.02rem;
+  transition:color .3s var(--ease),padding-left .35s var(--ease)}
+.drawer a.ev:hover,.drawer a.ev[aria-current]{color:var(--safelight);padding-left:.5rem}
+.drawer__close{position:absolute;top:1.1rem;inset-inline-end:1.2rem;background:transparent;
+  border:0;color:var(--ink-soft);font-size:1.5rem;cursor:pointer;line-height:1}
+.drawer__close:hover{color:var(--safelight)}
+
+/* --- Formulaire ------------------------------------------------------------
+   ⚠ NO attribute selector: `input[type=text]` does not catch a field without a
+     type attribute, and then it gets the browser's look -- white and unreadable. */
+input,select,textarea,button{font:inherit;color:inherit}
+input:not([type=checkbox]):not([type=radio]),select,textarea{
+  width:100%;background:var(--ground-warm);color:var(--ink);
+  border:1px solid var(--rule-strong);border-radius:0;padding:.6rem .75rem;
+  font-family:var(--body);transition:border-color .3s var(--ease)}
+input::placeholder{color:var(--ink-mute);opacity:1}
+input:hover,select:hover{border-color:var(--ink-mute)}
+input:focus,select:focus{border-color:var(--safelight);outline:none}
+
+.btn{display:inline-flex;align-items:center;gap:.4rem;background:transparent;
+  border:1px solid var(--rule-strong);padding:.55rem 1rem;font-family:var(--mono);
+  font-size:.6875rem;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;
+  white-space:nowrap;color:var(--ink-soft);
+  transition:border-color .3s var(--ease),color .3s var(--ease),background .3s var(--ease)}
+.btn:hover{border-color:var(--safelight);color:var(--safelight)}
+.btn--go{background:var(--safelight);border-color:var(--safelight);color:var(--ground)}
+.btn--go:hover{background:var(--safelight-d);border-color:var(--safelight-d);color:var(--ground)}
+
+/* --- Upload ---------------------------------------------------------------- */
+/* The upload page has no text width -- it is a form, not running text. With a
+   maximum width those four fields stood on two rows, although the page is
+   three times as wide. */
+.up{max-width:none}
+.up .lede{max-width:44rem}
+.step{display:flex;align-items:baseline;gap:1.2rem;margin:clamp(2.5rem,6vh,4rem) 0 1.2rem;
+  padding-bottom:.9rem;border-bottom:1px solid var(--rule)}
+.step__n{font-family:var(--mono);font-size:.6875rem;letter-spacing:.2em;color:var(--safelight)}
+.step h2{font-family:var(--display);font-size:clamp(1.5rem,3.2vw,2.2rem);font-weight:400}
+.step__note{margin-left:auto;font-family:var(--mono);font-size:.6875rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-mute)}
+
+.up__fields{display:grid;gap:1.6rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));
+  margin:1.6rem 0 1.8rem}
+/* On a wide page the four fields stand in ONE row -- they belong
+   zesummen an si liesen sech als ee Wee: Joer / Land / Numm / Plaz. */
+@media (min-width:64rem){ .up__fields{grid-template-columns:repeat(4,1fr)} }
+.field>label{display:block;font-family:var(--mono);font-size:.6875rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-mute);margin-bottom:.5rem}
+.field .hint{display:block;color:var(--ink-mute);font-size:.75rem;margin-top:.4rem;
+  font-family:var(--mono);letter-spacing:.04em}
+.field.is-set>label{color:var(--safelight)}
+
+.combo{position:relative}
+.combo__toggle{position:absolute;inset-block:1px;inset-inline-end:1px;width:2.2rem;
+  background:transparent;border:0;color:var(--ink-mute);cursor:pointer;font-size:.7rem}
+.combo__toggle:hover{color:var(--safelight)}
+.combo__list{position:absolute;z-index:40;inset-inline:0;top:calc(100% + 2px);max-height:17rem;
+  overflow:auto;background:var(--ground-lift);border:1px solid var(--rule-strong);
+  box-shadow:0 1.5rem 3rem rgba(0,0,0,.55);padding:.3rem}
+.combo__list[hidden]{display:none}
+.combo__opt{display:block;width:100%;text-align:start;background:transparent;border:0;
+  padding:.45rem .7rem;cursor:pointer;font-family:var(--body);font-size:1rem;color:var(--ink)}
+.combo__opt:hover,.combo__opt[aria-selected=true]{background:var(--safelight);color:var(--ground)}
+.combo__opt em{font-style:normal;color:var(--ink-mute);font-family:var(--mono);font-size:.625rem;
+  letter-spacing:.12em;margin-inline-start:.7rem}
+.combo__opt:hover em,.combo__opt[aria-selected=true] em{color:var(--ground)}
+.combo__none{padding:.45rem .7rem;color:var(--ink-mute);font-size:.9rem}
+.combo__new{border-top:1px solid var(--rule);margin-top:.3rem;padding-top:.3rem}
+
+.paths{background:var(--ground-warm);border-inline-start:2px solid var(--safelight);
+  padding:1.1rem 1.3rem;font-family:var(--mono);font-size:.8rem;line-height:2.2;overflow-x:auto}
+.paths b{color:var(--ink-mute);font-weight:400;display:inline-block;min-width:5.4rem;
+  letter-spacing:.16em;text-transform:uppercase;font-size:.625rem}
+.paths .seg{color:var(--safelight)}
+.paths--wait{border-inline-start-color:var(--rule-strong);color:var(--ink-mute)}
+
+.drop{border:1px dashed var(--rule-strong);padding:clamp(3rem,9vh,5rem) 1rem;text-align:center;
+  color:var(--ink-soft);transition:border-color .3s var(--ease),background .3s var(--ease)}
+.drop.is-over{border-color:var(--safelight);background:var(--ground-warm)}
+.drop.is-locked{opacity:.38;border-style:dotted}
+.drop.is-locked label{pointer-events:none}
+.drop b{font-family:var(--display);font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:400;
+  display:block;margin-bottom:.8rem}
+
+.queue{margin-top:1.5rem;border-top:1px solid var(--rule)}
+.queue__row{display:grid;grid-template-columns:1fr 8rem 10rem;gap:1.2rem;padding:.6rem 0;
+  border-bottom:1px solid var(--rule);align-items:center;font-family:var(--mono);font-size:.78rem}
+.queue__row .st{color:var(--ink-mute);letter-spacing:.14em;text-transform:uppercase;
+  font-size:.625rem;text-align:right}
+.queue__row[data-state=stored] .st{color:var(--safelight)}
+.queue__row[data-state=rejected],.queue__row[data-state=rejected] .st{color:var(--safelight)}
+.bar{height:1px;background:var(--rule)}
+.bar i{display:block;height:100%;background:var(--safelight);width:0;transition:width .3s var(--ease)}
+
+.warn{border-inline-start:2px solid var(--safelight);padding:.9rem 1.2rem;
+  background:var(--ground-warm);margin:1rem 0}
+.done{border-inline-start:2px solid var(--safelight);padding:1.2rem 1.3rem;
+  background:var(--ground-warm);margin:1.8rem 0;font-family:var(--mono);font-size:.8rem;
+  line-height:2.1}
+.done b{font-family:var(--display);font-size:1.6rem;font-weight:400;letter-spacing:0}
+
+/* --- Admin ----------------------------------------------------------------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1.5rem;
+  margin:2rem 0}
+.card{display:block;background:var(--ground-warm);border:1px solid var(--rule);
+  padding:1.6rem 1.7rem;transition:border-color .4s var(--ease),transform .4s var(--ease)}
+.card:hover{border-color:var(--safelight);transform:translateY(-3px)}
+.card b{display:block;font-family:var(--display);font-size:2rem;font-weight:400;
+  margin-bottom:.4rem}
+.card:hover b{color:var(--safelight)}
+.tbl{width:100%;border-collapse:collapse;margin-top:1rem}
+.tbl th{text-align:start;font-family:var(--mono);font-size:.6875rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-mute);font-weight:400;
+  padding:.7rem 2rem .7rem 0;white-space:nowrap;vertical-align:top;width:1%}
+.tbl td{padding:.7rem 0;border-bottom:1px solid var(--rule)}
+.tbl tr:last-child td{border-bottom:0}
+.bad{color:var(--safelight)}
+
+/* --- Register -------------------------------------------------------------- */
+.reg-filter{display:flex;gap:1.5rem;margin-bottom:1.5rem}
+.reg-filter a{color:var(--ink-mute)}
+.reg-filter a:hover{color:var(--ink)}
+.reg-filter a[aria-current]{color:var(--safelight)}
+.reg-grid{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr))}
+.reg-item{position:relative;margin:0;cursor:pointer;background:var(--ground-warm)}
+.reg-item img{width:100%;aspect-ratio:1;object-fit:cover;
+  transition:opacity .25s var(--ease),filter .25s var(--ease)}
+.reg-item.is-hidden img{opacity:.35;filter:grayscale(1)}
+.reg-item figcaption{padding:.35rem .1rem;display:flex;gap:.5rem;align-items:baseline}
+.reg-item__flag{color:var(--safelight)}
+.reg-item[aria-selected=true]{outline:2px solid var(--safelight);outline-offset:-2px}
+.reg-item[aria-selected=true] img{opacity:.75}
+.reg-bar{position:sticky;bottom:0;z-index:50;display:flex;gap:.6rem;align-items:center;
+  flex-wrap:wrap;padding:.9rem var(--gutter);background:var(--ground-warm);
+  border-top:1px solid var(--rule-strong);box-shadow:0 -1rem 2rem rgba(0,0,0,.35)}
+.reg-bar[hidden]{display:none}
+#reg-remove:hover{border-color:var(--safelight);color:var(--safelight)}
+
+/* --- Look-Wieler am Kapp --------------------------------------------------- */
+.look{display:inline-flex;gap:.55rem;align-items:baseline;color:var(--ink-mute)}
+.look a{color:var(--ink-mute);border-bottom:1px solid transparent}
+.look a:hover{color:var(--ink)}
+.look a[aria-current]{color:var(--safelight);border-bottom-color:var(--safelight)}
+@media (max-width:52rem){ .look{display:none} }
+
+/* ==========================================================================
+   Layouts — five ways of showing the same set.
+   ========================================================================== */
+
+/* --- 2 · CONTACT: a contact sheet. All the same size, no staging. ---------- */
+.cs-block{margin-bottom:clamp(2rem,5vh,3.5rem)}
+.cs-head{display:flex;align-items:baseline;gap:1rem;padding-bottom:.6rem;
+  border-bottom:1px solid var(--rule);margin-bottom:.75rem}
+.cs-head b{font-family:var(--display);font-size:1.5rem;font-weight:400}
+.cs-head:hover b{color:var(--safelight)}
+.cs-head .meta{margin-left:auto}
+.cs-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr));gap:3px}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(9rem,1fr));gap:3px}
+.cs-cell{position:relative;aspect-ratio:1;overflow:hidden;background:var(--ground-warm);
+  cursor:zoom-in}
+.cs-cell img{width:100%;height:100%;object-fit:cover;transition:opacity .2s var(--ease)}
+.cs-cell:hover img{opacity:.8}
+.cs-cell::after{content:attr(data-plate);position:absolute;inset-block-end:.2rem;
+  inset-inline-start:.35rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;
+  color:var(--safelight);opacity:0;transition:opacity .2s var(--ease)}
+.cs-cell:hover::after{opacity:1}
+
+/* --- 3 · JOURNAL: date on the left, photographs on the right. Reads like a diary. --- */
+.jr-row{display:grid;grid-template-columns:11rem minmax(0,1fr);gap:2rem;
+  padding:clamp(1.5rem,4vh,2.75rem) 0;border-top:1px solid var(--rule)}
+.jr-when{position:sticky;top:5rem;align-self:start}
+.jr-year{display:block;font-family:var(--display);font-size:clamp(1.8rem,3.5vw,2.8rem);
+  line-height:1;color:var(--safelight)}
+.jr-title{display:block;font-family:var(--display);font-size:clamp(1.4rem,3vw,2.1rem);
+  margin-bottom:.2rem}
+.jr-title:hover{color:var(--safelight)}
+.jr-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(8rem,1fr));gap:.4rem;
+  margin-top:1rem}
+.jr-strip img{aspect-ratio:1;object-fit:cover;cursor:zoom-in;width:100%}
+.jr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:.8rem;
+  margin-top:1rem}
+.jr-grid img{width:100%;object-fit:cover;cursor:zoom-in}
+@media(max-width:52rem){.jr-row{grid-template-columns:1fr;gap:.75rem}
+  .jr-when{position:static;display:flex;gap:1rem;align-items:baseline}}
+
+/* --- 4 · MOSAIC: no margins, no captions, the photographs fill the screen. -- */
+.mo-head{padding:clamp(2rem,7vh,4.5rem) var(--gutter) clamp(1rem,3vh,2rem)}
+.mo-head h1{font-size:clamp(2.4rem,7vw,5rem)}
+.mo-wall{columns:4 16rem;column-gap:2px;padding:0 2px}
+.mo-wall img{width:100%;margin-bottom:2px;break-inside:avoid;cursor:zoom-in;
+  transition:opacity .25s var(--ease)}
+.mo-wall img:hover{opacity:.85}
+.mo-albums{display:flex;flex-wrap:wrap;gap:.4rem 1.75rem;font-family:var(--display);
+  font-size:1.35rem}
+.mo-albums a:hover{color:var(--safelight)}
+
+/* --- 5 · SHELF: album cards like books on a shelf. ------------------------- */
+.sh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr));
+  gap:clamp(1.25rem,3vw,2.5rem)}
+.sh-card{display:block;transition:transform .4s var(--ease)}
+.sh-card:hover{transform:translateY(-4px)}
+.sh-card__img{aspect-ratio:4/3;overflow:hidden;background:var(--ground-warm);
+  box-shadow:0 1rem 2.5rem rgba(0,0,0,.35)}
+.sh-card__img img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease)}
+.sh-card:hover .sh-card__img img{transform:scale(1.05)}
+.sh-card__t{padding-top:.85rem}
+.sh-card__t b{display:block;font-family:var(--display);font-size:1.6rem;font-weight:400}
+.sh-card:hover .sh-card__t b{color:var(--safelight)}
+.sh-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,20rem),1fr));
+  gap:clamp(1rem,2.5vw,2rem)}
+.sh-photos figure{margin:0;cursor:zoom-in}
+.sh-photos img{width:100%;aspect-ratio:4/3;object-fit:cover}
+.sh-photos figcaption{padding-top:.45rem}
+
+/* --- Wieler am Kapp -------------------------------------------------------- */
+.lay{display:inline-flex;gap:.55rem;align-items:baseline;color:var(--ink-mute)}
+.lay a{color:var(--ink-mute);border-bottom:1px solid transparent}
+.lay a:hover{color:var(--ink)}
+.lay a[aria-current]{color:var(--safelight);border-bottom-color:var(--safelight)}
+@media (max-width:64rem){ .lay{display:none} }
+
+/* ==========================================================================
+   Layouts that BUILD the page differently -- not just the grid.
+   ========================================================================== */
+
+/* --- SPLIT: the photograph stays, the list scrolls. Two halves. ----------- */
+.sp{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 4.2rem)}
+.sp__stage{position:relative;background:var(--ground-warm);overflow:hidden}
+.sp__stage img{width:100%;height:100%;object-fit:cover;transition:opacity .35s var(--ease)}
+.sp__cap{position:absolute;inset-block-end:0;inset-inline:0;padding:1.2rem var(--gutter);
+  display:flex;gap:1.2rem;align-items:baseline;
+  background:linear-gradient(to top,rgba(0,0,0,.6),transparent)}
+.sp__list{overflow:auto;padding:clamp(2rem,6vh,4rem) var(--gutter);scrollbar-width:thin}
+.sp__list h1{font-size:clamp(2rem,4vw,3.4rem);margin-bottom:.3rem}
+.sp__row{display:flex;align-items:baseline;gap:1rem;padding:1rem 0;
+  border-bottom:1px solid var(--rule);transition:padding-left .4s var(--ease)}
+.sp__row b{font-family:var(--display);font-size:clamp(1.3rem,2.4vw,2rem);font-weight:400}
+.sp__row .meta{margin-left:auto}
+.sp__row:hover{padding-left:.8rem}
+.sp__row:hover b{color:var(--safelight)}
+.sp__thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(5.5rem,1fr));gap:3px;
+  margin-top:1.5rem}
+.sp__thumbs img{aspect-ratio:1;object-fit:cover;width:100%;cursor:zoom-in;opacity:.75;
+  transition:opacity .25s var(--ease)}
+.sp__thumbs img:hover{opacity:1}
+@media(max-width:60rem){.sp{grid-template-columns:1fr;height:auto}
+  .sp__stage{height:52vh}.sp__list{overflow:visible}}
+
+/* --- STAGE: one photograph per screen, the scroll snaps into place. ------- */
+.stg{scroll-snap-type:y mandatory;overflow-y:auto;height:calc(100vh - 4.2rem)}
+.stg__slide{scroll-snap-align:start;height:calc(100vh - 4.2rem);position:relative;
+  display:grid;place-items:center;padding:2rem var(--gutter)}
+.stg__slide img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.stg__cap{position:absolute;inset-block-end:1.5rem;inset-inline-start:var(--gutter);
+  display:flex;gap:1.2rem;align-items:baseline}
+.stg__slide--title{text-align:center}
+.stg__slide--title h1{font-size:clamp(3rem,11vw,9rem);line-height:.9}
+.stg__albums{display:flex;flex-direction:column;gap:.5rem;margin-top:2rem;
+  font-family:var(--display);font-size:1.6rem}
+.stg__albums a:hover{color:var(--safelight)}
+
+/* --- FILMSTRIP: queesch. Pro Album eng Kolonn. ---------------------------- */
+.fs__head{padding:clamp(1.5rem,5vh,3rem) var(--gutter) 1rem}
+.fs__head h1{font-size:clamp(2rem,5vw,3.6rem)}
+.fs{display:flex;gap:2rem;overflow-x:auto;padding:0 var(--gutter) 2rem;
+  scroll-snap-type:x proximity;scrollbar-width:thin}
+.fs__col{flex:0 0 min(26rem,80vw);scroll-snap-align:start}
+.fs__title{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:baseline;
+  padding-bottom:.6rem;border-bottom:1px solid var(--rule);margin-bottom:.8rem}
+.fs__title b{font-family:var(--display);font-size:1.5rem;font-weight:400}
+.fs__title:hover b{color:var(--safelight)}
+.fs__stack{display:grid;gap:.5rem}
+.fs__stack img{width:100%;cursor:zoom-in}
+.fs--flat{align-items:flex-start}
+.fs__frame{flex:0 0 auto;margin:0;scroll-snap-align:center;cursor:zoom-in;max-width:88vw}
+.fs__frame img{height:min(62vh,40rem);width:auto;max-width:88vw;object-fit:contain}
+.fs__frame figcaption{padding-top:.6rem}
+
+/* --- ATLAS: the map IS the page. ----------------------------------------- */
+.at{display:grid;grid-template-columns:minmax(0,1fr) 24rem;height:calc(100vh - 4.2rem)}
+.at__map{position:relative}
+.at__side{overflow:auto;border-inline-start:1px solid var(--rule);
+  padding:1.5rem var(--gutter) 3rem 1.5rem;scrollbar-width:thin}
+.at__side h1{font-size:clamp(1.6rem,3vw,2.4rem)}
+.at__row{display:flex;gap:.9rem;align-items:center;padding:.7rem 0;
+  border-bottom:1px solid var(--rule)}
+.at__row img{width:4.5rem;height:3.4rem;object-fit:cover;flex:0 0 auto}
+.at__row b{display:block;font-family:var(--display);font-size:1.15rem;font-weight:400}
+.at__row:hover b{color:var(--safelight)}
+@media(max-width:64rem){.at{grid-template-columns:1fr;height:auto}
+  .at__map{height:55vh}.at__side{border-inline-start:0;border-top:1px solid var(--rule)}}
+
+/* --- COLLAGE: asymmetric, like a magazine page. -------------------------- */
+.co{display:grid;grid-template-columns:repeat(12,1fr);gap:clamp(.5rem,1.5vw,1.25rem);
+  padding:clamp(1.5rem,4vh,3rem) var(--gutter)}
+.co__intro{grid-column:span 12;margin-bottom:1rem}
+.co__intro h1{font-size:clamp(2.4rem,7vw,5.5rem)}
+.co__f{margin:0;overflow:hidden;cursor:zoom-in;background:var(--ground-warm)}
+.co__f img{width:100%;height:100%;object-fit:cover;transition:transform .8s var(--ease)}
+.co__f:hover img{transform:scale(1.04)}
+/* A rhythm that repeats every seven plates -- big, small, tall,
+   breet -- sou datt keng zwou Reien d'selwecht ausgesinn. */
+.co__f--0{grid-column:span 7;aspect-ratio:3/2}
+.co__f--1{grid-column:span 5;aspect-ratio:4/5}
+.co__f--2{grid-column:span 4;aspect-ratio:1}
+.co__f--3{grid-column:span 8;aspect-ratio:16/9}
+.co__f--4{grid-column:span 5;aspect-ratio:3/4}
+.co__f--5{grid-column:span 7;aspect-ratio:3/2}
+.co__f--6{grid-column:span 12;aspect-ratio:21/9}
+@media(max-width:52rem){.co__f{grid-column:span 12!important;aspect-ratio:3/2!important}}
+
+/* --- Design-Wieler --------------------------------------------------------- */
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,17rem),1fr));
+  gap:1rem;margin-bottom:2.5rem}
+.pick__card{display:block;background:var(--ground-warm);border:1px solid var(--rule);
+  padding:1.1rem 1.2rem;transition:border-color .3s var(--ease),transform .3s var(--ease)}
+.pick__card:hover{border-color:var(--safelight);transform:translateY(-2px)}
+.pick__card b{display:block;font-family:var(--display);font-size:1.5rem;font-weight:400;
+  margin-bottom:.3rem}
+.pick__card.is-on{border-color:var(--safelight)}
+.pick__card.is-on b{color:var(--safelight)}
+.pick__card.is-on::after{content:" — now";font-family:var(--mono);font-size:.6rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--safelight)}
+
+/* ==========================================================================
+   Nogeschafft den 02.09.2026, no dem Kucken um Site:
+     · the type was too big
+     · the album list is fixed on a desktop, and tucked away on a phone
+     · Blo amplaz Bernstein
+   ========================================================================== */
+
+:root{
+  /* A blue instead of the safelight amber. Deliberately muted: the photographs
+     stay the only colourful thing, and a loud blue would pull against them. */
+  --safelight:#6aa9e0;
+  --safelight-d:#3f7ab3;
+}
+
+/* --- Type sizes: one step quieter ----------------------------------------- */
+h1{font-size:clamp(1.8rem,1rem+2.2vw,3rem)}
+.hero__frame{height:min(58vh,34rem);min-height:18rem}
+.hero__title h1{font-size:clamp(1.9rem,4.5vw,3.6rem);line-height:1;margin-bottom:.8rem;
+  letter-spacing:-.015em}
+.dest-head h1{font-size:clamp(1.8rem,4vw,3rem)!important;line-height:1.05}
+.index__name{font-size:clamp(1.15rem,2vw,1.65rem)}
+.ecard__t b{font-size:1.15rem}
+.section__head h2{font-size:clamp(1.3rem,2.4vw,1.9rem)}
+.masthead__mark{font-size:1.15rem}
+.step h2{font-size:clamp(1.15rem,2vw,1.5rem)}
+.card b,.drop b,.done b{font-size:1.35rem}
+.empty h2{font-size:1.5rem}
+
+/* --- The album list: fixed on a desktop, tucked away on a phone ------------ */
+.shell{display:block}
+@media (min-width:64rem){
+  .shell{display:grid;grid-template-columns:17rem minmax(0,1fr);align-items:start}
+  /* On a desktop it is no longer a drawer: it stands there, always, with its own column. */
+  /* ⚠ `inset:auto` MUST come before `top`: `inset` is the shorthand for
+     top/right/bottom/left and would otherwise have set `top` back to `auto` --
+     and then sticky hangs off nothing and scrolls along with the photographs. */
+  .drawer{position:sticky;inset:auto;top:4.2rem;width:auto;transform:none!important;
+    align-self:start;
+    max-height:calc(100vh - 4.2rem);box-shadow:none;background:transparent;
+    border-inline-end:1px solid var(--rule);padding:1.75rem 1.25rem 3rem var(--gutter);
+    z-index:1}
+  .drawer__close,.drawer__scrim{display:none}
+  .masthead__albums{display:none}      /* the button is not needed on a desktop */
+  main{min-width:0}
+}
+@media (max-width:63.99rem){
+  /* On a phone: tucked away, and the "Albums" button in the header opens it. */
+  .drawer{padding-top:5.5rem}
+}
+
+.map-shell #map{height:100%;width:100%}
+
+
+/* ---------------------------------------------------------------------------
+   D'Album-Wierkstat (/admin/albums)
+   One row per album: cover, the four fields, what is on the disk, and the
+   buttons. On a phone the fields stand under each other -- they are too narrow
+   side by side, and there the place is the most important one.
+--------------------------------------------------------------------------- */
+.alb{border-top:1px solid var(--rule-strong);margin:1.4rem 0}
+.alb__row{display:grid;gap:1rem 1.2rem;padding:1.2rem 0;
+  border-bottom:1px solid var(--rule);
+  grid-template-columns:5.5rem minmax(0,1fr);align-items:start}
+@media (min-width:64rem){
+  .alb__row{grid-template-columns:6.5rem minmax(0,2.2fr) minmax(0,1.1fr) auto;
+    align-items:center}
+}
+.alb__pic{aspect-ratio:3/2;overflow:hidden;background:var(--ground-lift);
+  border:1px solid var(--rule)}
+.alb__pic img{width:100%;height:100%;object-fit:cover;display:block}
+.alb__nopic{display:grid;place-items:center;height:100%;font-family:var(--mono);
+  font-size:.625rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-mute)}
+.alb__fields{display:grid;gap:.6rem .9rem;grid-template-columns:repeat(auto-fit,minmax(7.5rem,1fr))}
+.alb__fields label{display:block;min-width:0}
+.alb__fields label>span{display:block;font-family:var(--mono);font-size:.625rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:.25rem}
+.alb__fields input{width:100%}
+.alb__meta{display:flex;flex-direction:column;gap:.3rem;min-width:0}
+.alb__path{font-family:var(--mono);font-size:.75rem;color:var(--ink-soft);
+  overflow-wrap:anywhere}
+.alb__act{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.alb__say{font-family:var(--mono);font-size:.75rem;color:var(--ink-soft);
+  overflow-wrap:anywhere}
+/* Two dots: is the folder in the originals tree, and is it in the web tree.
+   If one of the two is missing the album is half there -- and that has to show. */
+.ok-dot{color:var(--safelight)}
+.bad-dot{color:#d4693f}
+
+
+/* ---------------------------------------------------------------------------
+   Back. At the top of every admin page, and at the bottom of the long ones.
+   Deliberately a link and not a button: it should read as navigation and not as
+   an action -- next to "save" it must not push itself forward.
+--------------------------------------------------------------------------- */
+.backnav{padding:1rem var(--gutter) 0;max-width:none}
+.backnav:last-child{padding:1.6rem var(--gutter) 2.4rem;
+  border-top:1px solid var(--rule);margin-top:2rem}
+.backnav__a{display:inline-flex;align-items:center;gap:.5rem;
+  font-family:var(--mono);font-size:.75rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-mute);text-decoration:none;
+  padding:.4rem 0;transition:color .2s var(--ease)}
+.backnav__a:hover,.backnav__a:focus-visible{color:var(--safelight)}
+.backnav__ar{transition:transform .2s var(--ease)}
+.backnav__a:hover .backnav__ar{transform:translateX(-.25rem)}
+
+
+/* ---------------------------------------------------------------------------
+   The sync (/admin/sync)
+--------------------------------------------------------------------------- */
+.syncbar{display:flex;flex-wrap:wrap;gap:.8rem;align-items:baseline;margin:.6rem 0}
+/* A stopped run. It has to stand out -- it says that something did NOT happen,
+   and that is the kind of thing people read past. */
+.halt{border:1px solid var(--safelight);border-inline-start-width:3px;
+  padding:1rem 1.2rem;margin:1.4rem 0;background:var(--ground-warm)}
+.halt b{color:var(--safelight)}
+.halt p{margin:.5rem 0}
+.tbl tr.is-halt td{color:var(--safelight)}
+
+
+/* ---------------------------------------------------------------------------
+   The tagging machine (/admin/tag)
+
+   Density is the goal here, not air: the more photographs fit on the screen,
+   the less there is to scroll. The bar at the bottom is `position:sticky` and
+   **never disappears** -- a two-hour session with no feedback is exactly the
+   point at which people give up.
+--------------------------------------------------------------------------- */
+.tagpage{padding-bottom:9rem}      /* room for the bar at the bottom */
+.tagfilter{display:flex;flex-wrap:wrap;gap:.8rem 1.1rem;align-items:end;
+  padding:1rem 0;border-block:1px solid var(--rule);margin-bottom:1rem}
+.tagfilter label{display:block}
+.tagfilter label>span{display:block;font-family:var(--mono);font-size:.625rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:.25rem}
+.tagfilter__todo{display:flex;align-items:center;gap:.45rem}
+.tagfilter__todo>span{text-transform:none;letter-spacing:.02em;font-size:.75rem;margin:0}
+.taghelp{line-height:1.9;margin:.4rem 0 1.2rem}
+.taghelp b{color:var(--ink);font-family:var(--mono);font-size:.7rem;
+  border:1px solid var(--rule-strong);padding:.1rem .35rem;border-radius:3px}
+
+.tgrid{display:grid;gap:4px;grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr))}
+@media (min-width:64rem){ .tgrid{grid-template-columns:repeat(auto-fill,minmax(9rem,1fr))} }
+.tcell{position:relative;margin:0;aspect-ratio:1;overflow:hidden;cursor:pointer;
+  background:var(--ground-lift);outline:2px solid transparent;outline-offset:-2px}
+.tcell img{width:100%;height:100%;object-fit:cover;display:block;
+  transition:opacity .15s var(--ease)}
+.tcell[aria-selected="true"]{outline-color:var(--safelight)}
+.tcell[aria-selected="true"] img{opacity:.72}
+/* The cursor is a different thing from the selection: it says where `space` acts. */
+.tcell.is-cursor{outline-color:var(--ink);outline-style:dashed}
+.tcell.is-cursor[aria-selected="true"]{outline-color:var(--safelight);outline-style:solid;
+  box-shadow:inset 0 0 0 2px var(--ink)}
+.tcell__who{position:absolute;inset-inline:0;bottom:0;display:flex;flex-wrap:wrap;gap:2px;
+  padding:.3rem;background:linear-gradient(transparent,rgba(0,0,0,.78) 45%)}
+.tcell__hidden{position:absolute;top:.3rem;inset-inline-start:.3rem;font-family:var(--mono);
+  font-size:.5625rem;letter-spacing:.1em;text-transform:uppercase;
+  background:rgba(0,0,0,.7);color:var(--ink-soft);padding:.1rem .3rem}
+.pill{font-family:var(--mono);font-size:.5625rem;letter-spacing:.06em;
+  background:rgba(0,0,0,.55);color:var(--ink);padding:.1rem .32rem;border-radius:2px;
+  border:1px solid rgba(242,237,228,.22);max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pill--tag{color:var(--ink-soft);border-style:dashed}
+.pill--set{border-color:var(--safelight);color:var(--safelight)}
+
+.tbar{position:sticky;bottom:0;z-index:40;display:flex;flex-wrap:wrap;gap:.6rem 1rem;
+  align-items:center;padding:.8rem var(--gutter);
+  background:var(--ground-warm);border-top:1px solid var(--rule-strong)}
+.tbar__n{font-family:var(--mono);font-size:.75rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--safelight);min-width:8.5rem}
+.tbar__n.is-none{color:var(--ink-mute)}
+.tbar__keys{display:flex;flex-wrap:wrap;gap:.35rem}
+.keycap{font-family:var(--mono);font-size:.75rem;background:transparent;color:var(--ink-soft);
+  border:1px solid var(--rule-strong);padding:.28rem .5rem;cursor:pointer;
+  transition:border-color .15s var(--ease),color .15s var(--ease)}
+.keycap b{color:var(--safelight);margin-inline-end:.3rem}
+.keycap:hover{border-color:var(--safelight);color:var(--ink)}
+.tbar__add,.tbar__set{display:flex;gap:.4rem;align-items:center}
+.tbar__say{margin-inline-start:auto}
+@media (max-width:64rem){ .tbar__say{margin-inline-start:0;flex-basis:100%} }
+
+
+/* --- Settings: the ticks for the album permissions --------------------- */
+.aclrow{grid-template-columns:5.5rem minmax(0,1fr)}
+@media (min-width:64rem){ .aclrow{grid-template-columns:6.5rem minmax(0,1fr) auto} }
+.aclrow__who{display:flex;flex-direction:column;gap:.45rem;min-width:0}
+.ticks{display:flex;flex-wrap:wrap;gap:.3rem .8rem}
+.ticks--groups{padding-top:.35rem;border-top:1px dashed var(--rule)}
+.tick{display:inline-flex;align-items:center;gap:.32rem;font-size:.8125rem;
+  color:var(--ink-soft);cursor:pointer}
+.tick input{margin:0}
+.tick input:checked + span{color:var(--safelight)}
+.tick--group span{font-family:var(--mono);font-size:.6875rem;letter-spacing:.06em}
+.tbl--members td{vertical-align:top}
+
+
+/* ---------------------------------------------------------------------------
+   Share links -- what a guest sees.
+
+   A page of its own, as plain as it gets: no navigation, no album list, no
+   user name. A guest sees the collection, and that is all.
+--------------------------------------------------------------------------- */
+.sharebody{min-height:100vh;display:flex;flex-direction:column}
+.share{flex:1;padding-block:clamp(2rem,7vh,4.5rem)}
+.share__gate{max-width:32rem;margin-inline:auto;text-align:center}
+.share__gate h1{margin:.6rem 0 1rem}
+.share__form{display:flex;flex-direction:column;gap:.6rem;align-items:stretch;
+  max-width:22rem;margin:1.6rem auto 1rem}
+.share__form label{font-family:var(--mono);font-size:.6875rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-mute);text-align:start}
+.share__head{text-align:center;margin-bottom:clamp(1.5rem,4vh,2.5rem)}
+.share__head h1{margin:.5rem 0 .6rem}
+/* ⚠ The share page would otherwise inherit the 12-column grid (small 143px
+   photographs, a 36px gap) -- which left them too far apart and too close to
+   the edge. Here it gets its own, calmer grid: fewer, bigger photographs, a
+   small gap. */
+.share__plates {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(9rem, 20vw, 15rem), 1fr));
+  gap: clamp(0.9rem, 1.4vw, 1.6rem) clamp(0.55rem, 0.9vw, 0.95rem);
+  align-items: start;
+}
+.share__plates .plate-fig figcaption { padding-top: 0.4rem; }
+.share__plates .plate-fig figcaption > div { margin-top: 0.15rem; }
+.share__plates .plate-fig figcaption p { margin: 0; }
+/* Make the download link more visible (small, but in the accent colour). */
+.share__plates .plate-fig a[download] {
+  display: inline-block; border: 0; margin-top: 0.25rem;
+  font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--safelight);
+}
+.share__plates .plate-fig a[download]:hover { color: var(--ink); }
+.share__up{margin-top:clamp(2.5rem,7vh,4rem);padding-top:1.6rem;
+  border-top:1px solid var(--rule);max-width:34rem}
+.share__note{margin-top:2rem;text-align:center}
+.share__foot{padding:1.6rem var(--gutter);border-top:1px solid var(--rule);
+  text-align:center}
+.warn{color:var(--safelight)}
+
+/* --- Deel-Links am Admin --------------------------------------------- */
+.fresh{border:1px solid var(--safelight);border-inline-start-width:3px;
+  padding:1rem 1.2rem;margin:1.4rem 0;background:var(--ground-warm)}
+.fresh b{color:var(--safelight)}
+.fresh pre{font-family:var(--mono);font-size:.8125rem;line-height:1.7;
+  white-space:pre-wrap;overflow-wrap:anywhere;margin:.7rem 0;color:var(--ink)}
+.newshare{display:flex;flex-wrap:wrap;gap:.8rem 1.2rem;align-items:end;
+  padding:1rem 0;border-block:1px solid var(--rule);margin-bottom:1rem}
+.newshare label:not(.tick){display:block}
+.newshare label>span{display:block;font-family:var(--mono);font-size:.625rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:.25rem}
+.tbl--links td{vertical-align:top}
+.lrow__url{font-family:var(--mono);font-size:.75rem;overflow-wrap:anywhere}
+.lrow__act{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.lrow.is-expired td,.lrow.is-revoked td{opacity:.6}
+
+
+/* There is no album list on the admin pages -- so no column for one either. */
+.shell--wide{display:block}
+
+/* ---------------------------------------------------------------------------
+   D'Album-Wierkstat, zweet Fassung: Joer · Numm · Plaz · Land, dann direkt
+   next to it who sees it, and tagging the whole album in one click.
+--------------------------------------------------------------------------- */
+.alb2{border-top:1px solid var(--rule-strong);margin:1.4rem 0}
+.alb2__row{display:grid;gap:.8rem 1.4rem;padding:1.1rem 0;
+  border-bottom:1px solid var(--rule);
+  grid-template-columns:5.5rem minmax(0,1fr);align-items:start}
+/* ⚠ The fourth column was `auto` -- and an auto column becomes as wide as its
+   longest content. The longest content is the explanatory sentence under the stops
+   („Each stop is by MODE to PLACE…"), an deen zielt op EER Zeil. Bei engem
+   Album MAT Etappen steet den `<details>` op (`{{ ' open' if a.legs }}`), an
+   da koum bei 1800 px dat hei eraus: 104 / **0** / 224 / 1261 px. D'Felder-
+   column (`minmax(0,2.4fr)`) is allowed to fall to zero, so it fell to zero:
+   the boxes slid on top of the viewing list, and the path
+   „2024/Spain/Estepona" stoung ee Buschtaf pro Zeil. (Fonnt de 06.09.2026,
+   Album Estepona -- deen eenzegen mat Etappen.)
+   `minmax(0,1.6fr)` gives the journey a share, not a free hand. */
+@media (min-width:78rem){
+  .alb2__row{grid-template-columns:6.5rem minmax(0,2.4fr) minmax(14rem,1fr) minmax(0,1.6fr)}
+}
+/* ⚠ Under 78rem the row has only TWO columns -- and the viewing list, being the
+   third child, automatically landed in the 5.5rem image column (measured: 88 px
+   wide, 489 tall) and ran out of it. It belongs under the fields, in the same
+   column; and the same for the journey. */
+@media (max-width:77.99rem){
+  .alb2__acl,.alb2__journey{grid-column:2}
+}
+/* And with it: both columns really do have to be able to shrink. */
+.alb2__journey{min-width:0}
+.alb2__legs-wrap{min-width:0}
+.alb2__leg-mode{flex:0 0 7rem}
+.alb2__pic{aspect-ratio:3/2;overflow:hidden;background:var(--ground-lift);
+  border:1px solid var(--rule)}
+.alb2__pic img{width:100%;height:100%;object-fit:cover;display:block}
+.alb2__main{display:flex;flex-direction:column;gap:.55rem;min-width:0}
+.alb2__fields{display:grid;gap:.6rem .9rem;
+  grid-template-columns:repeat(auto-fit,minmax(7.5rem,1fr))}
+.alb2__fields label{display:block;min-width:0}
+.alb2__fields label>span,.alb2__lab{display:block;font-family:var(--mono);
+  font-size:.625rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-mute);margin-bottom:.25rem}
+.alb2__lab b{color:var(--safelight);letter-spacing:.08em}
+.alb2__fields input{width:100%;padding:.42rem .6rem}
+.alb2__state{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+/* ⚠ Those two fields have to stand SIDE BY SIDE. `input:not([type=checkbox])`
+   sets `width:100%`, and that turned the tag row into four rows -- which made
+   an album row taller than the screen. So: a width of their own with the same
+   specificity, and `flex:0 0 auto`, so the flex container does not blow them
+   up again. */
+.alb2__tag{display:flex;flex-wrap:wrap;gap:.4rem .5rem;align-items:center;
+  padding-top:.6rem;border-top:1px dashed var(--rule)}
+.alb2__tag .alb2__lab{flex-basis:100%;margin:0}
+.alb2__have{display:flex;flex-wrap:wrap;gap:.25rem;flex-basis:100%;
+  margin-bottom:.15rem}
+.alb2__tag input.alb2__who,
+.alb2__tag input.alb2__whotag{flex:0 0 auto;width:10rem;padding:.35rem .55rem;
+  font-size:.8125rem}
+.alb2__tag .btn{padding:.32rem .6rem;font-size:.6875rem;white-space:nowrap}
+.alb2__acl{display:flex;flex-direction:column;gap:.4rem;min-width:0}
+.alb2__acl .ticks{max-height:11rem;overflow-y:auto}
+.alb2__more summary{cursor:pointer;padding:.2rem 0}
+/* The button row. ⚠ It had NO rule at all: as the fifth child of the grid it
+   landed in the image column (104 px), and every button stood on a line of its
+   own. It belongs across the whole width, under the row. */
+.alb2__act{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.up__acl{padding:1rem 0 1.4rem;border-bottom:1px solid var(--rule);margin-bottom:1.4rem}
+.up__acl .ticks{margin-top:.3rem}
+
+/* Somebody who is on a viewing list but is not (any longer) in a site group. */
+.tick--gone span em{font-style:normal;font-family:var(--mono);font-size:.5625rem;
+  letter-spacing:.1em;text-transform:uppercase;color:#d4693f;margin-inline-start:.3rem}
+
+
+/* ---------------------------------------------------------------------------
+   The default tags. A flap in the bar -- it should be there when it is needed,
+   and not take half a page all the time.
+--------------------------------------------------------------------------- */
+.tagbank{position:relative}
+.tagbank>summary{list-style:none;cursor:pointer}
+.tagbank>summary::-webkit-details-marker{display:none}
+.tagbank[open]>summary{border-color:var(--safelight);color:var(--safelight)}
+.tagbank__body{position:absolute;bottom:calc(100% + .6rem);inset-inline-start:0;
+  z-index:50;width:min(46rem,90vw);max-height:52vh;overflow-y:auto;
+  background:var(--ground-lift);border:1px solid var(--rule-strong);
+  padding:.9rem 1rem;display:flex;flex-direction:column;gap:.8rem;
+  box-shadow:0 -8px 32px rgba(0,0,0,.45)}
+.tagbank__grp{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+.tagbank__lab{flex-basis:100%;font-family:var(--mono);font-size:.625rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mute)}
+.chip{font-family:var(--body);font-size:.8125rem;background:transparent;
+  color:var(--ink-soft);border:1px solid var(--rule-strong);border-radius:999px;
+  padding:.22rem .7rem;cursor:pointer;transition:border-color .15s var(--ease),
+  color .15s var(--ease),background .15s var(--ease)}
+.chip:hover{border-color:var(--safelight);color:var(--ink)}
+.chip b{font-family:var(--mono);font-size:.625rem;color:var(--ink-mute);
+  margin-inline-start:.3rem}
+.chip--used{border-color:var(--rule-strong);color:var(--ink)}
+.chip--just{background:var(--safelight);border-color:var(--safelight);
+  color:var(--ground)}
+.chip--just b{color:var(--ground)}
+
+.emptystate{margin-top:2.4rem;max-width:34rem}
+.emptystate p{margin:.4rem 0}
+
+/* A row that has not been looked through yet. It should stand out without shouting. */
+.alb2__row.is-new{border-inline-start:3px solid var(--safelight);
+  padding-inline-start:.9rem}
+
+.legend{padding:.6rem 0 0;line-height:1.9}
+.legend b{color:var(--ink);font-family:var(--mono);font-size:.7rem;
+  border:1px solid var(--rule-strong);padding:.08rem .3rem;border-radius:3px}
+
+/* --- Tags a Persounen verwalten (Astellungen) ------------------------- */
+.names{display:grid;gap:1.6rem 2.4rem;grid-template-columns:1fr;margin:1rem 0 1.6rem}
+@media (min-width:60rem){ .names{grid-template-columns:1fr 1fr} }
+.names h3{font-family:var(--mono);font-size:.6875rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-mute);font-weight:400;margin:0 0 .4rem}
+.names__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.names__list li{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+.names__list li.meta{color:var(--ink-mute)}
+.names__col input.names__name{flex:1 1 8rem;min-width:6rem;padding:.3rem .5rem;
+  font-size:.8125rem}
+.names__col input.names__new{width:11rem}
+.names__col .btn{padding:.28rem .55rem;font-size:.6875rem}
+.names__say{min-width:3rem}
+
+
+/* ---------------------------------------------------------------------------
+   The state on the admin page, in boxes.
+
+   A number that matters should be visible at a glance -- nobody reads a row
+   with forty characters in a table cell. What is wrong turns red.
+--------------------------------------------------------------------------- */
+/* ⚠ Boxes of their own, not a strip. At the top of the page the albums stand as
+   separate cards with air between them -- the state should look exactly the
+   same, or the two blocks read like two different programs. */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));
+  gap:1.5rem;margin:2rem 0}
+.tile{background:var(--ground-warm);border:1px solid var(--rule);
+  padding:1.4rem 1.5rem;display:flex;flex-direction:column;gap:.2rem;
+  min-width:0;transition:border-color .4s var(--ease)}
+.tile--wide{grid-column:span 2}
+@media (max-width:40rem){ .tile--wide{grid-column:span 1} }
+.tile__n{font-family:var(--display);font-size:2.4rem;line-height:1;
+  color:var(--ink);font-weight:400}
+.tile__n--sm{font-family:var(--body);font-size:1.15rem;line-height:1.3}
+.tile__lab{font-family:var(--mono);font-size:.625rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-mute)}
+.tile__sub{font-family:var(--mono);font-size:.6875rem;color:var(--ink-mute);
+  overflow-wrap:anywhere}
+.tile.is-work .tile__n{color:var(--safelight)}
+.tile.is-work{border-color:var(--safelight)}
+.tile.is-bad{background:rgba(212,105,63,.10);border-color:#d4693f}
+.tile.is-bad .tile__n,.tile.is-bad .tile__lab{color:#d4693f}
+
+/* The bar on the photographs page is always there -- it must not be hidden, or
+   nobody knows that a multiple selection exists. */
+.reghelp{margin:.2rem 0 1rem}
+#reg-count.is-none{color:var(--ink-mute)}
+.reg-bar .btn[disabled]{opacity:.4;cursor:default}
+.reg-item.is-cursor{outline:2px dashed var(--ink);outline-offset:-2px}
+
+.alb2__merge{color:var(--safelight);font-family:var(--mono);font-size:.6875rem}
+
+/* The button on the map that shows everything again. */
+.map-reset a{font-family:var(--mono);font-weight:400;line-height:26px}
+
+/* --- Collage: scattered like prints spilled on a table --------------------
+   The layout (width/height per card) is measured in the browser, see site.js.
+   Only the look is here: a white print border, a shadow, slightly turned, and
+   the overlap through a negative margin (-7px matches `MARGIN` in site.js --
+   change one and the other has to change too). On hover the photograph
+   straightens itself and jumps to the front. */
+.collage-full { padding-inline: clamp(0.5rem, 1.6vw, 1.5rem); }
+.collage {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  justify-content: center;
+  padding-block: clamp(0.4rem, 1.2vw, 0.9rem) clamp(2rem, 5vw, 3.5rem);
+}
+.snap {
+  position: relative; box-sizing: border-box;
+  margin: -7px;                       /* ⚠ == MARGIN am site.js */
+  padding: 6px;
+  background: #f4efe6;                 /* the white print border */
+  border-radius: 2px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.42);
+  transform: rotate(var(--rot, 0deg));
+  transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  z-index: var(--z, 1);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+}
+.snap picture { display: block; width: 100%; height: 100%; }
+.snap img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  background: var(--ground-warm);
+}
+.snap:hover, .snap:focus-visible {
+  transform: rotate(0deg) scale(1.13) translateY(-9px);
+  box-shadow: 0 26px 50px rgba(0,0,0,0.62), 0 6px 14px rgba(0,0,0,0.5);
+  z-index: 600; outline: none;
+}
+@media (max-width: 40rem) {
+  .snap { padding: 4px; }
+  .snap:hover, .snap:focus-visible { transform: rotate(0deg) scale(1.08) translateY(-5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snap { transform: none; transition: box-shadow 0.2s ease; margin: 3px; }
+  .snap:hover, .snap:focus-visible { transform: scale(1.04); }
+}
+
+/* --- Direkt aus dem Album deelen ------------------------------------------ */
+/* The title on the left, the share button on the right, on THE SAME line -- not
+   under it. Hence `nowrap`: the title may shrink (min-width:0) and wrap itself
+   if it has to, but the button stays on the right. */
+.dest-head__row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 0.8rem 1.5rem; flex-wrap: nowrap;
+}
+.dest-head__row h1 { margin-top: 0.5rem; min-width: 0; overflow-wrap: break-word; }
+.album-share__btn { flex: 0 0 auto; align-self: flex-end; white-space: nowrap; margin-bottom: 0.5rem; }
+#share-fresh { margin-top: 1.1rem; max-width: 34rem; }
+/* On a phone there is no room side by side -- there the button may go under. */
+@media (max-width: 40rem) {
+  .dest-head__row { flex-wrap: wrap; align-items: flex-start; }
+  .album-share__btn { align-self: flex-start; }
+}
+
+/* --- Video: Play-Zeechen um Titelbild + Player am Lightbox ----------------- */
+.snap, .plate-fig__img { position: relative; }
+.snap__play {
+  position: absolute; z-index: 3; top: 50%; left: 50%;
+  width: 3rem; height: 3rem; margin: -1.5rem 0 0 -1.5rem;
+  border-radius: 50%;
+  background: rgba(20,18,15,0.55); border: 1px solid rgba(242,237,228,0.55);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  transition: background 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.snap__play::after {   /* triangle */
+  content: ""; position: absolute; top: 50%; left: 54%;
+  transform: translate(-50%,-50%);
+  border-style: solid; border-width: 0.55rem 0 0.55rem 0.9rem;
+  border-color: transparent transparent transparent #f4efe6;
+}
+.snap:hover .snap__play, .plate-fig__img:hover .snap__play {
+  background: var(--safelight); transform: scale(1.08);
+}
+.snap:hover .snap__play::after, .plate-fig__img:hover .snap__play::after {
+  border-left-color: var(--ground);
+}
+.snap__dur {
+  position: absolute; z-index: 3; right: 0.5rem; bottom: 0.5rem;
+  font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.06em;
+  padding: 0.1rem 0.4rem; border-radius: 2px;
+  background: rgba(20,18,15,0.7); color: #f4efe6;
+  pointer-events: none;
+}
+.lightbox__stage [hidden] { display: none !important; }
+#lb-video { max-width: 100%; max-height: 100%; display: block; background: #000; }
+.share__video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+
+/* --- Sharing an album: button + the view-limit choice -------------------- */
+.album-share__ctl { display: flex; align-items: center; gap: 0.6rem 0.9rem; flex-wrap: wrap; }
+.album-share__ctl .btn { text-decoration: none; }
+/* Adding photographs (a member) */
+.contribute {
+  margin: 0.9rem 0 0; padding: 0.9rem 1rem; border: 1px dashed var(--rule-strong);
+  border-radius: 4px; background: var(--ground-warm);
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem 0.9rem;
+}
+.contribute p { margin: 0; flex: 1 1 16rem; }
+.contribute .btn { cursor: pointer; }
+.contribute[hidden] { display: none; }   /* or `display:flex` would override hidden */
+
+/* --- "My albums" (download / add photographs) --------------------------- */
+.myalb { display: flex; flex-direction: column; gap: 1rem; }
+.myalb__row {
+  display: grid; grid-template-columns: 120px 1fr; gap: 1rem;
+  padding: 0.9rem; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--ground-warm);
+}
+.myalb__pic {
+  display: block; aspect-ratio: 3/2; border-radius: 4px; overflow: hidden;
+  background: var(--ground); display: grid; place-items: center;
+}
+.myalb__pic img { width: 100%; height: 100%; object-fit: cover; }
+.myalb__body { min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.myalb__title { text-decoration: none; color: inherit; }
+.myalb__title h2 { font-family: var(--display); font-size: 1.35rem; margin: 0; overflow-wrap: break-word; }
+.myalb__title:hover h2 { color: var(--safelight); }
+.myalb__act { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.15rem; }
+.myalb__act .btn { text-decoration: none; cursor: pointer; }
+.myalb__file {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+@media (max-width: 34rem) {
+  .myalb__row { grid-template-columns: 1fr; }
+  .myalb__pic { max-width: 200px; }
+}
+.album-share__views { display: inline-flex; align-items: center; gap: 0.4rem; }
+.album-share__views select {
+  font-family: var(--mono); font-size: 0.75rem; padding: 0.15rem 0.35rem;
+  background: var(--ground-warm); color: var(--ink); border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+}
+
+/* --- Share page: "Download all" ----------------------------------------- */
+.share__all { margin-top: 1.1rem; display: flex; flex-direction: column;
+  align-items: center; gap: 0.45rem; }
+.share__all .btn { text-decoration: none; }
+
+/* --- Album-Wierkstat: „remove from site" (Originaler bleiwen) ------------- */
+.alb2__remove { color: var(--safelight); border-color: var(--rule-strong); }
+.alb2__remove:hover { background: var(--safelight); color: var(--ground); border-color: var(--safelight); }
+
+/* --- Reesfilmchen (Album-Opmaach-Animatioun) ----------------------------- */
+/* Full screen: the film covers the whole page (the header and menu too), plays,
+   and then fades out (0.5s) to show the album. */
+.journey {
+  position: fixed; inset: 0; z-index: 8900; overflow: hidden;
+  background: var(--ground); opacity: 1; transition: opacity 0.5s var(--ease);
+}
+.journey.is-done { opacity: 0; pointer-events: none; }
+.journey__map { position: absolute; inset: 0; background: var(--ground-warm); }
+/* The same dark look as the atlas map. */
+.journey__map .leaflet-tile-pane {
+  filter: grayscale(0.75) invert(0.9) contrast(0.9) brightness(0.95) sepia(0.25) hue-rotate(-8deg);
+}
+.journey__map .leaflet-container { background: var(--ground-warm); }
+.journey__cap {
+  position: absolute; left: 0; right: 0; bottom: clamp(1.5rem, 5vh, 3rem);
+  z-index: 5; text-align: center; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; gap: 0.9rem;
+  font-family: var(--display); font-size: clamp(1.2rem, 3vw, 2rem);
+  color: var(--ink); text-shadow: 0 2px 12px rgba(10,9,7,0.8);
+}
+.journey__dash { font-size: 1.3em; }
+.journey__skip {
+  position: absolute; top: 1rem; right: 1rem; z-index: 5;
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  padding: 0.4rem 0.8rem; border-radius: 3px; cursor: pointer;
+  background: rgba(26,24,21,0.82); color: var(--ink); border: 1px solid var(--rule-strong);
+}
+.journey__skip:hover { background: var(--safelight); color: var(--ground); border-color: var(--safelight); }
+.journey__veh { display: grid; place-items: center; }
+.journey__veh span {
+  font-size: 1.7rem; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No animation: do not show the overlay at all. */
+  .journey { display: none; }
+}
+
+/* --- The opening film (splash at sign-in): a journey across Europe -------- */
+.splash { position: fixed; inset: 0; z-index: 8900; overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 40%, var(--ground) 0%, #12100e 100%);
+  display: grid; place-items: center; opacity: 1; transition: opacity 0.6s var(--ease); }
+.splash[hidden] { display: none; }
+.splash.is-done { opacity: 0; pointer-events: none; }
+.splash__scene { width: min(94vw, 90vh); }
+.splash__svg { width: 100%; height: auto; display: block; overflow: hidden; }
+.sp-land { fill: var(--safelight); fill-opacity: .12; stroke: var(--safelight);
+  stroke-opacity: .55; stroke-width: 1.2; opacity: 0; animation: sp-fin 1s .2s var(--ease) forwards; }
+.sp-route { stroke: var(--safelight); }
+.sp-veh { color: var(--ink); }
+.sp-plane { color: #eaf2fb; }
+.sp-lab { fill: var(--ink); font: 600 17px/1 var(--mono); letter-spacing: .03em;
+  paint-order: stroke; stroke: var(--ground); stroke-width: 4px; stroke-linejoin: round; }
+.sp-family { color: var(--ink); }
+.sp-viewfinder { color: var(--ink); opacity: 0; animation: sp-vfin .8s .1s ease forwards; }
+.sp-cam { color: var(--ink); opacity: 0; animation: sp-fin .6s .2s ease forwards; }
+.sp-rec { fill: var(--safelight-d, #b64a24); }
+.sp-flash { fill: #fff; opacity: 0; }
+@keyframes sp-fin { to { opacity: 1; } }
+@keyframes sp-vfin { to { opacity: .4; } }
+.splash__skip { position: absolute; top: 1rem; right: 1rem; cursor: pointer;
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; font-weight: 600;
+  padding: 0.4rem 0.8rem; border-radius: 3px; color: var(--ink);
+  background: rgba(26,24,21,0.8); border: 1px solid var(--rule-strong); }
+.splash__skip:hover { background: var(--safelight); color: var(--ground); border-color: var(--safelight); }
+@media (prefers-reduced-motion: reduce) { .splash { display: none !important; } }
+
+/* Journey workshop: multi-stop legs */
+.alb2__legs-wrap { width: 100%; margin-top: 0.4rem; }
+/* The multi-stop switch (it replaced the old `<summary>`). */
+.alb2__multi { margin-top: 0.5rem; }
+.alb2__legs { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.5rem 0; }
+.alb2__leg { display: flex; gap: 0.4rem; align-items: center; }
+.alb2__leg-name { flex: 1 1 auto; min-width: 8rem; }
+.alb2__leg [data-leg-del] { flex: 0 0 auto; padding: 0.2rem 0.55rem; }
+
+/* --- Apparater (App-Kopplung, /app) --------------------------------------- */
+.dev__pair { margin-bottom: 2.5rem; }
+.dev__qr {
+  margin-top: 1.2rem; padding: 1.2rem; max-width: 26rem;
+  background: var(--ground-warm); border: 1px solid var(--rule);
+}
+/* ⚠ The QR code sits on a LIGHT ground, and deliberately so: a site can be
+   dark, a QR code cannot -- many scanners will not read an inverted one. */
+.dev__qrimg { background: #f2ede4; padding: 0.5rem; display: inline-block; line-height: 0; }
+.dev__qrimg svg { display: block; width: 13rem; height: 13rem; }
+.dev__code {
+  font-family: var(--mono); font-size: 1.05rem; letter-spacing: 0.08em;
+  color: var(--safelight); word-break: break-all; margin: 0.3rem 0 0.2rem;
+}
+.dev__row {
+  display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap;
+  padding: 0.8rem 0; border-bottom: 1px solid var(--rule);
+}
+.dev__row b { font-family: var(--display); font-size: 1.1rem; }
+.dev__row .btn { margin-inline-start: auto; }
+
+/* --- Umellen (/login, /setup) ---------------------------------------------- */
+/* A page with no masthead: whoever is not in yet should see no album names
+   an enger Navigatioun gesinn. */
+.barebody { display: grid; place-items: center; min-height: 100vh; }
+.signin {
+  width: min(24rem, 92vw); display: flex; flex-direction: column; gap: 0.9rem;
+  padding: 2rem 1.8rem 2.2rem;
+  background: var(--ground-warm); border: 1px solid var(--rule);
+}
+.signin h1 { font-size: 2rem; margin: 0; letter-spacing: 0.01em; }
+.signin label { display: block; }
+.signin label span {
+  display: block; font-family: var(--mono); font-size: 0.625rem;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-mute);
+  margin-bottom: 0.25rem;
+}
+.signin input { width: 100%; padding: 0.55rem 0.7rem; }
+.signin .btn { text-align: center; padding: 0.6rem; }
+.signin__or { text-align: center; margin: 0.2rem 0; }
+.signin__bad {
+  font-family: var(--mono); font-size: 0.75rem; color: var(--ground);
+  background: var(--safelight); padding: 0.5rem 0.7rem; margin: 0;
+}

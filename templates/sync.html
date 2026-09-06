@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Sync — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Sync</h1>
+  <p class="lede reveal d2">The site is a mirror of the originals tree.
+     Take a photograph away there and it leaves the site; edit it and it is rebuilt;
+     move it and it stays the same photograph, with its title, rating and tags.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  {% if halt %}
+  <div class="halt" role="alert">
+    <b>The sync stopped itself.</b>
+    <p>{{ halt.halted_reason }}</p>
+    <p class="meta">Nothing was changed. This is the brake: an unmounted share looks
+       like an empty folder, and an empty folder looks like “every photograph is gone”.</p>
+    <p>
+      <button class="btn" id="go-quick-confirm">Yes, that was me — carry on</button>
+      <span class="meta">first check the share really is mounted</span>
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="step">
+    <span class="step__n">01</span><h2>Look now</h2>
+    <span class="step__note">nothing is deleted — a missing master goes to the bin first</span>
+  </div>
+  <p class="syncbar">
+    <button class="btn btn--go" id="go-quick">quick look</button>
+    <span class="meta">size and date only — every night at 03:00</span>
+  </p>
+  <p class="syncbar">
+    <button class="btn" id="go-deep">deep look</button>
+    <span class="meta">re-reads every file — Sundays at 04:00. Slow, and it is meant to be</span>
+  </p>
+  <p class="meta" id="syncout" aria-live="polite"></p>
+
+  <div class="step">
+    <span class="step__n">02</span><h2>The runs</h2>
+    <span class="step__note">{{ counts.on_site }} on the site &middot; {{ counts.missing }} missing</span>
+  </div>
+  <table class="tbl" id="runs">
+    <tr><th>When</th><th>Kind</th><th>New</th><th>Changed</th><th>Moved</th><th>Missing</th><th></th></tr>
+    {% for r in runs %}
+    <tr{% if r.halted_reason %} class="is-halt"{% endif %}>
+      <td>{{ r.started_at }}</td>
+      <td>{{ r.kind }}</td>
+      <td>{{ r.n_new }}</td>
+      <td>{{ r.n_changed }}</td>
+      <td>{{ r.n_moved }}</td>
+      <td>{{ r.n_missing }}</td>
+      <td class="meta">{{ r.halted_reason or ('' if r.finished_at else 'running…') }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="meta">no run yet</td></tr>
+    {% endfor %}
+  </table>
+
+  <div class="step">
+    <span class="step__n">03</span><h2>The bin</h2>
+    <span class="step__note">a master stays {{ trash.days }} days before it is really gone</span>
+  </div>
+  {% if trash.buckets %}
+  <table class="tbl">
+    <tr><th>Day</th><th>Masters</th></tr>
+    {% for b in trash.buckets %}<tr><td>{{ b.tag }}</td><td>{{ b.n }}</td></tr>{% endfor %}
+  </table>
+  <p class="meta">Put the original back into the originals tree and the next run
+     brings the photograph back — with everything that hung on it.</p>
+  {% else %}
+  <p class="meta">The bin is empty.</p>
+  {% endif %}
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/sync.js?v={{ static_ver }}" defer></script>{% endblock %}

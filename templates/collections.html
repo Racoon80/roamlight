@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Collections — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Collections</h1>
+  <p class="lede reveal d2">A collection is a <em>selection</em>, not a folder — a photograph
+     can be in ten of them and still lies on the disk exactly once. Put photographs in
+     one from the <a class="link-u" href="/admin/tag">tagging page</a>.
+     This is what gets shared, later.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  <p class="syncbar">
+    <input id="newtitle" placeholder="a new collection…" size="24" autocomplete="off">
+    <button class="btn btn--go" id="newset" type="button">create</button>
+    <span class="meta" id="csay" aria-live="polite"></span>
+  </p>
+
+  <div class="alb" id="sets">
+    {% for s in sets %}
+    <form class="alb__row" data-id="{{ s.id }}">
+      <div class="alb__pic">
+        {% if s.cover_photo_id %}
+        <img src="/photos/{{ s.cover_photo_id }}/400.webp?v={{ s.cover_rev or 0 }}"
+             alt="" loading="lazy" decoding="async">
+        {% else %}<span class="alb__nopic">empty</span>{% endif %}
+      </div>
+      <div class="alb__fields">
+        <label><span>Title</span><input name="title" value="{{ s.title }}"></label>
+      </div>
+      <div class="alb__meta">
+        <code class="alb__path">/c/{{ s.slug }}</code>
+        <span class="meta">{{ s.n }} photograph{{ '' if s.n == 1 else 's' }}
+          &middot; made {{ s.created_at[:10] }}</span>
+      </div>
+      <div class="alb__act">
+        <button class="btn btn--go" type="submit">save</button>
+        <a class="btn" href="/c/{{ s.slug }}">look</a>
+        <button class="btn" type="button" data-del="{{ s.id }}">delete</button>
+        <span class="alb__say" aria-live="polite"></span>
+      </div>
+    </form>
+    {% else %}
+    <p class="meta" style="padding:1.2rem 0">No collections yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/collections.js?v={{ static_ver }}" defer></script>{% endblock %}

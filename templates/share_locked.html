@@ -1,0 +1,19 @@
+{% extends "share_base.html" %}
+{% block title %}A private link — {{ site_title }}{% endblock %}
+{% block content %}
+<div class="share__gate">
+  <p class="plate">SHARED WITH YOU</p>
+  <h1>{{ row.title }}</h1>
+  <p class="lede">{{ row.n }} photograph{{ '' if row.n == 1 else 's' }}.
+     The password came with the link.</p>
+  {% if wrong %}<p class="warn">That is not the password. Try again.</p>{% endif %}
+  <form method="post" action="/s/{{ token }}" class="share__form">
+    <label for="pw">Password</label>
+    <input id="pw" name="password" type="password" autocomplete="off"
+           autocapitalize="off" spellcheck="false" autofocus
+           placeholder="four words and three digits">
+    <button class="btn btn--go" type="submit">open</button>
+  </form>
+  <p class="meta">This link stops working on {{ row.expires_at[:10] }}.</p>
+</div>
+{% endblock %}

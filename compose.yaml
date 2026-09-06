@@ -1,0 +1,85 @@
+# Roamlight — a family photo library you host yourself.
+#
+#   docker compose up -d
+#   open http://localhost:8080   → it asks you to create the first account
+#
+# Two folders decide everything:
+#
+#   originals   your photographs, exactly as they came off the camera. The
+#               site READS this and never writes into it, except when you
+#               upload something new.
+#   library     what the site serves: one master JPEG per photograph, in the
+#               same folder structure. This one it owns.
+#
+# ⚠ Point these at real folders before the first upload. The defaults below
+#   are named volumes, which live inside Docker — fine to try it out, wrong
+#   for the only copy of your family's photographs.
+
+services:
+  roamlight:
+    image: ghcr.io/racoon80/roamlight:latest
+    # To build from a checkout instead of pulling:
+    # build: .
+    container_name: roamlight
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # --- who may in --------------------------------------------------------
+      # local            accounts with a password, kept in this site's database
+      # proxy            an identity proxy in front (Authentik, Authelia,
+      #                  oauth2-proxy) sets the headers
+      # local+proxy      both, side by side
+      FAMILY_AUTH: local
+      # ⚠ Leave this at 1. It is what makes the site refuse a request that
+      #   carries no identity at all.
+      FAMILY_REQUIRE_AUTH: "1"
+
+      # --- what it is called -------------------------------------------------
+      FAMILY_SITE_TITLE: Roamlight
+      # ⚠ Set this to the address people actually type. It goes into share
+      #   links, and a link built from "localhost" is useless to a guest.
+      FAMILY_SITE_URL: http://localhost:8080
+
+      # --- who owns the files ------------------------------------------------
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Europe/Luxembourg
+
+      # --- optional ----------------------------------------------------------
+      # Virus scanning. Off by default; switch on together with the clamav
+      # service below.
+      FAMILY_CLAMAV: "0"
+      # FAMILY_CLAMAV_HOST: clamav
+      #
+      # Share links (a guest without an account sees one collection).
+      FAMILY_SHARES: "1"
+      #
+      # The map draws its tiles from OpenStreetMap through this site, so a
+      # visitor's browser never talks to anyone else.
+      FAMILY_HOME_NAME: Luxembourg
+      FAMILY_HOME_LAT: "49.6117"
+      FAMILY_HOME_LON: "6.1319"
+    volumes:
+      - data:/data                  # database, derivatives, uploads in progress
+      - originals:/originals        # your photographs — read
+      - library:/library            # what the site serves — written
+      # Real folders instead, once you are past trying it out:
+      # - /srv/photos/originals:/originals
+      # - /srv/photos/library:/library
+
+  # ⚠ Optional. ClamAV wants about a gigabyte of memory for its signatures --
+  #   on a small machine that is the difference between working and swapping.
+  #   Every uploaded file is streamed to it before the site trusts the file.
+  # clamav:
+  #   image: clamav/clamav:stable
+  #   container_name: roamlight-clamav
+  #   restart: unless-stopped
+  #   volumes:
+  #     - clamav:/var/lib/clamav     # keeps the signatures across restarts
+
+volumes:
+  data:
+  originals:
+  library:
+  # clamav:

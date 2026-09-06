@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Upload — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<section class="wrap section up">
+  <p class="plate">PL. 000 — NEW</p>
+  <h1>Upload</h1>
+  <p class="lede">Originals go into the originals tree. The site keeps a
+     converted copy of its own. Nothing that is already there is ever touched.</p>
+
+  <!-- 01. The fields COME FIRST. No photograph may go up before it is clear
+       where it is going. -->
+  <div class="step">
+    <span class="step__n">01</span>
+    <h2>Where do these belong?</h2>
+    <span class="step__note">pick one or type a new one</span>
+  </div>
+
+  <div class="up__fields">
+    <div class="field" id="f-year">
+      <label for="year">Year</label>
+      <div class="combo" data-combo="year">
+        <input id="year" autocomplete="off" inputmode="numeric" placeholder="2026"
+               role="combobox" aria-expanded="false" aria-autocomplete="list">
+        <button class="combo__toggle" type="button" tabindex="-1" aria-label="Show years">▾</button>
+        <div class="combo__list" hidden></div>
+      </div>
+      <small class="hint">folders that exist are listed</small>
+    </div>
+    <div class="field" id="f-event">
+      <label for="event">Name</label>
+      <div class="combo" data-combo="event">
+        <input id="event" autocomplete="off" placeholder="Anna's wedding"
+               role="combobox" aria-expanded="false" aria-autocomplete="list">
+        <button class="combo__toggle" type="button" tabindex="-1" aria-label="Show names">▾</button>
+        <div class="combo__list" hidden></div>
+      </div>
+      <small class="hint">this is the folder — a year at the end is dropped</small>
+    </div>
+    <div class="field" id="f-place">
+      <label for="place">Place / town</label>
+      <div class="combo" data-combo="place">
+        <input id="place" autocomplete="off" placeholder="Porto"
+               role="combobox" aria-expanded="false" aria-autocomplete="list">
+        <button class="combo__toggle" type="button" tabindex="-1" aria-label="Show places">▾</button>
+        <div class="combo__list" hidden></div>
+      </div>
+      <small class="hint">for the map — never part of the path</small>
+    </div>
+    <div class="field" id="f-country">
+      <label for="country">Country</label>
+      <div class="combo" data-combo="country">
+        <input id="country" autocomplete="off" placeholder="Portugal"
+               role="combobox" aria-expanded="false" aria-autocomplete="list">
+        <button class="combo__toggle" type="button" tabindex="-1" aria-label="Show countries">▾</button>
+        <div class="combo__list" hidden></div>
+      </div>
+      <small class="hint">folders that exist are listed</small>
+    </div>
+  </div>
+
+  {# Who sees it -- right here, not later in the workshop. #}
+  <div class="up__acl">
+    <span class="alb2__lab">Who may see it
+      <b id="whostate">only you</b></span>
+    <div class="ticks">
+      {% for p in members %}
+      <label class="tick"><input type="checkbox" data-acl value="user:{{ p.username }}">
+        <span>{{ p.display_name }}</span></label>
+      {% endfor %}
+    </div>
+    <details class="alb2__more">
+      <summary class="meta">whole groups…</summary>
+      <div class="ticks ticks--groups">
+        {% for g in groups %}
+        <label class="tick tick--group"><input type="checkbox" data-acl value="group:{{ g }}">
+          <span>{{ g }}</span></label>
+        {% endfor %}
+      </div>
+    </details>
+    <p class="meta"><b>Nothing ticked = nobody but you.</b> Tick the people who
+       should see these. You can change it later in
+       <a class="link-u" href="/admin/albums">Albums</a>.
+       Administrators are not listed — they see everything anyway.</p>
+  </div>
+
+  <div class="paths paths--wait" id="paths"></div>
+
+  <!-- 02 -->
+  <div class="step">
+    <span class="step__n">02</span>
+    <h2>Add the photos</h2>
+    <span class="step__note" id="step2note">locked</span>
+  </div>
+  <div class="drop is-locked" id="drop">
+    <p id="drop-hint">Year, country and name first.</p>
+    <p id="drop-ready" hidden><b>Drop photos here</b><br>
+       <label class="btn" for="pick">choose files</label></p>
+    <input id="pick" type="file" multiple hidden
+           accept=".jpg,.jpeg,.png,.heic,.heif,.tif,.tiff,.webp,.cr3,.cr2,.arw,.nef,.raf,.orf,.rw2,.pef,.dng,.mp4,.mov,.m4v,.mts,.avi">
+  </div>
+  <div class="queue" id="queue" hidden></div>
+
+  <!-- 03 -->
+  <div id="after" hidden>
+    <div class="step">
+      <span class="step__n">03</span>
+      <h2>Check and confirm</h2>
+      <span class="step__note" id="summary"></span>
+    </div>
+    <div id="notes"></div>
+    <p>
+      <button class="btn btn--go" id="commit">Take it as it is</button>
+      <button class="btn" id="reset">Start over</button>
+    </p>
+  </div>
+
+  <div id="result"></div>
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/upload.js?v={{ static_ver }}" defer></script>{% endblock %}

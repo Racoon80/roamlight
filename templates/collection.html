@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ set.title }} — {{ site_title }}{% endblock %}
+{% block content %}
+<article>
+  <header class="wrap dest-head">
+    <span class="plate">{{ set.n }} plate{{ '' if set.n == 1 else 's' }}</span>
+    <h1 class="reveal d1">{{ set.title }}</h1>
+    <div class="dest-head__sub reveal d2">
+      <span class="meta">a collection</span>
+    </div>
+  </header>
+  <section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+    {% if res.total == 0 %}
+      <p class="meta">This collection is empty.</p>
+    {% else %}
+      {{ m.plates(res) }}
+    {% endif %}
+  </section>
+  <nav class="wrap" style="padding-bottom:clamp(3rem,8vh,6rem)">
+    <hr class="rule" style="margin-bottom:1.5rem">
+    <a class="meta link-u" href="/#albums">&larr; All albums</a>
+  </nav>
+</article>
+{% endblock %}

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site_title }}{% endblock %}</title>
+<meta name="robots" content="noindex, nofollow, noimageindex, noarchive">
+<meta name="theme-color" content="#1a1815">
+<link rel="icon" href="/static/icons/favicon.ico?v={{ static_ver }}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png?v={{ static_ver }}">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16.png?v={{ static_ver }}">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{ static_ver }}">
+{# Add to home screen. ⚠ The manifest lives under `/static/`, and for a
+   reason: a `<link rel="manifest">` is fetched WITHOUT cookies, and behind an
+   identity proxy it would be redirected to the sign-in page. Under `/static/`
+   the proxy has `auth_request off`, so it gets through. #}
+<link rel="manifest" href="/static/manifest.webmanifest?v={{ static_ver }}">
+{# iOS (still) does not look in the manifest for this. #}
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="{{ site_title }}">
+<link rel="preload" href="/static/fonts/bodoni-moda-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/spectral-300.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/site.css?v={{ static_ver }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <a class="masthead__mark" href="/">{#
+    #}<img class="masthead__logo" src="/static/icons/mark.png?v={{ static_ver }}"
+         alt="" width="128" height="128" decoding="async">{#
+    #}{{ site_title }} <em>&mdash;</em></a>
+  <nav class="meta">
+    {% if not no_drawer %}
+    <button class="masthead__albums" id="drawer-open" aria-expanded="false"
+            aria-controls="drawer">Albums</button>
+    {% endif %}
+    <a href="/search">Search</a>
+    {% if user %}
+    <div class="usermenu" id="usermenu">
+      <button class="usermenu__btn" id="usermenu-btn" type="button"
+              aria-haspopup="true" aria-expanded="false" aria-controls="usermenu-panel"
+              title="{{ user }}">
+        <span class="usermenu__avatar" aria-hidden="true">{{ (user or '?')[:1]|upper }}</span>
+        <span class="usermenu__name">{{ user }}</span>
+        <span class="usermenu__caret" aria-hidden="true">&#9662;</span>
+      </button>
+      <div class="usermenu__panel" id="usermenu-panel" role="menu" hidden>
+        <div class="usermenu__who">
+          <b>{{ user }}</b>
+          {% if email %}<span class="meta">{{ email }}</span>{% endif %}
+        </div>
+        <a role="menuitem" href="/my/albums"><b>My albums</b><span class="meta">download &amp; add photographs</span></a>
+        {% if is_contributor %}
+        <a role="menuitem" href="/admin/upload"><b>Create an album</b><span class="meta">upload your photographs</span></a>
+        <a role="menuitem" href="/admin/albums"><b>Edit &amp; manage albums</b><span class="meta">choose one, change it, set who may see it</span></a>
+        <a role="menuitem" href="/admin/collections"><b>Collections</b><span class="meta">a selection to share</span></a>
+        <a role="menuitem" href="/admin/shares"><b>Shared links</b><span class="meta">for people without an account</span></a>
+        {% endif %}
+        {% if is_admin %}<a role="menuitem" href="/admin"><b>Admin</b><span class="meta">the whole site</span></a>{% endif %}
+        <a role="menuitem" href="/app"><b>Phone &amp; tablet</b><span class="meta">connect a device to the app</span></a>
+        <hr class="usermenu__rule">
+        <a role="menuitem" class="usermenu__out" href="{{ logout_url }}">Log out</a>
+      </div>
+    </div>
+    {% endif %}
+  </nav>
+</header>
+
+<div class="shell{{ ' shell--wide' if no_drawer }}">
+  {% if not no_drawer %}{% include "_drawer.html" %}{% endif %}
+  <main id="main">
+  {% block content %}{% endblock %}
+  </main>
+</div>
+
+<footer class="colophon">
+  <div>
+    <h3>{{ site_title }}</h3>
+    <p class="meta">Photographs, kept at home</p>
+  </div>
+  <div>
+    <p class="meta">Colophon</p>
+    <ul class="meta" style="text-transform:none; letter-spacing:.04em">
+      <li>{{ total or 0 }} photograph{{ '' if (total or 0) == 1 else 's' }}</li>
+      <li>{{ structure|length }} year{{ '' if structure|length == 1 else 's' }}</li>
+      <li>Private — nothing here is public</li>
+    </ul>
+  </div>
+  <div>
+    <p class="meta">You</p>
+    <ul class="meta" style="text-transform:none; letter-spacing:.04em">
+      <li>{{ user }}</li>
+      {% if is_admin %}<li><a class="link-u" href="/admin/upload">Upload photographs</a></li>{% endif %}
+    </ul>
+  </div>
+</footer>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photograph">
+  <div class="lightbox__stage">
+    <img id="lb-img" src="" alt="">
+    <video id="lb-video" controls playsinline preload="metadata" hidden></video>
+  </div>
+  <div class="lightbox__bar">
+    <span class="plate" id="lb-plate"></span>
+    <p id="lb-caption"></p>
+    <span class="meta" id="lb-exif"></span>
+    <a class="btn" id="lb-dl" href="#" download style="margin-left:auto">Download</a>
+  </div>
+  <button class="lb-btn lb-prev" id="lb-prev" aria-label="Previous photograph">&larr;</button>
+  <button class="lb-btn lb-next" id="lb-next" aria-label="Next photograph">&rarr;</button>
+  <button class="lb-btn lb-close" id="lb-close" aria-label="Close">&times;</button>
+</div>
+
+<!-- ⚠ json.js has to come BEFORE the page scripts: they use famFetch/famPost,
+     and `defer` keeps the order. -->
+<script src="/static/json.js?v={{ static_ver }}" defer></script>
+<script src="/static/site.js?v={{ static_ver }}" defer></script>
+<script src="/static/pwa.js?v={{ static_ver }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

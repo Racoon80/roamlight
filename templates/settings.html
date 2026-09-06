@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Settings — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <span class="plate">ADMIN &mdash; {{ user }}</span>
+  <h1 class="reveal d1">Settings</h1>
+  <p class="lede reveal d2">Who the site knows, where that knowledge comes from,
+     and who may see which album.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+
+  <div class="step"><span class="step__n">01</span><h2>Sign-in</h2>
+    <span class="step__note">the site never sees a password</span></div>
+  <table class="tbl">
+    <tr><th>How</th><td>Authentik forward-auth, in front of everything.
+        nginx asks Authentik on every request and passes the answer on in headers.</td></tr>
+    <tr><th>You, right now</th><td><b>{{ seen.user }}</b>
+        {% if seen.email %}&middot; {{ seen.email }}{% endif %}
+        &middot; {{ 'administrator' if seen.admin else 'viewer' }}</td></tr>
+    <tr><th>Your groups</th><td>{% for g in seen.groups %}<span class="pill">{{ g }}</span> {% else %}—{% endfor %}</td></tr>
+    <tr><th>Admin groups</th><td>{% for g in rollen.admin %}<span class="pill">{{ g }}</span> {% endfor %}
+        <span class="meta">— may upload, edit and share</span></td></tr>
+    <tr><th>Viewer groups</th><td>{% for g in rollen.viewer %}<span class="pill">{{ g }}</span> {% endfor %}
+        <span class="meta">— may look</span></td></tr>
+  </table>
+  <p class="meta">A session carries the groups it had at sign-in. Change someone's
+     groups in Authentik and they must sign out and back in — that is why both
+     lines above are <em>lists</em> and not single names.</p>
+
+  <div class="step"><span class="step__n">02</span><h2>The directory</h2>
+    <span class="step__note">read-only — the site cannot change anything in Authentik</span></div>
+  <table class="tbl">
+    <tr><th>Endpoint</th><td><code>{{ authentik.url }}</code></td></tr>
+    <tr><th>Token</th><td><code>{{ authentik.token_file }}</code>
+        &middot; {{ 'present' if authentik.configured else 'MISSING' }}</td></tr>
+    <tr><th>Rights</th><td><code>view_user</code>, <code>view_group</code> — nothing else.
+        Creating, changing, flows, providers: all refused.</td></tr>
+    <tr><th>What it reads</th><td>Only the members of
+        {% for g in authentik.only %}<span class="pill">{{ g }}</span> {% endfor %}
+        <br><span class="meta">The user list is never asked for. The site reads the
+        groups and takes the people out of those — anyone in none of them never
+        comes past this line, including accounts belonging to other programs.</span></td></tr>
+    <tr><th>Last read</th><td>{{ authentik.refreshed }}</td></tr>
+  </table>
+  <p class="syncbar">
+    <button class="btn btn--go" id="refresh" type="button">read the directory now</button>
+    <span class="meta" id="rsay" aria-live="polite"></span>
+  </p>
+
+  <div class="step"><span class="step__n">03</span><h2>Members</h2>
+    <span class="step__note">{{ members|length }} known</span></div>
+  <table class="tbl tbl--members">
+    <tr><th>Name</th><th>Sign-in</th><th>Groups</th><th>Last seen here</th></tr>
+    {% for p in members %}
+    <tr>
+      <td><b>{{ p.display_name }}</b>{% if not p.active %} <span class="meta">inactive</span>{% endif %}</td>
+      <td><code>{{ p.username }}</code>{% if p.email %}<br><span class="meta">{{ p.email }}</span>{% endif %}</td>
+      <td>{% for g in p.groups %}<span class="pill">{{ g }}</span> {% else %}<span class="meta">—</span>{% endfor %}</td>
+      <td class="meta">{{ p.last_seen_at[:16] if p.last_seen_at else 'never' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="meta">Nobody yet. Read the directory above, or wait
+        for the first sign-in.</td></tr>
+    {% endfor %}
+  </table>
+
+  <div class="step"><span class="step__n">04</span><h2>Tags and people</h2>
+    <span class="step__note">add, rename, take away</span></div>
+  <p class="meta">A name only exists once it sits on a photograph. Taking one away
+     here removes it from every photograph it was on — <b>the photographs
+     themselves are not touched</b>. Renaming a name onto one that already
+     exists merges the two.</p>
+
+  <div class="names">
+    <div class="names__col" data-kind="person">
+      <h3>People</h3>
+      <p class="syncbar">
+        <input class="names__new" placeholder="a person…" size="16" autocomplete="off">
+        <button class="btn" type="button" data-add>add</button>
+      </p>
+      <ul class="names__list">
+        {% for p in peoplepick.used %}
+        <li data-id="{{ p.id }}">
+          <input class="names__name" value="{{ p.name }}">
+          <span class="meta">{{ p.n }}</span>
+          <button class="btn" type="button" data-save>rename</button>
+          <button class="btn" type="button" data-del>remove</button>
+          <span class="meta names__say"></span>
+        </li>
+        {% else %}<li class="meta">Nobody yet.</li>{% endfor %}
+      </ul>
+      {% if peoplepick.suggested %}
+      <p class="meta">Suggested from your members:
+        {% for n in peoplepick.suggested %}<button class="chip" type="button"
+          data-suggest="{{ n }}">{{ n }}</button> {% endfor %}</p>
+      {% endif %}
+    </div>
+
+    <div class="names__col" data-kind="tag">
+      <h3>Tags</h3>
+      <p class="syncbar">
+        <input class="names__new" placeholder="a tag…" size="16" autocomplete="off">
+        <button class="btn" type="button" data-add>add</button>
+      </p>
+      <ul class="names__list">
+        {% for g in tagpick.used %}
+        <li data-id="{{ g.id }}">
+          <input class="names__name" value="{{ g.name }}">
+          <span class="meta">{{ g.n }}</span>
+          <button class="btn" type="button" data-save>rename</button>
+          <button class="btn" type="button" data-del>remove</button>
+          <span class="meta names__say"></span>
+        </li>
+        {% else %}<li class="meta">No tags in use yet.</li>{% endfor %}
+      </ul>
+      <p class="meta">The standard list lives on the
+        <a class="link-u" href="/admin/tag">tagging page</a> — a tag from there
+        turns up here as soon as it sits on a photograph.</p>
+    </div>
+  </div>
+
+  <div class="step"><span class="step__n">05</span><h2>Who sees which album</h2>
+    <span class="step__note">no ticks = nobody but you</span></div>
+  <p class="meta">Tick the people who may see an album. Everyone else stops seeing it —
+     the album, its photographs, the map pin, the search results, and the direct
+     image address. <b>An album with nothing ticked is seen by nobody but you.</b>
+     Administrators are not in the list: they see every album anyway.</p>
+
+  <div class="alb" id="acl">
+    {% for a in alben %}
+    {% set key = a.year ~ '/' ~ a.country ~ '/' ~ a.event %}
+    {% set liste = acls.get(key, []) %}
+    <form class="alb__row aclrow" data-year="{{ a.year }}" data-country="{{ a.country }}"
+          data-event="{{ a.event }}">
+      <div class="alb__pic">
+        {% if a.cover %}<img src="/photos/{{ a.cover }}/400.webp" alt="" loading="lazy" decoding="async">
+        {% else %}<span class="alb__nopic">no plate</span>{% endif %}
+      </div>
+      <div class="aclrow__who">
+        <code class="alb__path">{{ key }}</code>
+        <span class="meta">{{ a.n }} photograph{{ '' if a.n == 1 else 's' }}
+          &middot; <span class="aclrow__state">{{ 'only you' if not liste else liste|length ~ ' allowed' }}</span></span>
+        <div class="ticks">
+          {% set gewosst = pickable|map(attribute='username')|list %}
+          {% for p in pickable %}
+          <label class="tick"><input type="checkbox" value="user:{{ p.username }}"
+                 {{ 'checked' if 'user:' ~ p.username in liste }}>
+            <span>{{ p.display_name }}</span></label>
+          {% endfor %}
+          {% for pr in liste if pr.startswith('user:') and pr[5:] not in gewosst
+                       and pr[5:] not in admins %}
+          <label class="tick tick--gone"><input type="checkbox" value="{{ pr }}" checked>
+            <span>{{ pr[5:] }} <em>not in a site group</em></span></label>
+          {% endfor %}
+        </div>
+        <div class="ticks ticks--groups">
+          {% for g in groups %}
+          <label class="tick tick--group"><input type="checkbox" value="group:{{ g }}"
+                 {{ 'checked' if 'group:' ~ g in liste }}>
+            <span>{{ g }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="alb__act">
+        <button class="btn btn--go" type="submit">save</button>
+        <button class="btn" type="button" data-open>only me</button>
+        <span class="alb__say" aria-live="polite"></span>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+{% block scripts %}<script src="/static/settings.js?v={{ static_ver }}" defer></script>{% endblock %}

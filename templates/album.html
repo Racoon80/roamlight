@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ heading }} — {{ site_title }}{% endblock %}
+{% block head %}
+{% if journey %}
+<link rel="stylesheet" href="/static/vendor/leaflet.css?v={{ static_ver }}">
+<script src="/static/vendor/leaflet.js?v={{ static_ver }}" defer></script>
+{% endif %}
+{% endblock %}
+{% block content %}
+<article>
+  <header class="wrap dest-head">
+    <span class="plate">{{ subplate }}{% if album and album.country %} &middot; {{ album.country }}{% endif %}</span>
+    <div class="dest-head__row">
+      <h1 class="reveal d1">{{ heading }}</h1>
+      {% if album and can_share %}
+      <div class="album-share__ctl reveal d2">
+        <button class="btn btn--go album-share__btn" id="share-album" type="button"
+                data-year="{{ album.year }}" data-country="{{ album.country }}"
+                data-event="{{ album.event }}">Share this album</button>
+        {% if is_admin %}
+        <label class="album-share__views meta">opens
+          <select id="share-views">
+            <option value="off">unlimited</option>
+            <option value="1">1×</option>
+            <option value="5">5×</option>
+            <option value="10">10×</option>
+          </select>
+        </label>
+        {% else %}
+        <span class="album-share__views meta">opens once</span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% if submeta %}
+    <div class="dest-head__sub reveal d2">
+      {% for bit in submeta %}<span class="meta">{{ bit }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if album and can_share %}
+    <div class="fresh" id="share-fresh" hidden role="status">
+      <p class="meta">A link with an end and a password. The password is shown once.</p>
+      <pre id="share-text"></pre>
+      <button class="btn" id="share-copy" type="button">copy link &amp; password</button>
+      <span class="meta" id="share-say" aria-live="polite"></span>
+    </div>
+    {% endif %}
+  </header>
+
+  <section class="section" style="padding-top:0">
+    {% if res.total == 0 %}
+      <p class="wrap meta">Nothing here. Try another album or a different search.</p>
+    {% else %}
+      {% if journey %}
+      {# The journey -- ONLY in the album view (not full screen): it plays once
+         per session when the album is opened, then the album fades in. #}
+      <div class="journey" id="journey">
+        <div class="journey__map" id="journey-map"></div>
+        <div class="journey__cap">
+          <span>{{ journey.departure }}</span>
+          <span class="journey__dash">
+            {%- for leg in journey.legs %}{% if leg.transport == 'plane' %}✈{% elif leg.transport == 'train' %}🚂{% elif leg.transport == 'bus' %}🚌{% else %}🚗{% endif %}{% endfor -%}
+          </span>
+          <span>{{ heading }}</span>
+        </div>
+        <button class="journey__skip" id="journey-skip" type="button">skip &times;</button>
+      </div>
+      <script id="journey-data" type="application/json">{{ journey | tojson }}</script>
+      {% endif %}
+      {# Full bleed: the collage breaks out of the gutter and uses the whole
+         width, so the photographs come out bigger. #}
+      <div class="collage-full" id="album-stage">{{ m.collage(res) }}</div>
+      <div class="wrap">{{ m.pager(res, base) }}</div>
+    {% endif %}
+  </section>
+
+  <nav class="wrap" style="padding-bottom:clamp(3rem,8vh,6rem)">
+    <hr class="rule" style="margin-bottom:1.5rem">
+    <a class="meta link-u" href="/#albums">&larr; All albums</a>
+  </nav>
+</article>
+{% endblock %}
+{% block scripts %}
+{% if journey %}<script src="/static/journey.js?v={{ static_ver }}" defer></script>{% endif %}
+{% endblock %}

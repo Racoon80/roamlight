@@ -1,0 +1,20 @@
+{# The album list. It slides over the page so the site's layout stays
+   untouched -- one click on "Albums" opens it, one click shuts it. #}
+<aside class="drawer" id="drawer" data-open="0" aria-label="Albums">
+  <button class="drawer__close" id="drawer-close" aria-label="Close">&times;</button>
+  <h2>Albums</h2>
+  {% if not structure %}<p class="meta">nothing yet</p>{% endif %}
+  {% for year, countries in structure.items() %}
+    <details {% if here.year == year or loop.first %}open{% endif %}>
+      <summary>{{ year }}<em>{{ counts[year] }}</em></summary>
+      {% for country, events in countries.items() %}
+        <p class="country">{{ country }}</p>
+        {% for event, n in events.items() %}
+          <a class="ev" href="/y/{{ year }}/{{ country|urlencode }}/{{ event|urlencode }}"
+             {% if here.year == year and here.event == event %}aria-current="page"{% endif %}>{{ event|replace(year, '')|trim|default(event, true) }}</a>
+        {% endfor %}
+      {% endfor %}
+    </details>
+  {% endfor %}
+</aside>
+<div class="drawer__scrim" id="drawer-scrim"></div>

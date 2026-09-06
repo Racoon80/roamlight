@@ -1,0 +1,22 @@
+{% extends "base_bare.html" %}
+{% block title %}Sign in — {{ site_title }}{% endblock %}
+{% block content %}
+<form class="signin" method="post" action="/login">
+  <h1>{{ site_title }}</h1>
+  <p class="meta">{{ "Welcome back." if not error else "" }}</p>
+  {% if error %}<p class="signin__bad">{{ error }}</p>{% endif %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <label><span>Name</span>
+    <input name="username" autocomplete="username" autocapitalize="none"
+           autocorrect="off" required autofocus></label>
+  <label><span>Password</span>
+    <input name="password" type="password" autocomplete="current-password" required></label>
+  <button class="btn btn--go" type="submit">Sign in</button>
+  {% if sso %}
+  {# ⚠ Both ways side by side: `FAMILY_AUTH=local+proxy`. The button goes to the
+     proxy, which then does its own sign-in. #}
+  <p class="meta signin__or">or</p>
+  <a class="btn" href="{{ sso }}">Sign in with single sign-on</a>
+  {% endif %}
+</form>
+{% endblock %}

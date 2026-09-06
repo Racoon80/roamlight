@@ -1,0 +1,32 @@
+[Unit]
+Description=Roamlight — deep run (re-hash every file)
+Requires=family.service
+After=family.service
+
+[Service]
+Type=oneshot
+User=family
+Group=family
+WorkingDirectory=/opt/family/app
+EnvironmentFile=/etc/family/env
+Environment="FAMILY_SYNC_KIND=deep"
+ExecStart=/opt/family/venv/bin/python3 -m app.sync_cli
+# A deep run reads EVERYTHING. It must not slow the site down.
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# ⚠ The scan and the sync only READ from the originals tree (ismount +
+# marker); what is written goes into data, incoming and the web tree.
+# So the originals are mounted READ-ONLY -- a parser failure here cannot
+# touch them.
+ReadWritePaths=/opt/family/data /opt/family/incoming /mnt/family-website
+ReadOnlyPaths=/mnt/my-photos
+ProtectKernelModules=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=

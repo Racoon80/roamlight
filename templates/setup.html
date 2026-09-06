@@ -1,0 +1,23 @@
+{% extends "base_bare.html" %}
+{% block title %}First start — {{ site_title }}{% endblock %}
+{% block content %}
+<form class="signin" method="post" action="/setup">
+  <h1>{{ site_title }}</h1>
+  <p class="meta">Nobody has an account yet. This first one is the administrator —
+     it may see everything and set who else may.</p>
+  {% if error %}<p class="signin__bad">{{ error }}</p>{% endif %}
+  <label><span>Name</span>
+    <input name="username" autocomplete="username" autocapitalize="none"
+           autocorrect="off" required autofocus></label>
+  <label><span>Shown as</span>
+    <input name="display_name" autocomplete="name" placeholder="optional"></label>
+  <label><span>Password</span>
+    <input name="password" type="password" autocomplete="new-password" required
+           minlength="10"></label>
+  <label><span>Password again</span>
+    <input name="password2" type="password" autocomplete="new-password" required></label>
+  <button class="btn btn--go" type="submit">Create it</button>
+  <p class="meta">At least ten characters. It is stored as an argon2 hash — the
+     site never keeps the password itself.</p>
+</form>
+{% endblock %}

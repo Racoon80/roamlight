@@ -1,0 +1,13 @@
+[Unit]
+Description=Roamlight — nightly database dump
+
+[Timer]
+# 01:30 local -- early enough that the nightly offsite backup takes the fresh
+# dump on the share along the same night.
+# `Persistent`: if the machine was off, it is caught up.
+OnCalendar=*-*-* 01:30:00
+Persistent=true
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target

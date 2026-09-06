@@ -1,0 +1,27 @@
+[Unit]
+Description=Roamlight — database dump (consistent, verified, offsite)
+# Can run without the site, but the environment (paths) comes from the same file.
+After=family.service
+
+[Service]
+Type=oneshot
+User=family
+Group=family
+WorkingDirectory=/opt/family/app
+# ⚠ The same environment as the site: FAMILY_DB, FAMILY_WEB, and -- if set --
+# FAMILY_BACKUP_HEARTBEAT_URL.
+EnvironmentFile=/etc/family/env
+ExecStart=/bin/bash /opt/family/app/deploy/db-backup.sh backup
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Writes only into the database directory and onto the backed-up share.
+# The originals tree is not needed at all -- so it is not mounted here.
+ReadWritePaths=/opt/family/data /mnt/family-website
+ProtectKernelModules=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=

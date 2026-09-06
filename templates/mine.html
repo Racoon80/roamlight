@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Your photographs — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/", "Gallery") }}
+<header class="wrap dest-head">
+  <span class="plate">{{ me }}</span>
+  <h1 class="reveal d1">Your photographs</h1>
+  <p class="lede reveal d2">Everything here is yours: what you upload, the albums and
+     collections you make, and the links you share. Only you and an administrator
+     can see or change them, unless you open them to others.</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  <div class="cards">
+    <a class="card" href="/admin/upload">
+      <b>Upload</b>
+      <span class="meta">year · name · place · country, then the photographs</span>
+    </a>
+    <a class="card" href="/admin/albums">
+      <b>Your albums</b>
+      <span class="meta">{{ albums|length }} &middot; set them right, choose who sees them</span>
+    </a>
+    <a class="card" href="/admin/collections">
+      <b>Collections</b>
+      <span class="meta">{{ sets|length }} &middot; a selection to share</span>
+    </a>
+    <a class="card" href="/admin/shares">
+      <b>Links</b>
+      <span class="meta">{{ links|length }} &middot; share a collection with people who have no account</span>
+    </a>
+  </div>
+
+  <div class="tiles">
+    <div class="tile">
+      <span class="tile__n">{{ counts.photos }}</span>
+      <span class="tile__lab">your photographs on the site</span>
+    </div>
+    <div class="tile">
+      <span class="tile__n">{{ albums|length }}</span>
+      <span class="tile__lab">your albums</span>
+    </div>
+    <div class="tile">
+      <span class="tile__n">{{ links|length }}</span>
+      <span class="tile__lab">your links</span>
+    </div>
+  </div>
+
+  <p class="meta">When you upload, the original is converted and then discarded —
+     the site keeps a 4000-pixel copy. Photographs you are only tagged in are not
+     yours to change; only the ones you uploaded.</p>
+</section>
+{{ m.back("/", "Gallery") }}
+{% endblock %}

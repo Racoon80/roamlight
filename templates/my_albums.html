@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}My albums — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/", "Gallery") }}
+<header class="wrap dest-head">
+  <span class="plate">{{ user }}</span>
+  <h1 class="reveal d1">My albums</h1>
+  <p class="lede reveal d2">Every album you may see. Download a whole album, or add
+     your own photographs to one — what you add waits for {{ site_title }}’s owner
+     to look at it before it goes on the site.
+     {% if is_contributor %}To make a new album or change one of yours, use the
+     menu at the top right.{% endif %}</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  {% if not albums %}
+  <p class="meta">There are no albums you can see yet.</p>
+  {% else %}
+  <div class="myalb">
+    {% for a in albums %}
+    <article class="myalb__row" data-album-row>
+      <a class="myalb__pic" href="/y/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}"
+         aria-label="Open {{ a.title }}">
+        {% if a.cover %}
+        <img src="/photos/{{ a.cover }}/400.webp?v={{ a.cover_rev or 0 }}" alt=""
+             loading="lazy" decoding="async">
+        {% else %}<span class="alb__nopic">no plate</span>{% endif %}
+      </a>
+      <div class="myalb__body">
+        <a class="myalb__title" href="/y/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}">
+          <h2>{{ a.title }}</h2></a>
+        <p class="meta">{{ a.n }} photograph{{ '' if a.n == 1 else 's' }}
+          {%- if a.country and a.country != '—' %} &middot; {{ a.country }}{% endif %}</p>
+        <div class="myalb__act">
+          <a class="btn" href="/y/{{ a.year }}/{{ a.country|urlencode }}/{{ a.event|urlencode }}/all.zip"
+             title="Download every photograph as one zip">Download all</a>
+          <button class="btn" type="button" data-contribute>Add photos</button>
+          {% if (a.year, a.country, a.event) in own_keys %}
+          <a class="btn" href="/admin/albums"
+             title="Change this album and choose who may see it">Edit &amp; rights</a>
+          {% endif %}
+        </div>
+        <div class="contribute" hidden>
+          <p class="meta">These go straight into the album (they are scanned first,
+             then converted). Reload the album to see them.</p>
+          <label class="btn" for="cf-{{ loop.index }}">choose photographs…</label>
+          <input id="cf-{{ loop.index }}" class="myalb__file" type="file" multiple
+                 accept="image/*,video/*" data-contribute-file
+                 data-year="{{ a.year }}" data-country="{{ a.country }}" data-event="{{ a.event }}">
+          <span class="meta" data-contribute-say aria-live="polite"></span>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{{ m.back("/", "Gallery") }}
+{% endblock %}

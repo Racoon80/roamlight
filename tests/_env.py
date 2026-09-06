@@ -143,6 +143,11 @@ def headers(user=None, groups=None):
         return h
     if not user:
         return {}
+    # ⚠ Local accounts are kept in lower case (`auth.create_user` folds them),
+    #   but a device pairing is looked up as it is written. Asking for "Eve" and
+    #   getting a token for a member row called "eve" means the token names
+    #   nobody -- and every request comes back 403 with no hint why.
+    user = user.strip().lower()
     if user not in _TOKENS:
         from app import auth, devices
         con = connect()

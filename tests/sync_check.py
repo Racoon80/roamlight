@@ -60,12 +60,10 @@ def chk(name, cond, extra=""):
 
 def req(path, method="GET", data=None):
     import json as _j, urllib.error, urllib.request
-    secret = None    # _env.headers() mécht dat
     body = _j.dumps(data).encode() if data is not None else None
     r = urllib.request.Request("http://127.0.0.1:8080" + path, data=body, method=method)
-    r.add_header("X-Family-Proxy", secret)
-    r.add_header("X-authentik-username", "siteadmin")
-    r.add_header("X-authentik-groups", ADMIN_GROUP)
+    for k, v in _env.headers("siteadmin", ADMIN_GROUP).items():
+        r.add_header(k, v)
     if body:
         r.add_header("Content-Type", "application/json")
         r.add_header("Sec-Fetch-Site", "same-origin")

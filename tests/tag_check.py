@@ -44,7 +44,7 @@ BASE = "http://127.0.0.1:8080"
 #   Installatioun ausweist -- Proxy-Käpp oder Apparat-Token.
 _ADMIN_H = _env.headers("siteadmin")
 ADMIN = dict(_env.headers("siteadmin"))
-FAMILY = dict(_env.headers("zz-test-viewer"))
+FAMILY = dict(_env.headers("zz-test-viewer", VIEWER_GROUP))
 DB = _env.need("FAMILY_DB")
 VIR = "zz-test-"
 

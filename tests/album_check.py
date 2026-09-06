@@ -41,8 +41,8 @@ BASE = "http://127.0.0.1:8080"
 SECRET = Path("/etc/family/proxy-secret").read_text().strip()
 ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
          "X-authentik-groups": ADMIN_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/mnt/my-photos"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
+WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
 DB = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
 
 # ---------------------------------------------------------------------------

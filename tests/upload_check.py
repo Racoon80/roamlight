@@ -40,7 +40,7 @@ BASE = "http://127.0.0.1:8080"
 SECRET = Path("/etc/family/proxy-secret").read_text().strip()
 HDR = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-admin",
        "X-authentik-groups": ADMIN_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/mnt/my-photos"))
+ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
 INCOMING = Path(os.environ.get("FAMILY_INCOMING", "/opt/family/incoming"))
 
 YEAR, COUNTRY, EVENT, PLACE = "1999", "Testland", "Testevent", "Testplaz"
@@ -121,7 +121,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(ORIGINS / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0
@@ -243,7 +243,7 @@ def main():
     # --- and the conversion hangs off the upload, with no second button ----
     import sqlite3, time
     dbf = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
-    web = Path(os.environ.get("FAMILY_WEB", "/mnt/family-website")) / YEAR / COUNTRY / EVENT
+    web = Path(os.environ.get("FAMILY_WEB", "/srv/library")) / YEAR / COUNTRY / EVENT
     t0 = time.time()
     while time.time() - t0 < 120:
         con = sqlite3.connect(dbf)

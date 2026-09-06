@@ -36,8 +36,8 @@ VIEWER_GROUP = _group("FAMILY_VIEWER_GROUPS", "family")
 
 sys.path.insert(0, "/opt/family/app")
 
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/mnt/my-photos"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
+WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
 DB = os.environ.get("FAMILY_DB", "/opt/family/data/family.db")
 
 TEST_YEAR = "1999"

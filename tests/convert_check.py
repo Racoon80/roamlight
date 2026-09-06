@@ -94,7 +94,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(_origins() / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0

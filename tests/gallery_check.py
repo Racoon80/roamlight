@@ -37,8 +37,8 @@ ADMIN = {"X-Family-Proxy": SECRET, "X-authentik-username": "siteadmin",
          "X-authentik-groups": ADMIN_GROUP}
 FAMILY = {"X-Family-Proxy": SECRET, "X-authentik-username": "zz-test-viewer",
           "X-authentik-groups": VIEWER_GROUP}
-ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/mnt/my-photos"))
-WEB = Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+ORIGINS = Path(os.environ.get("FAMILY_ORIGINS", "/srv/originals"))
+WEB = Path(os.environ.get("FAMILY_WEB", "/srv/library"))
 YEAR, COUNTRY, EVENT, PLACE = "1999", "Testland", "Testevent", "Testplaz"
 # ---------------------------------------------------------------------------
 #  The tests run against the LIVE database and the LIVE originals tree. So:
@@ -135,7 +135,7 @@ def _wipe_test_tree():
     """ONLY our own sub-folder -- never a whole year."""
     import shutil as _sh
     _sh.rmtree(ORIGINS / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
-    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/mnt/family-website"))
+    _sh.rmtree(Path(os.environ.get("FAMILY_WEB", "/srv/library"))
                / TEST_YEAR / TEST_COUNTRY, ignore_errors=True)
 
 ok = bad = 0

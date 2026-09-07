@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 import subprocess
 import sys
 import time
@@ -180,7 +181,14 @@ def main():
     foreign_before = _foreign(dbf)
     print("Ofnahm-Test — Gallerie (Etapp 6)")
     print(f"  ({foreign_before} foreign photographs in the database — those stay untouched)\n")
-    tmp = Path("/tmp/gallery_check"); shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir()
+    # ⚠ Pro Benotzer eng eege Plaz, an de mkdir dierf net feelen.
+    #   Eng fest `/tmp/…`-Plaz gehéiert deem, deen d'Suite fir d'éischt
+    #   gestart huet; leeft se duerno als een aneren, da schléit
+    #   rmtree stëll feel (ignore_errors) an de mkdir eng Zeil méi
+    #   spéit mat `File exists` -- wat ausgesäit wéi e Feeler am Site.
+    tmp = Path(tempfile.gettempdir()) / f"gallery_check-{os.getuid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True, exist_ok=True)
     _wipe_test_tree()
     _wipe_test_tree()
     import sqlite3

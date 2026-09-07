@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
 import subprocess
 import sys
 import urllib.error
@@ -190,7 +191,14 @@ def _drop_test_members():
 
 
 def main():
-    tmp = Path("/tmp/upload_check"); shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir()
+    # ⚠ Pro Benotzer eng eege Plaz, an de mkdir dierf net feelen.
+    #   Eng fest `/tmp/…`-Plaz gehéiert deem, deen d'Suite fir d'éischt
+    #   gestart huet; leeft se duerno als een aneren, da schléit
+    #   rmtree stëll feel (ignore_errors) an de mkdir eng Zeil méi
+    #   spéit mat `File exists` -- wat ausgesäit wéi e Feeler am Site.
+    tmp = Path(tempfile.gettempdir()) / f"upload_check-{os.getuid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True, exist_ok=True)
     target = ORIGINS / YEAR / COUNTRY / EVENT
     _wipe_test_tree()
 

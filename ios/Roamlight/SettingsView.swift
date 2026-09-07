@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var askSignOut = false
+    @State private var notices: NoticeState?
 
     var body: some View {
         Form {
@@ -27,6 +28,37 @@ struct SettingsView: View {
                 LabeledContent("Site", value: Site.url.host() ?? "—")
             }
 
+            Section("Notices") {
+                // ⚠ Three different things go wrong here and they look alike
+                //   from the outside: the site cannot send at all, this phone
+                //   never handed over an address, or the address is there and
+                //   nothing has been sent yet. Saying WHICH is the point.
+                if let n = notices {
+                    if !n.apns {
+                        Text("The site is not set up to send notices.")
+                            .foregroundStyle(Theme.inkMute)
+                    } else if n.devices.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("This phone is not on the list.")
+                            Text("Allow notifications for Roamlight in Settings. "
+                                 + "⚠ The Simulator never gets a real address — "
+                                 + "notices only arrive on a real phone.")
+                                .font(.caption).foregroundStyle(Theme.inkMute)
+                        }
+                    } else {
+                        ForEach(Array(n.devices.enumerated()), id: \.offset) { _, d in
+                            LabeledContent(d.name.isEmpty ? d.kind : d.name) {
+                                Text(d.lastOk.map { "last sent " + $0.prefix(10) }
+                                     ?? "waiting")
+                                    .foregroundStyle(Theme.inkMute)
+                            }
+                        }
+                    }
+                } else {
+                    Text("—").foregroundStyle(Theme.inkMute)
+                }
+            }
+
             Section {
                 Button("Take this device off", role: .destructive) { askSignOut = true }
             } footer: {
@@ -40,7 +72,11 @@ struct SettingsView: View {
         .navigationTitle("Device")
         .scrollContentBackground(.hidden)
         .background(Theme.ground)
-        .refreshable { await state.refresh() }
+        .refreshable {
+            await state.refresh()
+            notices = try? await state.api.noticeState()
+        }
+        .task { notices = try? await state.api.noticeState() }
         .confirmationDialog("Take this device off?", isPresented: $askSignOut,
                             titleVisibility: .visible) {
             Button("Take it off", role: .destructive) { state.signOut() }

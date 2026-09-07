@@ -207,6 +207,11 @@ struct API {
                 "kind": "apns", "token": token])))
     }
 
+    /// What the site can do about notices, and which phones it knows.
+    func noticeState() async throws -> NoticeState {
+        try await get("/api/notify", as: NoticeState.self)
+    }
+
     // MARK: - D'Rees an d'Kaart
 
     /// The opening animation for an album. `nil` when the place cannot be

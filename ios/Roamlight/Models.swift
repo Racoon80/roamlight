@@ -115,6 +115,24 @@ struct Facets: Decodable {
 /// ⚠ EVERY album that can be located has one, even when nobody set anything:
 ///   then it is the stylised hop from home. The server decides that
 ///   (`journey.get_journey`), not the app.
+/// What the site can do about notices, and which phones it knows.
+struct NoticeState: Decodable {
+    let devices: [Device]
+    let apns: Bool
+    let fcm: Bool
+
+    struct Device: Decodable {
+        let kind: String
+        let name: String
+        let lastOk: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, name
+            case lastOk = "last_ok"
+        }
+    }
+}
+
 struct Journey: Decodable {
     let departure: String?
     let from: [Double]

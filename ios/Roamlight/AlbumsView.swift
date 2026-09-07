@@ -219,7 +219,11 @@ struct PhotosView: View {
             if let failed { Text(failed).foregroundStyle(.red).padding() }
         }
         .background(Theme.ground)
-        .navigationTitle(album?.title ?? "Search")
+        // ⚠ An album opened from a notice carries only its key -- there was no
+        //   list to take a title from. Then the name of the event is the title,
+        //   which is what it is made of anyway.
+        .navigationTitle(album.map { $0.title.isEmpty ? "\($0.year) \($0.event)" : $0.title }
+                         ?? "Search")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Photo.self) { p in
             PhotoView(photos: photos, start: p)

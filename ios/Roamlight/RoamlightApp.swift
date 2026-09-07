@@ -38,6 +38,8 @@ final class AppState: ObservableObject {
     @Published var me: Me?
     @Published var error: String?
     @Published var checking = false
+    /// The album a tapped notice asked for -- `<year>/<country>/<event>`.
+    @Published var openAlbum: String?
 
     var api: API { API(token: token) }
     var connected: Bool { token != nil }
@@ -101,6 +103,13 @@ struct RootView: View {
             //   asking somebody who has not yet seen a single photograph.
             if state.connected {
                 NoticeStore.api = { state.api }
+                NoticeStore.open = { key in state.openAlbum = key }
+                // A notice tapped on a cold start arrived before there was
+                // anywhere to send it.
+                if let waiting = NoticeStore.waiting {
+                    NoticeStore.waiting = nil
+                    state.openAlbum = waiting
+                }
                 Notices.askAndRegister()
             }
         }
@@ -109,22 +118,41 @@ struct RootView: View {
 
 struct MainView: View {
     @EnvironmentObject var state: AppState
+    @State private var tab = 0
+    @State private var path = NavigationPath()
 
     var body: some View {
-        TabView {
-            NavigationStack { AlbumsView() }
+        TabView(selection: $tab) {
+            NavigationStack(path: $path) { AlbumsView() }
                 .tabItem { Label("Albums", systemImage: "square.grid.2x2") }
+                .tag(0)
 
             NavigationStack { SearchView() }
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .tag(1)
 
             if state.me?.may.upload == true {
                 NavigationStack { UploadView() }
                     .tabItem { Label("New album", systemImage: "plus.rectangle.on.folder") }
+                    .tag(2)
             }
 
             NavigationStack { SettingsView() }
                 .tabItem { Label("Device", systemImage: "iphone") }
+                .tag(3)
+        }
+        // ⚠ A tapped notice lands here. The album is named by its key
+        //   (`<year>/<country>/<event>`), which is all the list needs; the
+        //   title and the count come from the album page itself.
+        .onChange(of: state.openAlbum) { _, key in
+            guard let key, !key.isEmpty else { return }
+            let parts = key.split(separator: "/", maxSplits: 2).map(String.init)
+            guard parts.count == 3 else { return }
+            tab = 0
+            path = NavigationPath()          // start from the list, not on top of it
+            path.append(Album(year: parts[0], country: parts[1], event: parts[2],
+                              title: "", n: 0, cover: nil, coverRev: nil, latest: nil))
+            state.openAlbum = nil
         }
     }
 }

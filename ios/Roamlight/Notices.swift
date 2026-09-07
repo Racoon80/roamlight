@@ -26,6 +26,16 @@ enum NoticeStore {
     /// Set by the app once it knows how to talk to the site.
     static var api: (() -> API)?
     static var lastToken: String?
+
+    /// ⚠ Where a tapped notice should take you. Set by the app; called from the
+    ///   delegate. A notice that only opens the app is barely a notice: it says
+    ///   something happened and then leaves you to find it.
+    static var open: ((String) -> Void)?
+
+    /// ⚠ A notice can arrive before the app is ready to go anywhere -- a cold
+    ///   start opens on the tap, and the album list is not loaded yet. So it is
+    ///   kept, and picked up once there is something to pick it up.
+    static var waiting: String?
 }
 
 final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -84,5 +94,19 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
                                 willPresent notification: UNNotification) async
         -> UNNotificationPresentationOptions {
         [.banner, .sound]
+    }
+
+    /// Somebody tapped it. Take them to the album it was about.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard let album = info["album"] as? String, !album.isEmpty else { return }
+        await MainActor.run {
+            if let open = NoticeStore.open {
+                open(album)
+            } else {
+                NoticeStore.waiting = album
+            }
+        }
     }
 }

@@ -193,6 +193,20 @@ fun JourneyOverlay(journey: Journey, onDone: () -> Unit) {
         TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {
             Text("skip ×", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
         }
+        // ⚠ The tiles are OpenStreetMap's, and their licence (ODbL) asks for
+        //   the credit to be visible WHEREVER they are shown. The website puts
+        //   it there through Leaflet; this canvas draws the tiles itself, so
+        //   nothing would put it here.
+        Text(
+            "© OpenStreetMap",
+            color = Color.White.copy(alpha = 0.75f),
+            fontSize = 10.sp,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 10.dp, bottom = 10.dp)
+                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(50))
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+        )
         journey.departure?.takeIf { it.isNotEmpty() }?.let { d ->
             Text(
                 d + "  " + journey.legs.joinToString("") { glyph(it.transport) },

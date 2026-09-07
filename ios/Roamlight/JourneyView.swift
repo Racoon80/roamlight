@@ -163,6 +163,20 @@ struct JourneyView: View {
                 .foregroundStyle(.white.opacity(0.8))
                 .padding(16)
         }
+        // ⚠ The tiles are OpenStreetMap's, and their licence (ODbL) asks for
+        //   the credit to be visible WHEREVER they are shown. The website puts
+        //   it there through Leaflet; this canvas draws the tiles itself, so
+        //   nothing would put it here. Bottom leading, out of the way of the
+        //   departure line in the middle and the "skip" at the top.
+        .overlay(alignment: .bottomLeading) {
+            Text("© OpenStreetMap")
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(.black.opacity(0.4), in: Capsule())
+                .padding(.leading, 10)
+                .padding(.bottom, 10)
+        }
         .overlay(alignment: .bottom) {
             if let d = journey.departure, !d.isEmpty {
                 Text("\(d)  \(journey.legs.map { glyph($0.transport) }.joined())")

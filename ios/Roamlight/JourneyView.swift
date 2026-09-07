@@ -132,7 +132,10 @@ struct JourneyView: View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {
-                Color.black
+                // ⚠ Not black. A tile that has not arrived yet leaves a hole,
+                //   and a black hole in the middle of a map reads as broken;
+                //   the site's own warm ground reads as a map still painting.
+                Theme.groundWarm
                 TimelineView(.animation) { tl in
                     let p = progress(at: tl.date)
                     Canvas { ctx, _ in draw(&ctx, size: size, progress: p) }

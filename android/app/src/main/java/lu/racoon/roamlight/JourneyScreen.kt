@@ -183,7 +183,11 @@ fun JourneyOverlay(journey: Journey, onDone: () -> Unit) {
         onDone()
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { size = it }) {
+    // ⚠ Not black behind the tiles. A tile that has not arrived yet leaves a
+    //   hole, and a black hole in the middle of a map reads as broken; the
+    //   site's own warm ground reads as map that has not painted yet. The
+    //   difference is a colour, and it is the whole difference.
+    Box(Modifier.fillMaxSize().background(Ink.groundWarm).onSizeChanged { size = it }) {
         Canvas(Modifier.fillMaxSize()) { drawJourney(this, journey, legs, tiles, zoom,
                                                      originX, originY, progress) }
         TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)) {

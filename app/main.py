@@ -1562,6 +1562,29 @@ def api_photo(photo_id: int, request: Request):
     return p
 
 
+@app.get("/api/albums/journey")
+def api_album_journey_get(request: Request, year: str, country: str, event: str):
+    """The journey for an album, as JSON -- so the app can draw it too.
+
+    ⚠ Until now this only existed inside the album PAGE (rendered into the
+      template), which is why the phone had no opening animation at all while
+      the website had one.
+
+    ⚠ Every album that can be located gets one, even with nothing set by hand:
+      then it is the stylised arc from home. `journey.get_journey` decides
+      that, not this route -- one place, one rule.
+
+    Whoever may not see the album is told the same thing as somebody asking
+    for an album that does not exist.
+    """
+    who = security.identify(request)
+    seen = gallery.list_photos({"year": year, "country": country, "event": event},
+                               page=1, page_size=1, viewer=who)
+    if not seen["total"]:
+        raise HTTPException(status_code=404, detail="not found")
+    return journey.get_journey(year, country, event) or {}
+
+
 @app.get("/api/photo/{photo_id}/video")
 def api_photo_video(photo_id: int, request: Request):
     """An address the phone's own player can fetch, with no header on it.

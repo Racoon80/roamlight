@@ -115,8 +115,10 @@
 })();
 
 /* --- The map --------------------------------------------------------------
-   The tiles come from /tiles/... , that is from OUR server: a family member's
-   browser never talks to OpenStreetMap. See app/tiles.py. */
+   ⚠ The tiles come STRAIGHT from OpenStreetMap, not through this site. That is
+   a decision, and it has a price -- see the note at the tile layer below. This
+   comment used to say the opposite, which was simply out of date: the /tiles/
+   proxy (app/tiles.py) still exists but nothing calls it. */
 (function () {
   "use strict";
   var el = document.getElementById("map");

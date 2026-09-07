@@ -106,7 +106,7 @@ struct MainView: View {
 
             if state.me?.may.upload == true {
                 NavigationStack { UploadView() }
-                    .tabItem { Label("Upload", systemImage: "arrow.up.circle") }
+                    .tabItem { Label("New album", systemImage: "plus.rectangle.on.folder") }
             }
 
             NavigationStack { SettingsView() }

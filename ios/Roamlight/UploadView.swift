@@ -1,14 +1,16 @@
-//  Uploading: pick photographs out of the camera roll and walk the server's
-//  steps (batch -> file -> chunk -> done -> commit).
+//  En neien Album uleeën.
 //
-//  ⚠ This is **exactly** the path the web form takes. No second way into the
-//    server, no shortcut for the app -- otherwise there would be two places
-//    where a virus scan or a duplicate check could be forgotten.
+//  ⚠ This tab used to be a general upload form, with a picker for choosing an
+//    album you already have. That was one thing done twice: adding to an album
+//    that exists belongs INSIDE that album, where you are already looking at
+//    it, and that is where the `+` in the toolbar does it. What was missing was
+//    the other half — making a new album at all — and there was no way to do it
+//    from the app.
 //
-//  ⚠ And, like the web form, it is "pick one or type a new one". An album is
-//    created by naming one that does not exist yet -- so the existing ones
-//    have to be visible, or the only way to add to last year's album is to
-//    remember precisely how it was spelled.
+//  ⚠ The server does not have a "create album" call, and it does not need one:
+//    an album IS the year, the country and the name. Name three that do not
+//    exist yet, send photographs with them, and the album exists. That is
+//    exactly what the web form does.
 
 import PhotosUI
 import SwiftUI
@@ -16,126 +18,82 @@ import SwiftUI
 struct UploadView: View {
     @EnvironmentObject var state: AppState
 
-    @State private var picked: [PhotosPickerItem] = []
+    @State private var name = ""
     @State private var year = String(Calendar.current.component(.year, from: .now))
-    @State private var event = ""
     @State private var country = ""
     @State private var place = ""
+    @State private var picked: [PhotosPickerItem] = []
 
-    /// What already exists, for picking. Loaded once when the view appears; a
-    /// failure here must never block an upload, so it stays empty and the
-    /// fields simply work as plain text.
+    /// What already exists — for the two pickers, and to tell whether this
+    /// album is really new.
     @State private var albums: [Album] = []
     @State private var places: [String] = []
 
     @State private var running = false
     @State private var done = 0
-    @State private var total = 0
+    @State private var made: Album?
     @State private var note: String?
     @State private var failed: String?
-
-    private var ready: Bool {
-        !picked.isEmpty && !trimmed(year).isEmpty && !trimmed(event).isEmpty
-            && !trimmed(country).isEmpty && !running
-    }
 
     private func trimmed(_ s: String) -> String {
         s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The album the four fields point at, if it is one that already exists.
     /// ⚠ Compared on the same key the server uses (`<year>/<country>/<name>`),
-    ///   so "new" here means exactly what "new" means over there.
+    ///   so "already there" here means exactly what it means over there.
     private var existing: Album? {
         albums.first { $0.year == trimmed(year) && $0.country == trimmed(country)
-                       && $0.event == trimmed(event) }
+                       && $0.event == trimmed(name) }
     }
 
-    private var isNewAlbum: Bool {
-        !trimmed(year).isEmpty && !trimmed(country).isEmpty && !trimmed(event).isEmpty
-            && existing == nil
+    private var named: Bool {
+        !trimmed(name).isEmpty && !trimmed(year).isEmpty && !trimmed(country).isEmpty
     }
+
+    private var ready: Bool { named && !picked.isEmpty && !running }
 
     private var years: [String] {
-        var out = Set(albums.map(\.year))
-        out.insert(String(Calendar.current.component(.year, from: .now)))
-        return out.sorted(by: >)
+        let now = String(Calendar.current.component(.year, from: .now))
+        return Set(albums.map(\.year) + [now]).sorted(by: >)
     }
 
-    private var countries: [String] {
-        Set(albums.map(\.country)).sorted()
-    }
+    private var countries: [String] { Set(albums.map(\.country)).sorted() }
 
     var body: some View {
         Form {
-            Section("Photographs") {
-                PhotosPicker(selection: $picked, matching: .any(of: [.images, .videos]),
-                             photoLibrary: .shared()) {
-                    Label(picked.isEmpty ? "Pick photographs"
-                                         : "\(picked.count) picked", systemImage: "photo.stack")
-                }
-            }
-
             Section {
-                // Pick an album that is already there -- one tap fills all
-                // four fields, the same as choosing one in the web form.
-                Menu {
-                    Button {
-                        year = String(Calendar.current.component(.year, from: .now))
-                        country = ""
-                        event = ""
-                        place = ""
-                    } label: {
-                        Label("New album…", systemImage: "plus")
-                    }
-                    if !albums.isEmpty {
-                        Divider()
-                        ForEach(albums) { a in
-                            Button {
-                                year = a.year
-                                country = a.country
-                                event = a.event
-                            } label: {
-                                Text("\(a.title) · \(a.country) · \(a.n)")
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Label(existing.map { "\($0.title)" } ?? "Choose an album",
-                              systemImage: "square.grid.2x2")
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.footnote).foregroundStyle(Theme.inkSoft)
-                    }
-                }
-            } header: {
-                Text("Album")
-            } footer: {
-                Text(albums.isEmpty
-                     ? "Nothing here yet — type the four fields below and it is created."
-                     : "Pick one, or fill in the fields below to make a new one.")
-            }
-
-            Section {
-                // ⚠ The same four fields as on the site, in the same order:
-                //   year, name, country, place. The server lays out the folder.
+                TextField("Name of the album", text: $name)
                 comboField("Year", text: $year, options: years)
                     .keyboardType(.numberPad)
-                TextField("Name of the album", text: $event)
                 comboField("Country", text: $country, options: countries)
                 comboField("Place / town (for the map)", text: $place, options: places)
             } header: {
-                Text("Where they belong")
+                Text("The album")
             } footer: {
-                if isNewAlbum {
-                    Label("New album: \(trimmed(year)) / \(trimmed(country)) / \(trimmed(event))",
+                // ⚠ Say the truth about what will happen. Naming an album that
+                //   is already there does NOT fail and does not make a second
+                //   one — the photographs simply go into the one that exists.
+                //   Letting somebody find that out afterwards would be a
+                //   surprise; saying it here is a choice.
+                if let existing {
+                    Label("\(existing.title) already exists — these will go into it, "
+                          + "next to the \(existing.n) already there.",
+                          systemImage: "info.circle")
+                } else if named {
+                    Label("New album: \(trimmed(year)) / \(trimmed(country)) / \(trimmed(name))",
                           systemImage: "plus.circle")
-                } else if let existing {
-                    Label("Adding to \(existing.title) (\(existing.n) already there)",
-                          systemImage: "checkmark.circle")
                 } else {
-                    Text("Year, country and name decide where the photographs go.")
+                    Text("The year, the country and the name are what make an album.")
+                }
+            }
+
+            Section("Photographs") {
+                PhotosPicker(selection: $picked,
+                             matching: .any(of: [.images, .videos]),
+                             photoLibrary: .shared()) {
+                    Label(picked.isEmpty ? "Pick photographs"
+                                         : "\(picked.count) picked",
+                          systemImage: "photo.stack")
                 }
             }
 
@@ -146,26 +104,32 @@ struct UploadView: View {
                     if running {
                         HStack {
                             ProgressView()
-                            Text("\(done) of \(total)…")
+                            Text("\(done) of \(picked.count)…")
                         }
                     } else {
-                        Text(isNewAlbum ? "Create album and upload" : "Upload")
+                        Text(existing == nil ? "Create the album" : "Add to the album")
                     }
                 }
                 .disabled(!ready)
 
                 if let note { Text(note).font(.footnote).foregroundStyle(Theme.inkSoft) }
                 if let failed { Text(failed).font(.footnote).foregroundStyle(.red) }
+                if let made {
+                    NavigationLink(value: made) {
+                        Label("Open \(made.title)", systemImage: "arrow.right.circle")
+                    }
+                }
             }
         }
-        .navigationTitle("Upload")
+        .navigationTitle("New album")
+        .navigationDestination(for: Album.self) { PhotosView(album: $0) }
         .scrollContentBackground(.hidden)
         .background(Theme.ground)
         .task { await load() }
     }
 
     /// A text field you can also pick from. ⚠ Typing stays possible on every
-    /// one of them -- that IS how a new album is made.
+    /// one of them — that IS how a new album is made.
     @ViewBuilder
     private func comboField(_ label: String, text: Binding<String>,
                             options: [String]) -> some View {
@@ -185,10 +149,9 @@ struct UploadView: View {
     }
 
     /// ⚠ Swallows its errors on purpose: these lists are a convenience. If they
-    ///   cannot be fetched, the four fields still work and an upload still goes
-    ///   through -- an empty picker must not become a locked form.
+    ///   cannot be fetched, the fields still work and an album can still be
+    ///   made — an empty picker must not become a locked form.
     private func load() async {
-        guard albums.isEmpty else { return }
         if let a = try? await state.api.albums() { albums = a }
         if let f = try? await state.api.facets() { places = f.places }
     }
@@ -197,9 +160,9 @@ struct UploadView: View {
         running = true
         failed = nil
         note = nil
+        made = nil
         done = 0
-        total = picked.count
-        let wasNew = isNewAlbum
+        let wasNew = existing == nil
         defer { running = false }
 
         let api = state.api
@@ -209,10 +172,9 @@ struct UploadView: View {
                 guard let data = try await item.loadTransferable(type: Data.self) else { continue }
                 // ⚠ There HAS to be a name: the server hangs the extension off
                 //   it and tells from that what kind of file it is.
-                let name = (item.supportedContentTypes.first?.preferredFilenameExtension)
-                    .map { "IMG_\(i + 1).\($0)" } ?? "IMG_\(i + 1).jpg"
-                let fid = try await api.addFile(batch: batch, name: name, size: data.count)
-
+                let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+                let fid = try await api.addFile(batch: batch, name: "IMG_\(i + 1).\(ext)",
+                                                size: data.count)
                 var offset = 0
                 while offset < data.count {
                     let end = min(offset + API.chunk, data.count)
@@ -224,15 +186,34 @@ struct UploadView: View {
                 done += 1
             }
             try await api.commit(batch: batch, year: trimmed(year), country: trimmed(country),
-                                 event: trimmed(event), place: trimmed(place))
+                                 event: trimmed(name), place: trimmed(place))
+
             note = "\(done) photograph\(done == 1 ? "" : "s") sent"
-                + (wasNew ? " into the new album “\(trimmed(event))”." : ".")
-                + " The site is converting them now."
+                + (wasNew ? " — the album is being made." : " — the site is converting them.")
             picked = []
-            // The new album has to turn up in the picker straight away --
-            // otherwise the next upload would look like it has to be created
-            // a second time.
-            if let a = try? await api.albums() { albums = a }
+
+            // ⚠ The album is only really there once the site has converted the
+            //   first photograph: until then it is a folder with nothing on the
+            //   site in it, and it does not appear in the list. So wait for it,
+            //   and then offer to open it — otherwise "Create the album" ends
+            //   with nothing to show for it.
+            for _ in 0..<20 {
+                if let a = try? await api.albums() {
+                    albums = a
+                    if let found = a.first(where: {
+                        $0.year == trimmed(year) && $0.country == trimmed(country)
+                            && $0.event == trimmed(name) }) {
+                        made = found
+                        note = "\(done) photograph\(done == 1 ? "" : "s") in "
+                             + "\(found.title)."
+                        break
+                    }
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            if made == nil {
+                note = "\(done) sent. The album appears once the site has converted them."
+            }
         } catch {
             failed = error.localizedDescription
         }

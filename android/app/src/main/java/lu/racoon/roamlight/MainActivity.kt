@@ -9,7 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
@@ -56,7 +56,7 @@ private fun MainScreen(state: AppState) {
     val tabs = buildList {
         add(Tab("albums", "Albums", Icons.Filled.GridView))
         add(Tab("search", "Search", Icons.Filled.Search))
-        if (state.me?.may?.upload == true) add(Tab("upload", "Upload", Icons.Filled.ArrowUpward))
+        if (state.me?.may?.upload == true) add(Tab("upload", "New album", Icons.Filled.CreateNewFolder))
         add(Tab("device", "Device", Icons.Filled.PhoneAndroid))
     }
 
@@ -71,7 +71,7 @@ private fun MainScreen(state: AppState) {
         ) {
             composable("albums") { AlbumsScreen(nav) }
             composable("search") { SearchScreen(nav) }
-            composable("upload") { UploadScreen() }
+            composable("upload") { UploadScreen(nav) }
             composable("device") { DeviceScreen(state) }
             composable("photos/{album}") { entry ->
                 PhotosScreen(nav, entry.arguments?.getString("album").orEmpty())

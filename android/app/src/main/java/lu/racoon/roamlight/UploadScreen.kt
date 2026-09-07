@@ -1,14 +1,16 @@
-//  Eroplueden: Fotoen aus der Galerie huelen an dem Server seng Schrëtt goen
-//  (batch -> file -> chunk -> done -> commit).
+//  En neien Album uleeën.
 //
-//  ⚠ This is **exactly** the path the web form takes. No second way into the
-//    server, no shortcut for the app -- otherwise there would be two places
-//    where a virus scan or a duplicate check could be forgotten.
+//  ⚠ This tab used to be a general upload form, with a picker for choosing an
+//    album you already have. That was one thing done twice: adding to an album
+//    that exists belongs INSIDE that album, where you are already looking at
+//    it, and that is where the `+` in its bar does it. What was missing was the
+//    other half — making a new album at all — and there was no way to do that
+//    from the app.
 //
-//  ⚠ And, like the web form, it is "pick one or type a new one". An album is
-//    created by naming one that does not exist yet -- so the existing ones have
-//    to be visible, or the only way to add to last year's album is to remember
-//    exactly how it was spelled.
+//  ⚠ The server has no "create album" call, and does not need one: an album IS
+//    the year, the country and the name. Name three that do not exist yet, send
+//    photographs with them, and the album exists. Exactly what the web form
+//    does, and the same road: batch → file → chunk → done → commit.
 
 package lu.racoon.roamlight
 
@@ -23,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,71 +33,88 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 @Composable
-fun UploadScreen() {
+fun UploadScreen(nav: NavHostController) {
     val api = LocalApi.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val thisYear = remember { Calendar.getInstance().get(Calendar.YEAR).toString() }
 
-    var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var name by remember { mutableStateOf("") }
     var year by remember { mutableStateOf(thisYear) }
-    var event by remember { mutableStateOf("") }
     var country by remember { mutableStateOf("") }
     var place by remember { mutableStateOf("") }
+    var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var places by remember { mutableStateOf<List<String>>(emptyList()) }
 
     var running by remember { mutableStateOf(false) }
     var done by remember { mutableIntStateOf(0) }
-    var total by remember { mutableIntStateOf(0) }
+    var made by remember { mutableStateOf<Album?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf<String?>(null) }
 
     /**
      * ⚠ Swallows its errors on purpose: these lists are a convenience. If they
-     *   cannot be fetched the four fields still work and an upload still goes
-     *   through -- an empty picker must not become a locked form.
+     *   cannot be fetched the fields still work and an album can still be made
+     *   -- an empty picker must not become a locked form.
      */
-    LaunchedEffect(Unit) {
+    suspend fun refreshLists() {
         runCatching { albums = api.albums() }
         runCatching { places = api.facets().places }
     }
+    LaunchedEffect(Unit) { refreshLists() }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(100)
     ) { picked = it }
 
-    /**
-     * The album the four fields point at, if it already exists.
-     * ⚠ Compared on the same key the server uses (`<year>/<country>/<name>`),
-     *   so "new" here means exactly what "new" means over there.
-     */
+    // ⚠ Compared on the same key the server uses (`<year>/<country>/<name>`),
+    //   so "already there" here means exactly what it means over there.
     val existing = albums.firstOrNull {
-        it.year == year.trim() && it.country == country.trim() && it.event == event.trim()
+        it.year == year.trim() && it.country == country.trim() && it.event == name.trim()
     }
-    val isNew = year.isNotBlank() && country.isNotBlank() && event.isNotBlank() &&
-        existing == null
-    val ready = picked.isNotEmpty() && year.isNotBlank() && event.isNotBlank() &&
-        country.isNotBlank() && !running
+    val named = name.isNotBlank() && year.isNotBlank() && country.isNotBlank()
+    val ready = named && picked.isNotEmpty() && !running
 
     val years = remember(albums) { (albums.map { it.year } + thisYear).distinct().sortedDescending() }
     val countries = remember(albums) { albums.map { it.country }.distinct().sorted() }
 
     Column(
-        Modifier.fillMaxSize().background(Ink.ground)
-            .verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().background(Ink.ground).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Title("Upload")
+        Title("New album")
         Column(Modifier.padding(horizontal = 16.dp),
                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+
+            Label("The album")
+            Combo("Name of the album", name, emptyList()) { name = it }
+            Combo("Year", year, years, KeyboardType.Number) { year = it }
+            Combo("Country", country, countries) { country = it }
+            Combo("Place / town (for the map)", place, places) { place = it }
+
+            // ⚠ Say the truth about what will happen. Naming an album that is
+            //   already there does NOT fail and does not make a second one --
+            //   the photographs simply go into the one that exists. Letting
+            //   somebody find that out afterwards would be a surprise.
+            Hint(
+                when {
+                    existing != null ->
+                        "${existing.title} already exists — these will go into it, " +
+                            "next to the ${existing.n} already there."
+                    named -> "New album: ${year.trim()} / ${country.trim()} / ${name.trim()}"
+                    else -> "The year, the country and the name are what make an album."
+                }
+            )
 
             Label("Photographs")
             OutlinedButton(
@@ -107,48 +127,11 @@ fun UploadScreen() {
                 Text(if (picked.isEmpty()) "Pick photographs" else "${picked.size} picked")
             }
 
-            Label("Album")
-            Picker(
-                shown = existing?.title ?: "Choose an album",
-                options = buildList {
-                    add("New album…" to Album(thisYear, "", "", "", 0, null, null))
-                    albums.forEach { add("${it.title} · ${it.country} · ${it.n}" to it) }
-                },
-            ) { a ->
-                year = a.year.ifEmpty { thisYear }
-                country = a.country
-                event = a.event
-                if (a.event.isEmpty()) place = ""
-            }
-            Hint(
-                if (albums.isEmpty())
-                    "Nothing here yet — type the four fields below and it is created."
-                else "Pick one, or fill in the fields below to make a new one."
-            )
-
-            Label("Where they belong")
-            // ⚠ The same four fields as on the site, in the same order: year,
-            //   name, country, place. The server lays out the folder.
-            Combo("Year", year, years, KeyboardType.Number) { year = it }
-            Combo("Name of the album", event, emptyList()) { event = it }
-            Combo("Country", country, countries) { country = it }
-            Combo("Place / town (for the map)", place, places) { place = it }
-
-            Hint(
-                when {
-                    isNew -> "New album: ${year.trim()} / ${country.trim()} / ${event.trim()}"
-                    existing != null ->
-                        "Adding to ${existing.title} (${existing.n} already there)"
-                    else -> "Year, country and name decide where the photographs go."
-                }
-            )
-
             Button(
                 onClick = {
                     scope.launch {
-                        running = true; failed = null; note = null; done = 0
-                        total = picked.size
-                        val wasNew = isNew
+                        running = true; failed = null; note = null; made = null; done = 0
+                        val wasNew = existing == null
                         try {
                             val batch = api.newBatch()
                             picked.forEachIndexed { i, uri ->
@@ -166,23 +149,43 @@ fun UploadScreen() {
                                 var offset = 0
                                 while (offset < data.size) {
                                     val end = minOf(offset + Api.CHUNK, data.size)
-                                    api.sendChunk(batch, fid, offset,
-                                                  data.copyOfRange(offset, end))
+                                    api.sendChunk(batch, fid, offset, data.copyOfRange(offset, end))
                                     offset = end
                                 }
                                 api.finishFile(batch, fid)
                                 done += 1
                             }
                             api.commit(batch, year.trim(), country.trim(),
-                                       event.trim(), place.trim())
-                            note = "$done photograph${if (done == 1) "" else "s"} sent" +
-                                (if (wasNew) " into the new album “${event.trim()}”." else ".") +
-                                " The site is converting them now."
+                                       name.trim(), place.trim())
+                            note = "$done sent" +
+                                (if (wasNew) " — the album is being made."
+                                 else " — the site is converting them.")
                             picked = emptyList()
-                            // The new album has to turn up in the picker straight
-                            // away -- otherwise the next upload would look like it
-                            // has to be created a second time.
-                            runCatching { albums = api.albums() }
+
+                            // ⚠ The album is only really there once the site has
+                            //   converted the first photograph: until then it is
+                            //   a folder with nothing on the site in it, and it
+                            //   does not appear in the list. So wait for it --
+                            //   otherwise "Create the album" ends with nothing
+                            //   to show for it.
+                            repeat(20) {
+                                refreshLists()
+                                val found = albums.firstOrNull {
+                                    it.year == year.trim() && it.country == country.trim() &&
+                                        it.event == name.trim()
+                                }
+                                if (found != null) {
+                                    made = found
+                                    note = "$done photograph${if (done == 1) "" else "s"} " +
+                                        "in ${found.title}."
+                                    return@repeat
+                                }
+                                delay(1500)
+                            }
+                            if (made == null) {
+                                note = "$done sent. The album appears once the site has " +
+                                    "converted them."
+                            }
                         } catch (e: Exception) {
                             failed = (e as? ApiError)?.message ?: e.message
                         }
@@ -196,15 +199,23 @@ fun UploadScreen() {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp,
                                                   color = Ink.ground)
-                        Text("$done of $total…")
+                        Text("$done of ${picked.size}…")
                     }
                 } else {
-                    Text(if (isNew) "Create album and upload" else "Upload")
+                    Text(if (existing == null) "Create the album" else "Add to the album")
                 }
             }
 
             note?.let { Text(it, color = Ink.inkSoft, fontSize = 13.sp) }
             failed?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
+            made?.let { a ->
+                OutlinedButton(onClick = { nav.navigate("photos/${AlbumKey.of(a)}") },
+                               modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.ArrowForward, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open ${a.title}")
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -221,27 +232,6 @@ private fun Label(text: String) {
 @Composable
 private fun Hint(text: String) {
     Text(text, color = Ink.inkSoft, fontSize = 12.sp)
-}
-
-/** One tap fills all the fields, the same as choosing an album in the web form. */
-@Composable
-private fun Picker(shown: String, options: List<Pair<String, Album>>,
-                   onPick: (Album) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(shown, modifier = Modifier.weight(1f), maxLines = 1)
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { (label, album) ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = { open = false; onPick(album) },
-                )
-            }
-        }
-    }
 }
 
 /**

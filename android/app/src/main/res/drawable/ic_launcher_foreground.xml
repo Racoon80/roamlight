@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ⚠ An adaptive icon has only its middle 66 % on screen: the launcher may
+     crop it to a circle, a squircle or a rounded square. So the artwork is
+     inset, otherwise the corners of the photograph are cut off. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher_fg"
+    android:inset="18%" />

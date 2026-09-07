@@ -24,7 +24,7 @@ hand someone a link.
 | **A map** | Every album with coordinates, and an optional journey (“car to the airport, plane to Málaga, bus to the coast”) drawn on it. |
 | **Who may see what** | Per album, per person. Nothing is visible by default. |
 | **Share links** | One collection, one link, a password, an end date, an optional view limit — for people without an account. |
-| **Phone and tablet** | Add the site to the home screen (it is a PWA), or use the iOS app in [`ios/`](ios/). |
+| **Phone and tablet** | Add the site to the home screen (it is a PWA), or use the apps: [`ios/`](ios/) for iPhone and iPad, [`android/`](android/) for Android. |
 
 ## Screenshots
 
@@ -192,6 +192,7 @@ templates/    the pages       (Jinja2)
 static/       CSS, JS, fonts  (self-hosted; the CSP allows nothing from outside)
 deploy/       systemd unit, nginx example, the Proxmox installer
 ios/          the iPhone and iPad app (SwiftUI)
+android/      the Android app (Kotlin, Jetpack Compose)
 tests/        checks that run against a real instance
 ```
 

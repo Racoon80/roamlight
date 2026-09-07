@@ -1,0 +1,4 @@
+<resources>
+    <!-- static/site.css — the window ground before Compose paints. -->
+    <color name="ground">#FF1A1815</color>
+</resources>

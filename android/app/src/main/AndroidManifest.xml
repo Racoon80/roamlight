@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Only for the pairing code on the site's /app page. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:name=".RoamlightApp"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.Roamlight"
+        android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false">
+
+        <!--
+          ⚠ allowBackup="false" is not laziness. The device token stays valid
+            until somebody revokes it on the site. Google's cloud backup would
+            carry it to a new phone, and the site's device list would then be
+            wrong about which machine holds it. Here you pair again — which is
+            exactly what the iOS app does with ThisDeviceOnly.
+
+          ⚠ usesCleartextTraffic: a family server on the home network often has
+            no certificate. Refusing http:// would make the app useless for the
+            people it is written for. Over the internet the address is https,
+            and that is what the README tells you to set up.
+        -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Roamlight">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

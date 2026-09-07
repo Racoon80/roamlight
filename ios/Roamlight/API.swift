@@ -100,6 +100,30 @@ struct API {
                                   as: Pairing.self)
     }
 
+    /// Sign in with a name and a password.
+    ///
+    /// ⚠ The other way in. A pairing code needs a second machine -- you open
+    ///   the site on a computer and type the code within five minutes. That is
+    ///   fine for a family who already has it open, and no way in at all for
+    ///   somebody holding only a phone. The site only offers this where it has
+    ///   local accounts; behind an identity proxy it answers 404, and then
+    ///   pairing is the road.
+    static func signIn(site: String, user: String, password: String,
+                       name: String) async throws -> Pairing {
+        let had = Site.url
+        Site.set(site)
+        do {
+            let api = API(token: nil)
+            return try await api.post("/api/app/login",
+                                      ["username": user, "password": password, "name": name],
+                                      as: Pairing.self)
+        } catch {
+            // Put the old address back -- see the note on `pair`.
+            Site.set(had.absoluteString == "https://localhost" ? "" : had.absoluteString)
+            throw error
+        }
+    }
+
     func me() async throws -> Me { try await get("/api/app/me", as: Me.self) }
 
     // MARK: - Kucken

@@ -292,6 +292,12 @@ and you have backed up everything.
 Found something? Open an issue, or write to the address in the repository
 profile. Please do not post a working exploit before it is fixed.
 
+## Privacy
+
+[PRIVACY.md](PRIVACY.md) — what the apps keep, what leaves a phone, and to
+whom. Short, because there is not much: your site, and Apple only if you switch
+notifications on.
+
 ## Licence
 
 [AGPL-3.0](LICENSE). Use it, change it, run it for your family. If you run a

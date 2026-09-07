@@ -15,6 +15,8 @@ struct PairView: View {
     // ⚠ Empty, not a guess: the QR code brings the address along. Somebody
     //   typing it by hand types their own.
     @State private var site = ""
+    @State private var user = ""
+    @State private var password = ""
     @State private var busy = false
 
     private var deviceName: String { UIDevice.current.name }
@@ -44,7 +46,34 @@ struct PairView: View {
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 32)
 
-                DisclosureGroup("Type it instead") {
+                // ⚠ The other way in, and it is not a fallback. A pairing code
+                //   needs a second machine: the site open on a computer, and
+                //   five minutes. Somebody holding only a phone had no way in
+                //   at all -- which is also what an App Store reviewer is.
+                DisclosureGroup("Sign in with a password") {
+                    VStack(spacing: 10) {
+                        TextField("Site", text: $site)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                        TextField("Name", text: $user)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        SecureField("Password", text: $password)
+                        Button("Sign in") {
+                            state.signIn(site: site, user: user, password: password,
+                                         name: deviceName)
+                        }
+                        .disabled(site.isEmpty || user.isEmpty || password.isEmpty
+                                  || state.checking)
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.top, 8)
+                }
+                .foregroundStyle(Theme.inkSoft)
+                .padding(.horizontal, 32)
+
+                DisclosureGroup("Or type the code") {
                     VStack(spacing: 10) {
                         TextField("Site", text: $site)
                             .textInputAutocapitalization(.never)

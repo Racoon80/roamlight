@@ -70,6 +70,26 @@ class AppState(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun signIn(site: String, user: String, password: String, name: String,
+               done: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            checking = true
+            try {
+                val p = api.signIn(site.trim(), user.trim(), password, name)
+                store.token = p.token
+                token = p.token
+                error = null
+                checking = false
+                refresh()
+                done(true)
+            } catch (e: Exception) {
+                error = (e as? ApiError)?.message ?: e.message
+                checking = false
+                done(false)
+            }
+        }
+    }
+
     fun signOut() {
         store.token = null
         token = null

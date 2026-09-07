@@ -75,6 +75,27 @@ final class AppState: ObservableObject {
         }
     }
 
+    func signIn(site: String, user: String, password: String,
+                name: String, done: @escaping (Bool) -> Void = { _ in }) {
+        Task {
+            checking = true
+            do {
+                let p = try await API.signIn(site: site.trimmingCharacters(in: .whitespaces),
+                                             user: user, password: password, name: name)
+                Keychain.save(p.token)
+                token = p.token
+                error = nil
+                checking = false
+                await refresh()
+                done(true)
+            } catch {
+                self.error = error.localizedDescription
+                checking = false
+                done(false)
+            }
+        }
+    }
+
     func signOut() {
         // ⚠ Before the token goes: tell the site to stop sending here.
         //   Afterwards there is nothing left to say it with.

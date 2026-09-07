@@ -96,6 +96,24 @@ def redeem(code: str, name: str, ip: str = "") -> dict | None:
     return {"token": f"{PREFIX}{ref}_{secret}", "user": row["username"]}
 
 
+def mint(username: str, name: str = "", ip: str = "") -> dict:
+    """A token for somebody who has just proved who they are another way.
+
+    ⚠ This checks NOTHING. It is the last step of a road that did the checking
+      -- today that is a name and a password (`auth.check`), tomorrow it might
+      be something else. Whoever calls it must have made sure first.
+    """
+    ref = secrets.token_hex(REF_BYTES)
+    secret = secrets.token_urlsafe(SECRET_BYTES)
+    with db.tx() as c:
+        c.execute(
+            "INSERT INTO app_devices (ref, username, name, secret_hash, last_ip) "
+            "VALUES (?,?,?,?,?)",
+            (ref, username, (name or "").strip()[:60] or "an apparat",
+             _sha(secret), ip))
+    return {"token": f"{PREFIX}{ref}_{secret}", "user": username}
+
+
 # --- checking (every request from the app) -----------------------------------
 
 def identify(token: str) -> str | None:

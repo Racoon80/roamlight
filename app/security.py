@@ -36,7 +36,11 @@ _NO_USER_PREFIXES = ("/s/", "/static/")
 #   pairing code. Both still sit behind the shared secret.
 # ⚠ And `/login`, `/logout`, `/setup`: somebody who is not signed in has to be
 #   able to reach the sign-in page — a 403 there would be a dead end.
+# ⚠ `/api/app/login` is here for the same reason as `/api/app/pair`: it is
+#   the door itself. It checks the password on its own and is throttled by
+#   the same counter as the website's form.
 _NO_USER_EXACT = ("/api/health", "/robots.txt", "/api/app/authz", "/api/app/pair",
+                  "/api/app/login",
                   "/login", "/logout", "/setup")
 
 

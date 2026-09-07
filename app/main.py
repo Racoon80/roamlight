@@ -1215,6 +1215,40 @@ def api_app_pair(request: Request, body: dict = Body(...)):
     return out
 
 
+@app.post("/api/app/login")
+def api_app_login(request: Request, body: dict = Body(...)):
+    """Sign in from the app with a name and a password.
+
+    ⚠ Why this exists next to the pairing code: the code needs a second
+      machine. You open the website on a computer, press "Show the code", and
+      type it into the phone within five minutes. That is a fine way in for a
+      family who already has the site open -- and no way in at all for somebody
+      holding only a phone.
+
+    ⚠ Only where local accounts exist. Behind an identity proxy there is no
+      password here to check: the proxy holds it, and the phone gets in by
+      pairing. Answering anything else would be pretending.
+
+    ⚠ Throttled by the SAME counter as the website's sign-in form
+      (`auth.blocked` / `note_fail`), so this is not a quieter door into the
+      same house. See FAMILY_TRUSTED_PROXIES for what makes that counter able
+      to tell one visitor from another.
+    """
+    if not config.AUTH_LOCAL:
+        raise HTTPException(status_code=404, detail="not found")
+    ip = security.client_ip(request)
+    if auth.blocked(ip):
+        raise HTTPException(status_code=429, detail="Too many tries. Wait a few minutes.")
+    user = auth.check(str(body.get("username", "")), str(body.get("password", "")))
+    if not user:
+        auth.note_fail(ip)
+        # The same sentence for a wrong name and a wrong password -- otherwise
+        # this is a list of who has an account here.
+        raise HTTPException(status_code=401, detail="That did not work.")
+    auth.note_ok(ip)
+    return devices.mint(user, str(body.get("name", "")), ip)
+
+
 @app.get("/api/app/me")
 def api_app_me(request: Request):
     """Who am I and what may I -- the first thing the app asks."""

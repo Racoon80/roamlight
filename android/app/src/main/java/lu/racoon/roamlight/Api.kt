@@ -140,6 +140,32 @@ class Api(private val store: Store) {
         }
     }
 
+    /**
+     * Sign in with a name and a password.
+     *
+     * ⚠ The other way in. A pairing code needs a second machine -- the site
+     *   open on a computer, and five minutes. That is fine for a family who
+     *   already has it open, and no way in at all for somebody holding only a
+     *   phone. The site only offers this where it has local accounts; behind an
+     *   identity proxy it answers 404, and then pairing is the road.
+     */
+    suspend fun signIn(siteUrl: String, user: String, password: String,
+                       name: String): Pairing {
+        requireSafeAddress(siteUrl)
+        val hadSite = store.site
+        val hadToken = store.token
+        store.site = siteUrl
+        store.token = null
+        return try {
+            Pairing.of(postJson("/api/app/login", JSONObject()
+                .put("username", user).put("password", password).put("name", name)))
+        } catch (e: Exception) {
+            store.site = hadSite
+            store.token = hadToken
+            throw e
+        }
+    }
+
     suspend fun me(): Me = Me.of(getJson("/api/app/me"))
 
     // MARK: - Kucken

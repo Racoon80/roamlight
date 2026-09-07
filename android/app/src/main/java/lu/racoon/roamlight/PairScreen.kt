@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +32,9 @@ fun PairScreen(state: AppState) {
     var site by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var typing by remember { mutableStateOf(false) }
+    var withPassword by remember { mutableStateOf(false) }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
 
     val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
         val text = result.contents ?: return@rememberLauncherForActivityResult
@@ -71,8 +76,49 @@ fun PairScreen(state: AppState) {
             Text("Scan the code", modifier = Modifier.padding(vertical = 6.dp))
         }
 
+        // ⚠ The other way in, and it is not a fallback. A pairing code needs a
+        //   second machine: the site open on a computer, and five minutes.
+        //   Somebody holding only a phone had no way in at all.
+        TextButton(onClick = { withPassword = !withPassword }) {
+            Text(if (withPassword) "Hide" else "Sign in with a password", color = Ink.inkSoft)
+        }
+
+        if (withPassword) {
+            OutlinedTextField(
+                value = site, onValueChange = { site = it },
+                label = { Text("Site") },
+                singleLine = true,
+                placeholder = { Text("https://photos.example.com") },
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = user, onValueChange = { user = it },
+                label = { Text("Name") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = password, onValueChange = { password = it },
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { state.signIn(site, user, password, deviceName()) },
+                enabled = site.isNotBlank() && user.isNotBlank() && password.isNotBlank()
+                    && !state.checking,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Sign in") }
+        }
+
         TextButton(onClick = { typing = !typing }) {
-            Text(if (typing) "Hide" else "Type it instead", color = Ink.inkSoft)
+            Text(if (typing) "Hide" else "Or type the code", color = Ink.inkSoft)
         }
 
         if (typing) {

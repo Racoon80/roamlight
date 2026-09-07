@@ -59,7 +59,13 @@ struct AlbumCard: View {
                     Theme.groundWarm
                 }
             }
-            .frame(height: 118)
+            // ⚠ The WIDTH has to be pinned too, not only the height.
+            //   `RemoteImage` fills, so for a landscape photograph it hands back
+            //   a view wider than its column -- the card then covers the one
+            //   beside it and the grid looks as if it had no spacing at all,
+            //   titles running into each other. `maxWidth: .infinity` makes the
+            //   frame take exactly the column width; `.clipped()` cuts the rest.
+            .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 4))
 
@@ -126,7 +132,8 @@ struct PhotosView: View {
                 ForEach(photos) { p in
                     NavigationLink(value: p) {
                         RemoteImage(id: p.id, width: 400)
-                            .frame(height: 110)
+                            // Width pinned to the column -- see `AlbumCard`.
+                            .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 110)
                             .clipped()
                     }
                     .buttonStyle(.plain)

@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 
@@ -110,16 +111,31 @@ class Api(private val store: Store) {
 
     // MARK: - Umellen
 
-    /** Trade the pairing code for a token. The only request that goes without one. */
+    /**
+     * Trade the pairing code for a token. The only request that goes without one.
+     *
+     * ⚠ The address comes off a QR code, so it is whatever was in front of the
+     *   camera. Two things follow, and both are security, not tidiness:
+     *
+     *   1. The existing token is put aside for the length of this request. A
+     *      code photographed off a poster must never make the app hand the
+     *      token it already has to a stranger's server.
+     *   2. If the pairing fails, the OLD address is put back as well. Leaving a
+     *      stranger's address behind with a valid token still in the keychain
+     *      is the same leak one request later.
+     */
     suspend fun pair(code: String, name: String, siteUrl: String): Pairing {
+        requireSafeAddress(siteUrl)
+        val hadSite = store.site
+        val hadToken = store.token
         store.site = siteUrl
-        val had = store.token
-        store.token = null                       // pairing must go unauthenticated
+        store.token = null
         return try {
             Pairing.of(postJson("/api/app/pair",
                 JSONObject().put("code", code).put("name", name)))
         } catch (e: Exception) {
-            store.token = had
+            store.site = hadSite
+            store.token = hadToken
             throw e
         }
     }
@@ -217,5 +233,44 @@ class Api(private val store: Store) {
 
     companion object {
         const val CHUNK = 512 * 1024
+
+        /**
+         * Refuse to pair with a public address over plain http.
+         *
+         * ⚠ The iOS app cannot do cleartext at all -- Apple's transport
+         *   security forbids it and the project asks for no exception. Android
+         *   has to allow it, because a family server on the home network
+         *   usually has no certificate and refusing http would make the app
+         *   useless to the people it is written for. So the line is drawn
+         *   here instead: plain http is fine on a private network, and
+         *   refused to anything reachable from the internet -- where it would
+         *   put the device token on the wire in the clear, at every request,
+         *   for the length of its life.
+         */
+        internal fun requireSafeAddress(siteUrl: String) {
+            val u = try { URI(siteUrl.trim()) } catch (_: Exception) {
+                throw ApiError(0, "That is not an address.")
+            }
+            val host = u.host ?: throw ApiError(0, "That address has no host in it.")
+            if (!u.scheme.equals("http", ignoreCase = true)) return
+            if (isPrivate(host)) return
+            throw ApiError(0, "Use https for an address on the internet — over " +
+                "plain http this device's token can be read off the wire.")
+        }
+
+        private fun isPrivate(host: String): Boolean {
+            val h = host.lowercase().trim('[', ']')
+            if (h == "localhost" || h.endsWith(".local") || h.endsWith(".home.arpa")) return true
+            if (h.startsWith("::1") || h.startsWith("fd") || h.startsWith("fe80")) return true
+            // A bare name with no dot is a machine on the local network.
+            if (!h.contains('.')) return true
+            val p = h.split(".")
+            if (p.size != 4 || p.any { it.toIntOrNull() == null }) return false
+            val (a, b) = p[0].toInt() to p[1].toInt()
+            return a == 10 || a == 127 ||
+                (a == 192 && b == 168) ||
+                (a == 172 && b in 16..31) ||
+                (a == 169 && b == 254)
+        }
     }
 }

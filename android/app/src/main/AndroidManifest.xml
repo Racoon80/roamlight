@@ -25,9 +25,11 @@
             exactly what the iOS app does with ThisDeviceOnly.
 
           ⚠ usesCleartextTraffic: a family server on the home network often has
-            no certificate. Refusing http:// would make the app useless for the
-            people it is written for. Over the internet the address is https,
-            and that is what the README tells you to set up.
+            no certificate, and refusing http:// outright would make the app
+            useless for the people it is written for. The platform therefore
+            permits it — and Api.requireSafeAddress() then refuses to pair over
+            plain http with anything that is NOT a private address. Public host,
+            no certificate, no pairing.
         -->
 
         <activity

@@ -55,6 +55,8 @@ dependencies {
     // lines of code -- cheaper than plumbing CameraX by hand.
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
+    testImplementation("junit:junit:4.13.2")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
 }

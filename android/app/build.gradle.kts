@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "lu.racoon.roamlight"
+        applicationId = "com.example.roamlight"
         // ⚠ 26 and not lower: the app needs adaptive icons and the modern
         //   TLS stack. Below that, a self-hosted site with a Let's Encrypt
         //   certificate is not reliably trusted.

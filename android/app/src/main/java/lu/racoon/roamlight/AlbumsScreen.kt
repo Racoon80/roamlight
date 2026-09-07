@@ -56,14 +56,20 @@ fun AlbumsScreen(nav: NavHostController) {
                 Text(failed!!, color = MaterialTheme.colorScheme.error)
             }
             albums.isEmpty() -> Center { Text("Nothing here yet.", color = Ink.inkMute) }
+            // ⚠ The gap lives INSIDE the cell, and the grid is told nothing
+            //   about it. On iOS the same grid gave a phone its 12 pt between
+            //   the cards and let them touch on an iPad: an adaptive grid
+            //   decides for itself how to hand out the width it has left over,
+            //   and a cell that fills its width eats the spacing on a wide
+            //   screen. Padding inside the card cannot be handed out.
             else -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(6.dp),
             ) {
                 items(albums, key = { it.id }) { a ->
-                    AlbumCard(a) { nav.navigate("photos/${AlbumKey.of(a)}") }
+                    Box(Modifier.padding(6.dp)) {
+                        AlbumCard(a) { nav.navigate("photos/${AlbumKey.of(a)}") }
+                    }
                 }
             }
         }
@@ -268,16 +274,16 @@ fun PhotoGrid(
             Center { Text(failed!!, color = MaterialTheme.colorScheme.error) }
             return@Column
         }
+        // Selwechte Grond wéi bei den Albumen: den Ofstand steet an der Zell.
         LazyVerticalGrid(
             columns = GridCells.Adaptive(110.dp),
-            contentPadding = PaddingValues(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            contentPadding = PaddingValues(1.5.dp),
             modifier = Modifier.weight(1f),
         ) {
             itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
                 Box(
                     Modifier
+                        .padding(1.5.dp)
                         .fillMaxWidth()          // pinned to the column -- see AlbumCard
                         .height(110.dp)
                         .clickable {

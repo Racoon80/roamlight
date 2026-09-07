@@ -9,7 +9,16 @@ struct AlbumsView: View {
     @State private var loading = true
     @State private var failed: String?
 
-    private let cols = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    // ⚠ The gap lives INSIDE the cell, and the grid is told nothing about it.
+    //
+    //   `GridItem(.adaptive(minimum:), spacing:)` looked right and was not: on a
+    //   phone the cards had their 12 pt between them, on an iPad they touched.
+    //   An adaptive grid decides for itself how to hand out the width it has
+    //   left over, and a cell whose content is `maxWidth: .infinity` eats the
+    //   spacing on a wide screen. Padding inside the card cannot be handed out
+    //   to anybody -- it is the same on every screen there is.
+    private let cols = [GridItem(.adaptive(minimum: 150), spacing: 0)]
+    private let gap: CGFloat = 6
 
     var body: some View {
         ScrollView {
@@ -20,13 +29,14 @@ struct AlbumsView: View {
             } else if albums.isEmpty {
                 Text("Nothing here yet.").foregroundStyle(Theme.inkMute).padding(.top, 60)
             } else {
-                LazyVGrid(columns: cols, spacing: 12) {
+                LazyVGrid(columns: cols, spacing: 0) {
                     ForEach(albums) { a in
                         NavigationLink(value: a) { AlbumCard(album: a) }
                             .buttonStyle(.plain)
+                            .padding(gap)
                     }
                 }
-                .padding(12)
+                .padding(gap)
             }
         }
         .background(Theme.ground)
@@ -159,11 +169,13 @@ struct PhotosView: View {
     @State private var journey: Journey?
     @State private var played = false
 
-    private let cols = [GridItem(.adaptive(minimum: 110), spacing: 3)]
+    // Selwecht Grond wéi bei den Albumen: den Ofstand steet an der Zell.
+    private let cols = [GridItem(.adaptive(minimum: 110), spacing: 0)]
+    private let gap: CGFloat = 1.5
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: cols, spacing: 3) {
+            LazyVGrid(columns: cols, spacing: 0) {
                 ForEach(photos) { p in
                     NavigationLink(value: p) {
                         RemoteImage(id: p.id, width: 400, rev: p.rev ?? 0)
@@ -178,6 +190,7 @@ struct PhotosView: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .padding(gap)
                     .onAppear {
                         // ⚠ The next page is loaded when its LAST image
                         //   appears -- not at a scroll offset. That way a fast
@@ -191,7 +204,7 @@ struct PhotosView: View {
                     }
                 }
             }
-            .padding(3)
+            .padding(gap)
             if sending {
                 HStack(spacing: 8) {
                     ProgressView()

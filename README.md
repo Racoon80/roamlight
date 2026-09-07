@@ -28,7 +28,20 @@ hand someone a link.
 
 ## Screenshots
 
-<!-- TODO before release: album view, a photograph, the map, the workshop -->
+|  |  |
+|---|---|
+| ![The albums](docs/screenshots/albums.jpg) | ![One album](docs/screenshots/album.jpg) |
+| **Everything at once** — years down the side, the albums underneath. | **One album** — the photographs lie on the table, not in a grid. |
+| ![A photograph](docs/screenshots/photograph.jpg) | ![The map](docs/screenshots/map.jpg) |
+| **A photograph** — where and when, and the original to download. | **The journey** — car, plane, bus, drawn between the places. |
+
+![The workbench](docs/screenshots/workbench.jpg)
+
+**The workbench** — scanning, tagging, collections, share links, who sees which
+album, and the mirror of the originals. Only an administrator sees this page.
+
+<sub>Photographs in the screenshots are the author's own, from a demo library —
+not from anybody's family album.</sub>
 
 ---
 

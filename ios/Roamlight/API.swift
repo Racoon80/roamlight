@@ -159,7 +159,15 @@ struct API {
                               URLQueryItem(name: "event", value: a.event)]
         }
         if let query, !query.isEmpty { q.queryItems! += [URLQueryItem(name: "q", value: query)] }
-        return try await get("/api/photos\(q.string.map { "?" + $0 } ?? "")", as: PhotoPage.self)
+        // ⚠ `percentEncodedQuery`, NOT `string`. `URLComponents.string` already
+        //   carries the "?" -- putting another one in front made
+        //   `/api/photos??page=2&year=…`, and then the first parameter is
+        //   called "?page", not "page". So the page number never arrived, the
+        //   server used its default of 1, and every album stopped at sixty
+        //   photographs. (Earlier, before the list was de-duplicated, the same
+        //   fault showed up as the first sixty coming round again and again.)
+        return try await get("/api/photos?\(q.percentEncodedQuery ?? "")",
+                             as: PhotoPage.self)
     }
 
     /// The address of an image. ⚠ WebP and not AVIF: iOS can do both, but the

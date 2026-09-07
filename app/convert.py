@@ -130,3 +130,17 @@ def convert(job) -> None:
              round(duration) if duration else row["duration_s"],
              str(src), local_sha, photo_id),
         )
+
+    # ⚠ HERE and not at the upload: a photograph counts as having arrived when
+    #   it can actually be looked at. Before the conversion it is a row nobody
+    #   can see -- announcing it then would send people to an empty album.
+    #
+    # ⚠ Counted, not sent. An import of five hundred makes five hundred of
+    #   these calls and ONE message. See app/notify.py.
+    try:
+        from . import notify
+        notify.note("photos", f"{row['album_year']}/{row['country']}/{row['event']}",
+                    actor=row["owner"] or "", n=1)
+    except Exception:                                            # noqa: BLE001
+        # A notice must never be the reason a photograph fails to convert.
+        log.warning("notify: could not note photo %s", photo_id, exc_info=True)

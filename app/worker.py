@@ -78,6 +78,28 @@ class Worker:
                                   daemon=True)
             th.start()
             self._threads.append(th)
+        # ⚠ Its own thread, and a slow one. The notices are not work to get
+        #   through -- they are work to hold back: the whole point is that a row
+        #   sits for a while and collects. Putting it in the job queue would
+        #   mean a job per photograph, which is exactly what it exists to avoid.
+        post = threading.Thread(target=self._notices, name="family-notices",
+                                daemon=True)
+        post.start()
+        self._threads.append(post)
+
+    def _notices(self) -> None:
+        from . import notify
+        while not self._stop.is_set():
+            # Every fifteen seconds: nothing to do most times, and never later
+            # than that once a window has passed.
+            if self._stop.wait(15):
+                return
+            try:
+                tally = notify.flush()
+                if tally["sent"] or tally["failed"]:
+                    log.info("Bescheed: %s", tally)
+            except Exception:                                    # noqa: BLE001
+                log.warning("notify: flush failed", exc_info=True)
         log.info("Worker: %d Threads", len(self._threads))
 
     def stop(self) -> None:

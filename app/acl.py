@@ -111,7 +111,7 @@ def all_acls() -> dict:
     return out
 
 
-def set_audience(year, country, event, principals) -> dict:
+def set_audience(year, country, event, principals, actor: str = "") -> dict:
     """Set the list. An empty list leaves the album visible **to the
     administrator only** -- that is not a deletion, it is a closing."""
     k = key(year, country, event)
@@ -121,11 +121,24 @@ def set_audience(year, country, event, principals) -> dict:
         if p.startswith("user:") or p.startswith("group:"):
             if len(p) > len(p.split(":", 1)[0]) + 1:
                 clean.append(p)
+    before = {r["principal"] for r in db.connect().execute(
+        "SELECT principal FROM album_acl WHERE album_key=?", (k,))}
     with db.tx() as c:
         c.execute("DELETE FROM album_acl WHERE album_key=?", (k,))
         if clean:
             c.executemany("INSERT OR IGNORE INTO album_acl (album_key, principal) "
                           "VALUES (?,?)", [(k, p) for p in sorted(set(clean))])
+
+    # ⚠ Only the people who were NOT on the list before. Saving the same list
+    #   again -- which the admin page does on every click -- must not tell
+    #   everybody a second time that they may look.
+    try:
+        from . import notify
+        for p in set(clean) - before:
+            if p.lower().startswith("user:"):
+                notify.note_access(k, p[5:], actor=actor)
+    except Exception:                                            # noqa: BLE001
+        log.warning("notify: could not note the audience of %s", k, exc_info=True)
     log.info("Album %s: %s", k,
              ", ".join(sorted(set(clean))) or "the administrator only")
     return {"album": k, "audience": sorted(set(clean)),

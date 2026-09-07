@@ -8,3 +8,9 @@ pyvips>=2.2 ; platform_system == "Linux"
 rawpy>=0.24            # LibRaw-Bindings; brauch LibRaw >= 0.21 fir CR3
 argon2-cffi>=23.1      # Deel-Link-Passwierder (Sektioun 8 vum Plang)
 segno>=1.6             # the QR code for device pairing (pure Python, no dependencies)
+# Push-Noriichten. httpx well Apple NUR HTTP/2 schwätzt, an cryptography fir
+# déi zwee Schlësselformater (ES256 fir Apple, RS256 fir de Google-Konto).
+# ⚠ Béid ginn eréischt importéiert, wa wierklech eppes geschéckt gëtt -- eng
+#   Installatioun ouni Push muss ouni si lafen.
+httpx[http2]>=0.27
+cryptography>=42

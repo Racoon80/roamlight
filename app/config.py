@@ -110,6 +110,43 @@ TRUSTED_PEERS = set(
 #   Behind nginx as in deploy/nginx.conf:      127.0.0.1
 #   Behind another reverse proxy on the LAN:   its address, e.g. 192.168.1.5
 #   Ranges are allowed: 192.168.1.0/24
+# --- Bescheed soen ------------------------------------------------------------
+#
+# ⚠ Off until it is set up, and that is on purpose: a notification goes THROUGH
+#   Apple or Google, and that is a decision to make deliberately, not something
+#   that happens because the software was installed. Nothing is sent while
+#   these are empty.
+#
+# ⚠ What goes through them is the album's own title and a count -- "12 new
+#   photographs in 2026 Ostende". Never a name, never a place beyond the album
+#   title, never a photograph.
+NOTIFY_WINDOW = int(os.environ.get("FAMILY_NOTIFY_WINDOW", "90"))
+
+# Apple. The .p8 comes from the developer portal (Keys → new key → APNs).
+APNS_KEY_FILE = os.environ.get("FAMILY_APNS_KEY_FILE", "").strip()
+APNS_KEY_ID = os.environ.get("FAMILY_APNS_KEY_ID", "").strip()
+APNS_TEAM_ID = os.environ.get("FAMILY_APNS_TEAM_ID", "").strip()
+# ⚠ The bundle id of the app, EXACTLY -- Apple checks it against the key.
+APNS_TOPIC = os.environ.get("FAMILY_APNS_TOPIC", "").strip()
+# A build from Xcode gets its token from Apple's test service; TestFlight and
+# the App Store use the live one. The wrong one answers `BadDeviceToken`.
+APNS_SANDBOX = _bool("FAMILY_APNS_SANDBOX", False)
+
+# Google. The JSON of a service account from the Firebase project.
+FCM_CREDENTIALS = os.environ.get("FAMILY_FCM_CREDENTIALS", "").strip()
+
+
+def apns_ready() -> bool:
+    from pathlib import Path as _P
+    return bool(APNS_KEY_FILE and APNS_KEY_ID and APNS_TEAM_ID and APNS_TOPIC
+                and _P(APNS_KEY_FILE).is_file())
+
+
+def fcm_ready() -> bool:
+    from pathlib import Path as _P
+    return bool(FCM_CREDENTIALS and _P(FCM_CREDENTIALS).is_file())
+
+
 TRUSTED_PROXIES = tuple(
     p.strip() for p in os.environ.get("FAMILY_TRUSTED_PROXIES", "").split(",") if p.strip())
 

@@ -371,6 +371,43 @@ CREATE TABLE IF NOT EXISTS state (
     value TEXT
 );
 
+-- ⚠ Where a person's phone can be reached. NOT `app_devices`: that one is the
+--   right to READ the library and is revoked when a phone is lost. This is only
+--   an address to send a notice to, it grants nothing, and a phone that
+--   reinstalls the app gets a new one while the old goes stale. Two different
+--   lifetimes, two tables.
+CREATE TABLE IF NOT EXISTS notify_devices (
+    id         INTEGER PRIMARY KEY,
+    username   TEXT NOT NULL,
+    kind       TEXT NOT NULL,              -- apns | fcm
+    token      TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_ok    TEXT,
+    failures   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (kind, token)
+);
+
+-- ⚠ THIS is what stops a hundred photographs becoming a hundred buzzes. An
+--   event does not go out; it goes in here, into ONE row per person, per kind,
+--   per album, and the counter goes up. The row is sent once its little window
+--   has passed -- so an import of five hundred is one line: "500 photographs in
+--   2026 Ostende".
+--
+-- ⚠ `send_after` is set when the row is MADE and never moved afterwards. Push
+--   it forward on every new photograph and a long import would never be
+--   announced at all -- the window would keep running away from the sender.
+CREATE TABLE IF NOT EXISTS notify_pending (
+    id         INTEGER PRIMARY KEY,
+    username   TEXT NOT NULL,
+    event      TEXT NOT NULL,              -- photos | access
+    album_key  TEXT NOT NULL DEFAULT '',
+    n          INTEGER NOT NULL DEFAULT 0,
+    first_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    send_after TEXT NOT NULL,
+    UNIQUE (username, event, album_key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_photos_folder  ON photos (web_folder_id);
 CREATE INDEX IF NOT EXISTS idx_photos_taken   ON photos (taken_at);
 CREATE INDEX IF NOT EXISTS idx_photos_state   ON photos (state);
@@ -380,6 +417,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_pending   ON jobs (status, id);
 CREATE INDEX IF NOT EXISTS idx_variants_photo ON variants (photo_id);
 CREATE INDEX IF NOT EXISTS idx_share_hits     ON share_hits (share_id, at);
 CREATE INDEX IF NOT EXISTS idx_upload_files   ON upload_files (batch_id, state);
+CREATE INDEX IF NOT EXISTS idx_notify_user    ON notify_devices (username);
+CREATE INDEX IF NOT EXISTS idx_notify_due     ON notify_pending (send_after);
 """
 
 _local = threading.local()
@@ -643,7 +682,7 @@ def init() -> None:
     _migrate(conn)
     _fix_fks(conn)
     _repair(conn)
-    set_state("schema_version", "6")
+    set_state("schema_version", "7")
     # ⚠ Once more: the -wal and the -shm only appear on the first write, that
     #   is AFTER the connection -- and then they carry the umask again.
     _shut(config.DB_PATH)

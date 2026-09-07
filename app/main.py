@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import (acl, album, auth, collections, config, db, devices, gallery, geo,
                journey, members, register, scan, security, serve, shares, sync,
-               tagging, tickets, tiles, tileseed, tree, upload)
+               notify, tagging, tickets, tiles, tileseed, tree, upload)
 from . import guests
 from . import convert as _convert          # registers the convert handler
 from .worker import Worker, enqueue, requeue_orphans
@@ -1277,7 +1277,9 @@ def api_album_audience(request: Request, body: dict = Body(...)):
     try:
         return acl.set_audience(
             str(body.get("year", "")), str(body.get("country", "")),
-            str(body.get("event", "")), body.get("audience") or [])
+            str(body.get("event", "")), body.get("audience") or [],
+            # Whoever set the list does not need to be told about it.
+            actor=ident.user)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -1560,6 +1562,43 @@ def api_photo(photo_id: int, request: Request):
     who = security.identify(request)
     p["lqip"] = serve.lqip(photo_id, who.is_admin, who)
     return p
+
+
+@app.post("/api/notify/register")
+def api_notify_register(request: Request, body: dict = Body(...)):
+    """A phone says where it can be reached.
+
+    ⚠ This is NOT the right to read anything -- that is the device token, and
+      it lives in `app_devices`. This is only an address for a one-line notice,
+      and it is kept apart so that losing one does not mean losing the other.
+    """
+    who = security.identify(request)
+    if not who.user:
+        raise HTTPException(status_code=403, detail="forbidden")
+    try:
+        return notify.register(who.user, str(body.get("kind", "")),
+                               str(body.get("token", "")),
+                               str(body.get("name", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/notify/unregister")
+def api_notify_unregister(request: Request, body: dict = Body(...)):
+    """A phone says it does not want them any more (or is being signed out)."""
+    security.identify(request)
+    return notify.unregister(str(body.get("kind", "")), str(body.get("token", "")))
+
+
+@app.get("/api/notify")
+def api_notify_state(request: Request):
+    """What this person's phones are, and whether the site can send at all."""
+    who = security.identify(request)
+    if not who.user:
+        raise HTTPException(status_code=403, detail="forbidden")
+    return {"devices": notify.devices_of(who.user),
+            "apns": config.apns_ready(), "fcm": config.fcm_ready(),
+            "window_s": notify.WINDOW_SECONDS}
 
 
 @app.get("/api/albums/journey")

@@ -34,6 +34,12 @@ WEB_DIR = _path("FAMILY_WEB", "/library")
 # so no RAW file is ever decoded twice.
 DERIVATIVE_DIR = _path("FAMILY_DERIVATIVES", DATA_DIR / "derivatives")
 
+# ⚠ Scratch space for a conversion in progress -- its OWN folder, not DATA_DIR
+#   itself. A conversion that is killed halfway (a restart, an OOM) leaves its
+#   temporary folder behind; `sweep_work()` clears those out at startup, and it
+#   may only do that where nothing else lives.
+WORK_DIR = _path("FAMILY_WORK", DATA_DIR / "work")
+
 TEMPLATE_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -298,9 +304,41 @@ def ensure_dirs() -> None:
       by anybody on the machine. The group keeps its access, because the sync
       and the backup runs are the same user.
     """
-    for d in (DATA_DIR, INCOMING_DIR, DERIVATIVE_DIR, TILE_CACHE):
+    for d in (DATA_DIR, INCOMING_DIR, DERIVATIVE_DIR, TILE_CACHE, WORK_DIR):
         d.mkdir(parents=True, exist_ok=True)
         try:
             d.chmod(0o750)
         except OSError:
             pass
+
+
+def sweep_work(older_than_hours: int = 6) -> int:
+    """Clear out the scratch folders of conversions that never finished.
+
+    `convert.py` works in a `TemporaryDirectory` and the context manager
+    removes it -- unless the process is killed first. A restart during a big
+    import therefore leaves one folder per conversion behind, and they add up:
+    on the live site 67 of them, 97 MB, before this existed.
+
+    ⚠ Only folders that have not been touched for `older_than_hours` go. A
+      conversion running RIGHT NOW has a young folder, and two workers must not
+      delete each other's work. Six hours is far past the slowest possible
+      conversion (a 400 MB video) and far short of a leak worth keeping.
+    """
+    import shutil
+    import time
+
+    cutoff = time.time() - older_than_hours * 3600
+    gone = 0
+    try:
+        entries = list(WORK_DIR.iterdir())
+    except OSError:
+        return 0
+    for d in entries:
+        try:
+            if d.is_dir() and d.stat().st_mtime < cutoff:
+                shutil.rmtree(d, ignore_errors=True)
+                gone += 1
+        except OSError:
+            pass
+    return gone

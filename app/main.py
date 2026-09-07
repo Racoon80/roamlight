@@ -103,6 +103,11 @@ def _startup() -> None:
     config.ensure_marker(config.WEB_DIR)
     db.init()
     auth.sweep()          # expired sessions can go
+    # Scratch folders of conversions that a restart interrupted.
+    swept = config.sweep_work()
+    if swept:
+        logging.getLogger("family").info(
+            "%d unfinished conversion folders cleared out", swept)
     # ⚠ While there is no account, the setup page is open. That belongs in the
     #   log, and not quietly: on a network with other people on it, whoever
     #   opens the address first becomes the administrator.

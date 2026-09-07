@@ -60,7 +60,7 @@ def convert(job) -> None:
     # behind that looks exactly like a finished master.
     is_video = row["kind"] == "video"
     duration = None
-    with tempfile.TemporaryDirectory(dir=str(config.DATA_DIR)) as td:
+    with tempfile.TemporaryDirectory(dir=str(config.WORK_DIR)) as td:
         tmp_master = Path(td) / "master.jpg"
         tmp_mp4 = Path(td) / "web.mp4"
         if is_video:

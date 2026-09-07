@@ -62,7 +62,7 @@ def need(var):
     """The value -- or the test does not run at all."""
     v = os.environ.get(var) or _from_file(var)
     if not v:
-        sys.exit(f"ABORTED: {var} is not set, and none of {_ENV_FILES} names it.\n"
+        sys.exit(f"ABORTED: {var} is not set, and no environment file names it.\n"
                  f"  Run the test with the service's environment, for example:\n"
                  f"    set -a; . /etc/family/env; set +a; python3 <test>")
     return v

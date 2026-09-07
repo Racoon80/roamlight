@@ -8,9 +8,21 @@
 #   tests/_env.py). That is deliberate: a test that guesses where the
 #   photographs are is a test that can delete the wrong ones.
 set -u
-ENV_FILE="${FAMILY_ENV:-/etc/family/env}"
-[ -r "$ENV_FILE" ] || { echo "no environment file at $ENV_FILE"; exit 1; }
-set -a; . "$ENV_FILE"; set +a
+# ⚠ Two shapes, and both are normal: a service reads an environment FILE, a
+#   container gets the same values in its process environment. Requiring the
+#   file meant the suite could not run in the container at all.
+ENV_FILE="${FAMILY_ENV:-}"
+if [ -z "$ENV_FILE" ]; then
+    for c in /etc/family/env /opt/roamlight/roamlight.env; do
+        [ -r "$c" ] && ENV_FILE="$c" && break
+    done
+fi
+if [ -n "$ENV_FILE" ] && [ -r "$ENV_FILE" ]; then
+    set -a; . "$ENV_FILE"; set +a
+elif [ -z "${FAMILY_DB:-}${FAMILY_DATA:-}" ]; then
+    echo "no environment: neither a file nor FAMILY_DB/FAMILY_DATA in the environment"
+    exit 1
+fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # ⚠ De richtegen Interpreter ass deen, deen d'App selwer benotzt -- soss

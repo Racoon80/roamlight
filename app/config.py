@@ -90,6 +90,54 @@ PROXY_HEADER = "x-family-proxy"
 TRUSTED_PEERS = set(
     p.strip() for p in os.environ.get("FAMILY_TRUSTED_PEERS", "127.0.0.1,::1").split(",") if p.strip()
 )
+
+
+# ⚠ Who is allowed to tell this site who the client is.
+#
+#   `X-Forwarded-For` is a header, and a header is whatever the sender typed.
+#   Believing it from anybody lets the per-address sign-in throttle be walked
+#   straight past: a fresh made-up address on every try, and nothing ever
+#   counts to ten. It also decides, behind a proxy, whether a request is
+#   treated as coming from the machine itself.
+#
+#   So the header is only believed when the request arrives FROM one of the
+#   addresses below, and the default is EMPTY. That means an installation with
+#   nothing in front of it -- which is what `compose.yaml` gives you -- is safe
+#   as it stands. The price is one shared throttle for everybody, and a shared
+#   throttle is a nuisance; a throttle that can be stepped around is not a
+#   throttle at all.
+#
+#   Behind nginx as in deploy/nginx.conf:      127.0.0.1
+#   Behind another reverse proxy on the LAN:   its address, e.g. 192.168.1.5
+#   Ranges are allowed: 192.168.1.0/24
+TRUSTED_PROXIES = tuple(
+    p.strip() for p in os.environ.get("FAMILY_TRUSTED_PROXIES", "").split(",") if p.strip())
+
+# ⚠ Which header carries the client's address. Behind Cloudflare, set this to
+#   `CF-Connecting-IP`: Cloudflare OVERWRITES that one, while it only appends
+#   to `X-Forwarded-For` -- so the first entry of X-Forwarded-For is still
+#   whatever the visitor sent.
+CLIENT_IP_HEADER = os.environ.get("FAMILY_CLIENT_IP_HEADER", "X-Forwarded-For").strip()
+
+
+def trusts_proxy(peer: str) -> bool:
+    """Is this the address of a proxy whose forwarding header we believe?"""
+    if not peer or not TRUSTED_PROXIES:
+        return False
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    for entry in TRUSTED_PROXIES:
+        try:
+            if ip in ipaddress.ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 # The headers an identity proxy sets. Whatever it does not set, a client can.
 HDR_USER = "x-authentik-username"
 HDR_GROUPS = "x-authentik-groups"

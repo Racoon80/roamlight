@@ -34,6 +34,12 @@ services:
       # ⚠ Leave this at 1. It is what makes the site refuse a request that
       #   carries no identity at all.
       FAMILY_REQUIRE_AUTH: "1"
+      # ⚠ Put a reverse proxy's address here once there is one in front, or the
+      #   site cannot tell one visitor from another and the sign-in throttle
+      #   becomes a single shared counter. Left empty it is SAFE but blunt --
+      #   what it must never do is believe an address a visitor typed himself.
+      #   Behind Cloudflare add FAMILY_CLIENT_IP_HEADER: CF-Connecting-IP.
+      FAMILY_TRUSTED_PROXIES: ""
 
       # --- what it is called -------------------------------------------------
       FAMILY_SITE_TITLE: Roamlight

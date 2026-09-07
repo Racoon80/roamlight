@@ -154,6 +154,8 @@ Everything is environment variables. The ones that matter:
 | `FAMILY_WORKERS` | `2` | Conversions at the same time. One takes about ¾ of a core |
 | `FAMILY_MAX_MEGAPIXELS` | `50` | A file bigger than this is refused before it is decoded |
 | `FAMILY_REQUIRE_MOUNT` | `1` | Refuse to run if the photo folders are not mounted |
+| `FAMILY_TRUSTED_PROXIES` | — | Addresses whose `X-Forwarded-For` is believed. See below |
+| `FAMILY_CLIENT_IP_HEADER` | `X-Forwarded-For` | Which header carries the visitor's address |
 
 The full list is in [`app/config.py`](app/config.py), where each one says why it
 exists.
@@ -211,6 +213,16 @@ and you have backed up everything.
   even when a proxy in front forgets to.
 - Failed sign-ins are throttled per address, not per account — locking an
   account would let a stranger lock you out of your own site.
+- ⚠ **That throttle needs `FAMILY_TRUSTED_PROXIES` to count anybody apart.**
+  `X-Forwarded-For` is a header and anyone can type one, so it is believed
+  only from the addresses you name there — behind the nginx example that is
+  `127.0.0.1`, behind another reverse proxy its address, and ranges like
+  `192.168.1.0/24` work. Name nothing and every visitor counts as the proxy:
+  one shared counter, which is a nuisance but still a throttle. Behind
+  Cloudflare also set `FAMILY_CLIENT_IP_HEADER=CF-Connecting-IP` —
+  Cloudflare overwrites that header, while it only *appends* to
+  `X-Forwarded-For`, so the first entry there is still whatever the visitor
+  sent.
 
 Found something? Open an issue, or write to the address in the repository
 profile. Please do not post a working exploit before it is fixed.

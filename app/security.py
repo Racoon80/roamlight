@@ -87,21 +87,32 @@ def _harden(response):
 
 
 def client_ip(request: Request) -> str:
-    """The address the proxy actually saw.
+    """The address the client really came from.
 
-    ⚠ The example nginx configuration sets `X-Forwarded-For` to `$remote_addr`
-    — only the hop it knows — and NOT to `$proxy_add_x_forwarded_for`, which
-    would append whatever the client asked for. That is what makes this value
-    worth reading at all.
+    ⚠ The forwarding header is only read when the request arrives FROM a proxy
+    named in `FAMILY_TRUSTED_PROXIES`. It is a header: anybody can type one.
+    Read it from just anyone and the sign-in throttle stops working — a fresh
+    invented address on every attempt and nothing ever counts to ten — and,
+    behind an identity proxy, `X-Forwarded-For: 127.0.0.1` would make a
+    stranger look like the machine itself.
 
-    The TCP peer (`request.client.host`) is always the proxy here and so is
-    useless for telling clients apart — but it stays the right thing for the
-    peer check in the gate, which is why uvicorn runs with `--no-proxy-headers`.
+    ⚠ With nothing configured this falls back to the TCP peer. Behind a proxy
+    that is the proxy for everybody, so the throttle becomes one shared
+    counter. That is a nuisance and it is the right way round: a throttle
+    everyone shares still throttles, a throttle that can be stepped around
+    does nothing.
+
+    The example nginx configuration sets `X-Forwarded-For` to `$remote_addr` —
+    only the hop it knows — and NOT to `$proxy_add_x_forwarded_for`, which
+    would append whatever the client asked for. Behind Cloudflare, point
+    `FAMILY_CLIENT_IP_HEADER` at `CF-Connecting-IP`: Cloudflare overwrites that
+    one, while it only appends to `X-Forwarded-For`.
     """
-    fwd = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-    if fwd:
-        return fwd
-    return request.client.host if request.client else ""
+    peer = request.client.host if request.client else ""
+    if not config.trusts_proxy(peer):
+        return peer
+    fwd = (request.headers.get(config.CLIENT_IP_HEADER) or "").split(",")[0].strip()
+    return fwd or peer
 
 
 def identify(request: Request) -> Identity:

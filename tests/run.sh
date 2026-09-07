@@ -34,7 +34,7 @@ if [ -z "$PY" ]; then
         PY="$c"; break
     done
 fi
-ALL="pages convert gallery upload album album_undo owner tag share sync acl av"
+ALL="pages proxy convert gallery upload album album_undo owner tag share sync acl av"
 WANT="${*:-$ALL}"
 
 pass=0; fail=0

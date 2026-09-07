@@ -79,7 +79,7 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
                 .background(Ink.groundWarm)
         ) {
             if (album.cover != null) {
-                RemoteImage(album.cover, 400, Modifier.fillMaxSize())
+                RemoteImage(album.cover, 400, Modifier.fillMaxSize(), rev = album.coverRev ?: 0)
             }
         }
         // ⚠ TWO lines, always -- also when the title needs only one. Otherwise a
@@ -180,7 +180,7 @@ fun PhotoGrid(
                             nav.navigate("photo/${p.id}")
                         }
                 ) {
-                    RemoteImage(p.id, 400, Modifier.fillMaxSize())
+                    RemoteImage(p.id, 400, Modifier.fillMaxSize(), rev = p.rev ?: 0)
                     if (p.isVideo) {
                         Text("▶", color = Ink.ink, fontSize = 20.sp,
                              modifier = Modifier.align(Alignment.Center))

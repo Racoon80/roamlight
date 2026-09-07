@@ -94,6 +94,15 @@ data class Photo(
 ) {
     val isVideo: Boolean get() = kind == "video"
 
+    /** How wide against how tall. Without measurements: a square — then the
+     *  clamp on a zoomed photograph is a little generous, never wrong. */
+    val ratio: Float
+        get() {
+            val w = width ?: 0
+            val h = height ?: 0
+            return if (w > 0 && h > 0) w.toFloat() / h.toFloat() else 1f
+        }
+
     companion object {
         fun of(o: JSONObject) = Photo(
             id = o.getInt("id"),

@@ -163,8 +163,14 @@ class Api(private val store: Store) {
      * One image. ⚠ WebP and not AVIF: Android can do both, but the server
      * computes AVIF at effort 2 -- WebP arrives sooner and looks the same.
      */
-    suspend fun image(id: Int, width: Int): ByteArray =
-        run("/photos/$id/$width.webp")
+    /**
+     * ⚠ `?v=<rev>` is not decoration. The answers carry
+     *   `Cache-Control: private, max-age=31536000, immutable`, so without a
+     *   changing address a photograph that has been turned on the site stays
+     *   the old way round for a year.
+     */
+    suspend fun image(id: Int, width: Int, rev: Int = 0): ByteArray =
+        run("/photos/$id/$width.webp?v=$rev")
 
     // MARK: - Deelen
 

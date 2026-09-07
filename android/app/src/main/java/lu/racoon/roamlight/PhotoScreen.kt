@@ -15,14 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import kotlin.math.max
-import kotlin.math.min
 
 @Composable
 fun PhotoScreen(nav: NavHostController, id: Int) {
@@ -36,9 +37,89 @@ fun PhotoScreen(nav: NavHostController, id: Int) {
     val start = remember { photos.indexOfFirst { it.id == id }.coerceAtLeast(0) }
     val pager = rememberPagerState(initialPage = start) { photos.size }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { i ->
-            ZoomableImage(photos[i].id)
+    // ⚠ The zoom belongs to the page being looked at and lives HERE, not
+    //   inside the image: the pager has to know about it. While a photograph
+    //   is zoomed, a sideways drag must move the PHOTOGRAPH and must not turn
+    //   the page -- otherwise you end up looking at two photographs at once,
+    //   half of each.
+    var scale by remember { mutableFloatStateOf(1f) }
+    var dx by remember { mutableFloatStateOf(0f) }
+    var dy by remember { mutableFloatStateOf(0f) }
+    var page by remember { mutableStateOf(IntSize.Zero) }
+
+    // A new photograph starts unzoomed.
+    LaunchedEffect(pager.currentPage) { scale = 1f; dx = 0f; dy = 0f }
+
+    fun clamp() {
+        val p = photos.getOrNull(pager.currentPage)
+        val w = page.width.toFloat()
+        val h = page.height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val r = p?.ratio ?: 1f
+        // What the picture really occupies inside the page, ContentScale.Fit
+        // being what it uses.
+        val shownW = if (r > w / h) w else h * r
+        val shownH = if (r > w / h) w / r else h
+        val maxX = ((shownW * scale - w) / 2f).coerceAtLeast(0f)
+        val maxY = ((shownH * scale - h) / 2f).coerceAtLeast(0f)
+        dx = dx.coerceIn(-maxX, maxX)
+        dy = dy.coerceIn(-maxY, maxY)
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onSizeChanged { page = it }
+    ) {
+        HorizontalPager(
+            state = pager,
+            // ⚠ This is the fix for the second half of the bug: while the
+            //   photograph is zoomed the pager does not take the drag at all.
+            userScrollEnabled = scale <= 1.001f,
+            modifier = Modifier.fillMaxSize(),
+        ) { i ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    // Clipped per page, so a zoomed photograph cannot spill
+                    // over its neighbour.
+                    .clipToBounds()
+                    .pointerInput(i) {
+                        detectTransformGestures { _, panBy, zoomBy, _ ->
+                            if (i != pager.currentPage) return@detectTransformGestures
+                            scale = (scale * zoomBy).coerceIn(1f, 5f)
+                            if (scale <= 1.001f) {
+                                scale = 1f; dx = 0f; dy = 0f
+                            } else {
+                                dx += panBy.x; dy += panBy.y
+                                clamp()
+                            }
+                        }
+                    }
+                    .pointerInput(i) {
+                        detectTapGestures(onDoubleTap = {
+                            if (scale > 1.001f) { scale = 1f; dx = 0f; dy = 0f }
+                            else { scale = 2.5f; clamp() }
+                        })
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                val mine = i == pager.currentPage
+                RemoteImage(
+                    photos[i].id, 1200,
+                    rev = photos[i].rev ?: 0,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = if (mine) scale else 1f,
+                            scaleY = if (mine) scale else 1f,
+                            translationX = if (mine) dx else 0f,
+                            translationY = if (mine) dy else 0f,
+                        ),
+                    contentScale = ContentScale.Fit,
+                )
+            }
         }
         Caption(photos[pager.currentPage], Modifier.align(Alignment.BottomCenter))
     }
@@ -64,44 +145,6 @@ private fun Caption(p: Photo, modifier: Modifier = Modifier) {
         if (place != null) {
             Text(place, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
         }
-    }
-}
-
-/**
- * ⚠ The large view asks for 1200 and not 2800: on a phone you cannot see the
- *   difference, and on a mobile network the picture arrives in a second
- *   instead of three.
- */
-@Composable
-private fun ZoomableImage(id: Int) {
-    var scale by remember(id) { mutableFloatStateOf(1f) }
-    var dx by remember(id) { mutableFloatStateOf(0f) }
-    var dy by remember(id) { mutableFloatStateOf(0f) }
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .pointerInput(id) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = min(max(scale * zoom, 1f), 5f)
-                    if (scale > 1f) { dx += pan.x; dy += pan.y } else { dx = 0f; dy = 0f }
-                }
-            }
-            .pointerInput(id) {
-                detectTapGestures(onDoubleTap = {
-                    if (scale > 1f) { scale = 1f; dx = 0f; dy = 0f } else scale = 2.5f
-                })
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        RemoteImage(
-            id, 1200,
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer(scaleX = scale, scaleY = scale,
-                               translationX = dx, translationY = dy),
-            contentScale = ContentScale.Fit,
-        )
     }
 }
 

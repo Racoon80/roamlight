@@ -74,6 +74,7 @@ final class AppState: ObservableObject {
         Keychain.delete()
         token = nil
         me = nil
+        ImageStore.shared.clear()
     }
 }
 

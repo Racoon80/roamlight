@@ -54,7 +54,7 @@ struct AlbumCard: View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack {
                 if let cover = album.cover {
-                    RemoteImage(id: cover, width: 400)
+                    RemoteImage(id: cover, width: 400, rev: album.coverRev ?? 0)
                 } else {
                     Theme.groundWarm
                 }
@@ -131,7 +131,7 @@ struct PhotosView: View {
             LazyVGrid(columns: cols, spacing: 3) {
                 ForEach(photos) { p in
                     NavigationLink(value: p) {
-                        RemoteImage(id: p.id, width: 400)
+                        RemoteImage(id: p.id, width: 400, rev: p.rev ?? 0)
                             // Width pinned to the column -- see `AlbumCard`.
                             .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 110)
                             .clipped()
@@ -187,7 +187,7 @@ struct PhotosView: View {
             //   would take it away from exactly the people it is meant for.
             if album != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    PhotosPicker(selection: $adding, matching: .images,
+                    PhotosPicker(selection: $adding, matching: .any(of: [.images, .videos]),
                                  photoLibrary: .shared()) {
                         if sending { ProgressView() } else {
                             Image(systemName: "plus.circle")

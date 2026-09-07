@@ -7,21 +7,140 @@ struct PhotoView: View {
     let start: Photo
 
     @EnvironmentObject var state: AppState
-    @State private var current: Int = 0
+
+    @State private var index = 0
+    /// How far the pager has been dragged, before it settles on a page.
+    @State private var pageDrag: CGFloat = 0
+
+    // The zoom belongs to the page being looked at, and is reset when the page
+    // changes. ⚠ It lives HERE and not inside the image, because the same drag
+    // has to mean two different things — move the photograph, or turn the page
+    // — and only one place can decide which.
+    @State private var zoom: CGFloat = 1
+    @State private var zoomStart: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var panStart: CGSize = .zero
+
+    private var zoomed: Bool { zoom > 1.001 }
 
     var body: some View {
-        TabView(selection: $current) {
-            ForEach(Array(photos.enumerated()), id: \.offset) { i, p in
-                ZoomableImage(id: p.id)
-                    .tag(i)
-                    .overlay(alignment: .bottom) { caption(p) }
+        GeometryReader { geo in
+            let page = geo.size
+
+            HStack(spacing: 0) {
+                ForEach(Array(photos.enumerated()), id: \.offset) { i, p in
+                    RemoteImage(id: p.id, width: 1200, rev: p.rev ?? 0, contentMode: .fit)
+                        .scaleEffect(i == index ? zoom : 1)
+                        .offset(i == index ? pan : .zero)
+                        .frame(width: page.width, height: page.height)
+                        // ⚠ Clipped per page: a zoomed photograph must not
+                        //   spill over its neighbour — which is exactly what
+                        //   the screenshot of the bug showed.
+                        .clipped()
+                        .overlay(alignment: .bottom) { caption(p) }
+                }
+            }
+            .frame(width: page.width * CGFloat(max(photos.count, 1)),
+                   alignment: .leading)
+            .offset(x: -CGFloat(index) * page.width + pageDrag)
+            .contentShape(Rectangle())
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { v in
+                        zoom = min(max(zoomStart * v, 1), 5)
+                        pan = clamped(pan, in: page)
+                    }
+                    .onEnded { _ in
+                        zoomStart = zoom
+                        if !zoomed { withAnimation(.spring(duration: 0.2)) { reset() } }
+                        panStart = pan
+                    }
+                    .simultaneously(with:
+                        DragGesture()
+                            .onChanged { v in
+                                if zoomed {
+                                    pan = clamped(CGSize(
+                                        width: panStart.width + v.translation.width,
+                                        height: panStart.height + v.translation.height),
+                                        in: page)
+                                } else {
+                                    pageDrag = resist(v.translation.width, page: page)
+                                }
+                            }
+                            .onEnded { v in
+                                if zoomed {
+                                    panStart = pan
+                                } else {
+                                    settle(v, page: page)
+                                }
+                            })
+            )
+            .onTapGesture(count: 2) {
+                withAnimation(.spring(duration: 0.25)) {
+                    if zoomed { reset() } else { zoom = 2.5; zoomStart = 2.5 }
+                }
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
         .background(Color.black)
         .ignoresSafeArea(edges: .bottom)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { current = photos.firstIndex(of: start) ?? 0 }
+        .onAppear { index = photos.firstIndex(of: start) ?? 0 }
+    }
+
+    // MARK: - Rechnen
+
+    /// How far the photograph may be moved before its own edge would come
+    /// inside the screen. ⚠ Without this a zoomed photograph can be dragged
+    /// off into the black and there is no way back except pinching out.
+    private func clamped(_ p: CGSize, in page: CGSize) -> CGSize {
+        let shown = fitted(in: page)
+        let maxX = max(0, (shown.width * zoom - page.width) / 2)
+        let maxY = max(0, (shown.height * zoom - page.height) / 2)
+        return CGSize(width: min(max(p.width, -maxX), maxX),
+                      height: min(max(p.height, -maxY), maxY))
+    }
+
+    /// The size the photograph really occupies inside the page, `.fit` being
+    /// what the image uses. Falls back to a square when the server sent no
+    /// measurements — then the clamp is a little generous, never wrong.
+    private func fitted(in page: CGSize) -> CGSize {
+        guard page.width > 0, page.height > 0 else { return page }
+        let r = photos.indices.contains(index) ? photos[index].ratio : 1
+        return r > page.width / page.height
+            ? CGSize(width: page.width, height: page.width / r)
+            : CGSize(width: page.height * r, height: page.height)
+    }
+
+    /// The first and the last page pull back instead of sliding into black.
+    private func resist(_ dx: CGFloat, page: CGSize) -> CGFloat {
+        if (index == 0 && dx > 0) || (index == photos.count - 1 && dx < 0) {
+            return dx / 3
+        }
+        return dx
+    }
+
+    private func settle(_ v: DragGesture.Value, page: CGSize) {
+        // A quick flick counts as well as a long drag -- that is what
+        // `predictedEndTranslation` is for.
+        let travelled = max(abs(v.translation.width), abs(v.predictedEndTranslation.width))
+        let far = travelled > page.width / 4
+        var next = index
+        if far && v.translation.width < 0 { next = min(index + 1, photos.count - 1) }
+        if far && v.translation.width > 0 { next = max(index - 1, 0) }
+        withAnimation(.easeOut(duration: 0.22)) {
+            pageDrag = 0
+            if next != index {
+                index = next
+                reset()          // a new photograph starts unzoomed
+            }
+        }
+    }
+
+    private func reset() {
+        zoom = 1
+        zoomStart = 1
+        pan = .zero
+        panStart = .zero
     }
 
     private func caption(_ p: Photo) -> some View {
@@ -37,31 +156,6 @@ struct PhotoView: View {
         .padding(8)
         .background(.black.opacity(0.35), in: Capsule())
         .padding(.bottom, 28)
-    }
-}
-
-/// ⚠ The large view takes 1200 and not 2800: on a phone you cannot see the
-///   difference, and on a mobile network the image arrives in a second
-///   instead of three.
-struct ZoomableImage: View {
-    let id: Int
-    @State private var scale: CGFloat = 1
-    @State private var last: CGFloat = 1
-
-    var body: some View {
-        RemoteImage(id: id, width: 1200, contentMode: .fit)
-            .scaleEffect(scale)
-            .gesture(
-                MagnificationGesture()
-                    .onChanged { v in scale = min(max(last * v, 1), 5) }
-                    .onEnded { _ in last = scale }
-            )
-            .onTapGesture(count: 2) {
-                withAnimation(.spring(duration: 0.25)) {
-                    scale = scale > 1 ? 1 : 2.5
-                    last = scale
-                }
-            }
     }
 }
 

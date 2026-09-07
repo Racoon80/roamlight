@@ -38,11 +38,11 @@ object ImageStore {
 
     fun cached(key: String): Bitmap? = cache.get(key)
 
-    suspend fun load(api: Api, id: Int, width: Int): Bitmap? {
-        val key = "$id-$width"
+    suspend fun load(api: Api, id: Int, width: Int, rev: Int): Bitmap? {
+        val key = "$id-$width-$rev"
         cache.get(key)?.let { return it }
         return try {
-            val data = api.image(id, width)
+            val data = api.image(id, width, rev)
             val bmp = BitmapFactory.decodeByteArray(data, 0, data.size) ?: return null
             cache.put(key, bmp)
             bmp
@@ -59,14 +59,16 @@ fun RemoteImage(
     id: Int,
     width: Int,
     modifier: Modifier = Modifier,
+    /** The server bumps `photos.rev` when a photograph is turned -- see Api.image. */
+    rev: Int = 0,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
     val api = LocalApi.current
-    val key = "$id-$width"
+    val key = "$id-$width-$rev"
     var bitmap by remember(key) { mutableStateOf(ImageStore.cached(key)) }
 
     LaunchedEffect(key) {
-        if (bitmap == null) bitmap = ImageStore.load(api, id, width)
+        if (bitmap == null) bitmap = ImageStore.load(api, id, width, rev)
     }
 
     Box(modifier.background(Ink.groundWarm), contentAlignment = Alignment.Center) {

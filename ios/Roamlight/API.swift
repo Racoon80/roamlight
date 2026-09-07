@@ -170,8 +170,13 @@ struct API {
     }
 
     /// Load an image. Has to be done by hand, because `AsyncImage` cannot set a header.
-    func image(_ id: Int, width: Int) async throws -> Data {
-        try await run(try request("/photos/\(id)/\(width).webp"))
+    ///
+    /// ⚠ `?v=<rev>` is not decoration. The answers carry
+    ///   `Cache-Control: private, max-age=31536000, immutable`, so without a
+    ///   changing address a photograph that has been turned on the site stays
+    ///   the old way round for a year.
+    func image(_ id: Int, width: Int, rev: Int = 0) async throws -> Data {
+        try await run(try request("/photos/\(id)/\(width).webp?v=\(rev)"))
     }
 
     // MARK: - Deelen

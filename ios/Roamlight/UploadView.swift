@@ -69,7 +69,7 @@ struct UploadView: View {
     var body: some View {
         Form {
             Section("Photographs") {
-                PhotosPicker(selection: $picked, matching: .images,
+                PhotosPicker(selection: $picked, matching: .any(of: [.images, .videos]),
                              photoLibrary: .shared()) {
                     Label(picked.isEmpty ? "Pick photographs"
                                          : "\(picked.count) picked", systemImage: "photo.stack")

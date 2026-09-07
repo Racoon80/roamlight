@@ -55,7 +55,41 @@ def load():
             continue
 
 
+def only_on_a_test_instance():
+    """Refuse to run anywhere that has not said, in writing, that it is a test.
+
+    ⚠ THIS EXISTS BECAUSE IT WENT WRONG. The suite has been pointed at the
+      family's real instance three times. Once it deleted thirteen photographs
+      that had just been uploaded (they were still on the file server, but the
+      site showed nothing). Another time it left seven invented people —
+      Ada, Ben, Cleo, Dev, Eve, Finn — sitting in the real list of family
+      members, where they looked like accounts somebody had made.
+
+      Every one of those was a careless environment away. The guards that
+      existed were inside the tests: a year of "1999", a country of "Testland",
+      a clean-up that only touches those. They are good guards and they are not
+      enough, because they only work AFTER the suite has decided to run.
+
+      So the instance has to opt in. `FAMILY_TEST=1` goes in the environment
+      file of a test instance and nowhere else. A real installation cannot fail
+      this check by accident — it can only fail it by somebody writing the line.
+    """
+    import os
+    if str(os.environ.get("FAMILY_TEST", "")).strip().lower() in ("1", "true", "yes", "on"):
+        return
+    sys.exit(
+        "\nREFUSED: this does not look like a test instance.\n\n"
+        "  The acceptance tests write into the database and into the photo\n"
+        "  trees. They must never run against the instance a family actually\n"
+        "  uses.\n\n"
+        "  If this one IS for testing, put this line in its environment file\n"
+        "  and start the service again:\n\n"
+        "      FAMILY_TEST=1\n\n"
+        f"  (read from: {', '.join(_ENV_FILES)})\n")
+
+
 load()
+only_on_a_test_instance()
 
 
 def need(var):
@@ -134,6 +168,8 @@ def headers(user=None, groups=None):
     import sys
     sys.path.insert(0, app_root())
     from app import config
+    if user:
+        _invented.add(str(user))
     if config.AUTH_PROXY:
         secret = open(config.PROXY_SECRET_FILE).read().strip()
         h = {"X-Family-Proxy": secret}
@@ -180,3 +216,38 @@ def headers(user=None, groups=None):
             sys.exit(f"ABORTED: no way to act as {user!r} on this installation")
         _TOKENS[user] = got["token"]
     return {"Authorization": "Bearer " + _TOKENS[user]}
+
+
+# --- Wat d'Tester erfonnt hunn, raumen se och op -----------------------------
+#
+# ⚠ Every request the suite makes leaves a row in `members`: the gate writes
+#   down whoever it just saw, so that an administrator has a list of people even
+#   when the directory is unreachable. That is right for the site and wrong for
+#   a test -- the invented people (Ada, Ben, Cleo…) then sit in the list looking
+#   like accounts somebody made. They were found there once, on the family's own
+#   instance, and had to be picked out by hand.
+#
+#   So: whoever `headers()` invented is taken out again when the test ends. Only
+#   rows that were NEVER seen in the directory and have no password -- a real
+#   person is never touched, even if a test happened to borrow their name.
+_invented = set()
+
+
+def _forget_invented():
+    if not _invented:
+        return
+    try:
+        conn = connect(need("FAMILY_DB"))
+        conn.executemany(
+            "DELETE FROM members WHERE username = ? AND seen_in_authentik = 0 "
+            "AND is_local = 0 AND (password_hash IS NULL OR password_hash = '')",
+            [(u,) for u in sorted(_invented)])
+        conn.commit()
+        conn.close()
+    except Exception:                                            # noqa: BLE001
+        # A clean-up must never turn a passing test into a failing one.
+        pass
+
+
+import atexit                                                    # noqa: E402
+atexit.register(_forget_invented)

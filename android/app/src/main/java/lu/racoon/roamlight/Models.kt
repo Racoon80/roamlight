@@ -134,6 +134,64 @@ data class PhotoPage(val total: Int, val page: Int, val pages: Int, val photos: 
     }
 }
 
+/**
+ * D'Ouverture vun engem Album: wéi ee bis dohinner komm ass.
+ *
+ * ⚠ EVERY album that can be located has one, even when nobody set anything:
+ *   then it is the stylised hop from home. The server decides that
+ *   (`journey.get_journey`), not the app.
+ *
+ * ⚠ The server answers in two shapes -- a chain of `legs`, or a single hop with
+ *   `to`/`transport` at the top. One shape here, decided once.
+ */
+data class Journey(
+    val departure: String?,
+    val from: DoubleArray,
+    val legs: List<Leg>,
+) {
+    data class Leg(
+        val to: DoubleArray,
+        val transport: String,
+        /** The real road, for a car or a bus. Empty for a plane — then it is
+         *  drawn as an arc, the way a flight is drawn on paper. */
+        val route: List<DoubleArray>,
+        val name: String?,
+    )
+
+    val isEmpty: Boolean get() = from.size < 2 || legs.isEmpty()
+
+    companion object {
+        private fun pair(a: JSONArray?): DoubleArray =
+            if (a != null && a.length() >= 2) doubleArrayOf(a.getDouble(0), a.getDouble(1))
+            else DoubleArray(0)
+
+        private fun leg(o: JSONObject) = Leg(
+            to = pair(o.optJSONArray("to")),
+            transport = o.optString("transport", "car").ifEmpty { "car" },
+            route = o.optJSONArray("route")?.let { r ->
+                (0 until r.length()).mapNotNull { i ->
+                    pair(r.optJSONArray(i)).takeIf { it.size == 2 }
+                }
+            } ?: emptyList(),
+            name = o.optString("name", "").ifEmpty { null },
+        )
+
+        fun of(o: JSONObject): Journey {
+            val legsArr = o.optJSONArray("legs")
+            val legs = when {
+                legsArr != null -> (0 until legsArr.length()).map { leg(legsArr.getJSONObject(it)) }
+                o.optJSONArray("to") != null -> listOf(leg(o))
+                else -> emptyList()
+            }
+            return Journey(
+                departure = o.optString("departure", "").ifEmpty { null },
+                from = pair(o.optJSONArray("from")),
+                legs = legs.filter { it.to.size == 2 },
+            )
+        }
+    }
+}
+
 /** Where a video may be fetched from, and for how long that address is good. */
 data class VideoTicket(val url: String, val expiresIn: Int) {
     companion object {

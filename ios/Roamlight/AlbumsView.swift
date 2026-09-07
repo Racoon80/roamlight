@@ -111,6 +111,18 @@ func videoMark(_ p: Photo) -> some View {
     .padding(4)
 }
 
+/// Which albums have already shown their opening, for as long as the app runs.
+///
+/// ⚠ Not `@State`: the view is thrown away and rebuilt every time you walk into
+///   the album, and then it would play again. Not stored on disk either — a new
+///   day may as well start with the journey again.
+final class Played {
+    static let shared = Played()
+    private var seen = Set<String>()
+    func contains(_ id: String) -> Bool { seen.contains(id) }
+    func insert(_ id: String) { seen.insert(id) }
+}
+
 // MARK: - D'Fotoen an engem Album
 
 struct PhotosView: View {
@@ -140,6 +152,12 @@ struct PhotosView: View {
     @State private var adding: [PhotosPickerItem] = []
     @State private var sending = false
     @State private var sent: String?
+
+    // ⚠ Once per album, like the website. Kept for as long as the app runs, so
+    //   walking in and out of the same album does not replay it every time --
+    //   that is charming the first time and tiresome the third.
+    @State private var journey: Journey?
+    @State private var played = false
 
     private let cols = [GridItem(.adaptive(minimum: 110), spacing: 3)]
 
@@ -192,6 +210,22 @@ struct PhotosView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Photo.self) { p in
             PhotoView(photos: photos, start: p)
+        }
+        .overlay {
+            if let journey {
+                JourneyView(journey: journey) {
+                    withAnimation(.easeOut(duration: 0.45)) { self.journey = nil }
+                }
+                .transition(.opacity)
+            }
+        }
+        .task(id: album?.id) {
+            // ⚠ Swallowed on purpose: an album with no journey, or a site that
+            //   cannot look the place up, must still open. The opening is a
+            //   gift, not a gate.
+            guard let album, !Played.shared.contains(album.id) else { return }
+            Played.shared.insert(album.id)
+            journey = try? await state.api.journey(album: album)
         }
         // Pull down to look again -- for the impatient, and for when a
         // conversion took longer than the twenty tries above.

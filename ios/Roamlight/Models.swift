@@ -110,6 +110,50 @@ struct Facets: Decodable {
     let places: [String]
 }
 
+/// The opening animation of an album: where it started, and how it got there.
+///
+/// ⚠ EVERY album that can be located has one, even when nobody set anything:
+///   then it is the stylised hop from home. The server decides that
+///   (`journey.get_journey`), not the app.
+struct Journey: Decodable {
+    let departure: String?
+    let from: [Double]
+    let legs: [Leg]
+
+    struct Leg: Decodable {
+        let to: [Double]
+        let transport: String
+        /// The real road, for a car or a bus. `nil` for a plane — then it is
+        /// drawn as an arc, the way a flight is drawn on paper.
+        let route: [[Double]]?
+        let name: String?
+    }
+
+    /// ⚠ The server answers in two shapes: a chain of `legs`, or a single hop
+    ///   with `to`/`transport` at the top. One shape here, decided once.
+    enum CodingKeys: String, CodingKey {
+        case departure, from, legs, to, transport, route
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        departure = try? c.decode(String.self, forKey: .departure)
+        from = (try? c.decode([Double].self, forKey: .from)) ?? []
+        if let l = try? c.decode([Leg].self, forKey: .legs) {
+            legs = l
+        } else if let to = try? c.decode([Double].self, forKey: .to) {
+            legs = [Leg(to: to,
+                        transport: (try? c.decode(String.self, forKey: .transport)) ?? "car",
+                        route: try? c.decode([[Double]].self, forKey: .route),
+                        name: nil)]
+        } else {
+            legs = []
+        }
+    }
+
+    var isEmpty: Bool { from.count < 2 || legs.isEmpty }
+}
+
 /// Where a video may be fetched from, and for how long that address is good.
 struct VideoTicket: Decodable {
     let url: String

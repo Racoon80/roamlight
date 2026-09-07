@@ -48,3 +48,16 @@ object Viewing {
         start = index.coerceIn(0, maxOf(0, list.size - 1))
     }
 }
+
+
+/// Which albums have already shown their opening, for as long as the app runs.
+///
+/// ⚠ Not remembered inside the screen: that is thrown away and rebuilt every
+///   time you walk into the album, and then it would play again. Not stored on
+///   disk either -- a new day may as well start with the journey again.
+object Played {
+    private val seen = mutableSetOf<String>()
+
+    /** True the first time, false afterwards. */
+    fun add(id: String): Boolean = seen.add(id)
+}

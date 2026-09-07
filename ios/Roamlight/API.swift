@@ -179,6 +179,30 @@ struct API {
         try await run(try request("/photos/\(id)/\(width).webp?v=\(rev)"))
     }
 
+    // MARK: - D'Rees an d'Kaart
+
+    /// The opening animation for an album. `nil` when the place cannot be
+    /// located — then there is simply nothing to play.
+    func journey(album: Album) async throws -> Journey? {
+        var q = URLComponents()
+        q.queryItems = [URLQueryItem(name: "year", value: album.year),
+                        URLQueryItem(name: "country", value: album.country),
+                        URLQueryItem(name: "event", value: album.event)]
+        let j: Journey = try await get("/api/albums/journey?\(q.percentEncodedQuery ?? "")",
+                                       as: Journey.self)
+        return j.isEmpty ? nil : j
+    }
+
+    /// One map tile, THROUGH the site.
+    ///
+    /// ⚠ Not from openstreetmap.org directly, which is what the website does.
+    ///   A phone asking for tiles says roughly where the album is, to somebody
+    ///   who is not the family. The site already has the proxy and caches
+    ///   them (app/tiles.py) — so the app uses it.
+    func tile(z: Int, x: Int, y: Int) async throws -> Data {
+        try await run(try request("/tiles/\(z)/\(x)/\(y).png"))
+    }
+
     // MARK: - Video
 
     /// The address for the video, with its own proof in it.

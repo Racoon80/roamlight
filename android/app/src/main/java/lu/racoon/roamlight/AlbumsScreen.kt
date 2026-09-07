@@ -183,6 +183,18 @@ fun PhotoGrid(
     var sending by remember(album?.id) { mutableStateOf(false) }
     var sent by remember(album?.id) { mutableStateOf<String?>(null) }
 
+    // ⚠ Once per album, like the website. Kept for as long as the app runs, so
+    //   walking in and out of the same album does not replay it every time --
+    //   that is charming the first time and tiresome the third.
+    var journey by remember(album?.id) { mutableStateOf<Journey?>(null) }
+    LaunchedEffect(album?.id) {
+        val a = album ?: return@LaunchedEffect
+        if (!Played.add(a.id)) return@LaunchedEffect
+        // Swallowed on purpose: an album with no journey, or a site that cannot
+        // look the place up, must still open. The opening is a gift, not a gate.
+        runCatching { journey = api.journey(a) }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(30)
     ) { uris ->
@@ -222,6 +234,11 @@ fun PhotoGrid(
             }
             sending = false
         }
+    }
+
+    journey?.let { j ->
+        JourneyOverlay(j) { journey = null }
+        return
     }
 
     Column(Modifier.fillMaxSize().background(Ink.ground)) {

@@ -172,6 +172,26 @@ class Api(private val store: Store) {
     suspend fun image(id: Int, width: Int, rev: Int = 0): ByteArray =
         run("/photos/$id/$width.webp?v=$rev")
 
+    // MARK: - D'Rees an d'Kaart
+
+    /** The opening animation for an album, or null when there is nothing to play. */
+    suspend fun journey(album: Album): Journey? {
+        val q = "?year=" + esc(album.year) + "&country=" + esc(album.country) +
+                "&event=" + esc(album.event)
+        val j = Journey.of(getJson("/api/albums/journey$q"))
+        return if (j.isEmpty) null else j
+    }
+
+    /**
+     * One map tile, THROUGH the site.
+     *
+     * ⚠ Not from openstreetmap.org directly, which is what the website does.
+     *   A phone asking for tiles says roughly where the album is, to somebody
+     *   who is not the family. The site already has the proxy and caches them
+     *   (app/tiles.py) -- so the app uses it.
+     */
+    suspend fun tile(z: Int, x: Int, y: Int): ByteArray = run("/tiles/$z/$x/$y.png")
+
     // MARK: - Video
 
     /**

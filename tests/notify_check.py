@@ -63,9 +63,13 @@ def main():
     print("── honnert Fotoen ──")
     for _ in range(100):
         notify.note("photos", ALBUM, actor="zz-notify-a", n=1)
-    rows = pending()
-    check("een eenzege Reih pro Persoun", len(rows) == 1,
-          f"{len(rows)} Reihen fir {len(PEOPLE)} Leit (een ass den Auteur)")
+    # ⚠ Nëmmen ONS Leit zielen. D'Zilgrupp ëmfaasst och all Administrateur vun
+    #   der Instanz -- dat ass richteg (en Admin gesäit jo alles), mee et
+    #   hänkt dovunner of, wéi vill Kont'en op där Maschinn stinn. En Test
+    #   deen dat matzielt, misst d'Instanz kennen.
+    rows = [r for r in pending() if r["username"] in PEOPLE]
+    check("een eenzege Reih fir eis zwee (een ass den Auteur)", len(rows) == 1,
+          f"{len(rows)} Reihen; am Ganzen {len(pending())} mat den Admins")
     check("an de Reih zielt honnert", rows and rows[0]["n"] == 100,
           str(rows[0]["n"]) if rows else "-")
     check("deen deen se eropgelueden huet kritt näischt",
@@ -78,13 +82,17 @@ def main():
     check("eng eenzeg Zeil mat der Zuel", "100" in body, body)
 
     print("\n── zwee verschidden Albumen ginn zwou Noriichten ──")
-    notify.note("photos", "1994/Testland/Anerer", actor="zz-notify-a", n=3)
+    other = "1994/Testland/Anerer"
+    with db.tx() as c:
+        c.execute("INSERT OR IGNORE INTO album_acl (album_key, principal) VALUES (?, ?)",
+                  (other, "user:zz-notify-b"))
+    notify.note("photos", other, actor="zz-notify-a", n=3)
     n2 = db.connect().execute(
         "SELECT count(*) FROM notify_pending WHERE username='zz-notify-b'").fetchone()[0]
-    check("zwee Reihen", n2 >= 2, str(n2))
+    check("zwee Reihen, well et zwee Albume sinn", n2 == 2, str(n2))
     with db.tx() as c:
-        c.execute("DELETE FROM notify_pending WHERE album_key='1994/Testland/Anerer'")
-        c.execute("DELETE FROM album_acl WHERE album_key='1994/Testland/Anerer'")
+        c.execute("DELETE FROM notify_pending WHERE album_key=?", (other,))
+        c.execute("DELETE FROM album_acl WHERE album_key=?", (other,))
 
     print("\n── d'Fënster ──")
     row = pending("zz-notify-b")[0]
@@ -102,6 +110,7 @@ def main():
                   "WHERE album_key=?", (ALBUM,))
     tally = notify.flush()
     check("duerno geet e fort", not pending("zz-notify-b"), str(tally))
+    check("an all Reih vun deem Album ass fort", not pending(), f"{len(pending())} bliwwen")
     check("an ouni Telefon gëtt näischt geschéckt", tally["sent"] == 0,
           f"sent={tally['sent']}, no_device={tally['no_device']}")
 

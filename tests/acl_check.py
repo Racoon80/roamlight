@@ -166,7 +166,7 @@ def main():
             len(acl.of_album(goal_["y"], goal_["c"], goal_["e"])) == 4)
 
         # -- 3. Who is on it -------------------------------------------------
-        for who_ in ("ada", "Ben", "Cleo", "Dev"):
+        for who_ in ("ada", "ben", "cleo", "dev"):
             st, d = req("/api/photos", as_(who_))
             chk(f"{who_} sees both albums",
                 st == 200 and d["total"] == goal_["n"] + other["n"], d.get("total"))
@@ -174,7 +174,7 @@ def main():
             chk(f"{who_} gets the photograph", st == 200, st)
 
         # -- 4. Who is NOT on it -- and everything hangs off this -------------
-        for who_ in ("eve", "Finn"):
+        for who_ in ("eve", "finn"):
             h = as_(who_)
             st, d = req("/api/photos", h)
             chk(f"{who_} does not see the album", st == 200 and d["total"] == other["n"],

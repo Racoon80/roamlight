@@ -65,9 +65,18 @@ def hdr(user, groups):
             "Sec-Fetch-Site": "same-origin"}
 
 
-MEMBER = hdr("zz-cleo", VIEWER_GROUP)
-OTHER = hdr("zz-eve", VIEWER_GROUP)
-ADMIN = hdr("siteadmin", ADMIN_GROUP)
+# ⚠ NET hei schonn: `_wipe()` läscht d'`zz-`-Konten, an ënner lokaler Umeldung
+#   ass d'Identitéit en Apparat-Token OP dee Kont. Gëtt en dono geläscht, weist
+#   den Token op keen -- an all Ufro kënnt als 403 zréck, ouni ze soen firwat.
+#   Hannert engem Proxy wier dat net opgefall: do dréit d'Ufro d'Identitéit.
+MEMBER = OTHER = ADMIN = None
+
+
+def _identities():
+    global MEMBER, OTHER, ADMIN
+    MEMBER = hdr("zz-cleo", VIEWER_GROUP)
+    OTHER = hdr("zz-eve", VIEWER_GROUP)
+    ADMIN = hdr("siteadmin", ADMIN_GROUP)
 
 
 def req(path, h, method="GET", data=None, raw=None, ctype=None):
@@ -139,6 +148,7 @@ def _upload_as(h, name):
 def main():
     from app import config
     _wipe()
+    _identities()
     print("Acceptance test — the ownership model\n")
 
     # -- 1. The member uploads a photograph ---------------------------------

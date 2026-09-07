@@ -144,6 +144,7 @@ fun PhotoGrid(
     var photos by remember(album?.id, query) { mutableStateOf<List<Photo>>(emptyList()) }
     var page by remember(album?.id, query) { mutableIntStateOf(0) }
     var pages by remember(album?.id, query) { mutableIntStateOf(1) }
+    var total by remember(album?.id, query) { mutableIntStateOf(0) }
     var loading by remember(album?.id, query) { mutableStateOf(false) }
     var failed by remember(album?.id, query) { mutableStateOf<String?>(null) }
     // ⚠ Which pages have been asked for, claimed the moment the last picture
@@ -164,6 +165,7 @@ fun PhotoGrid(
             val p = api.photos(album, page = asked, query = query)
             pages = p.pages
             page = p.page
+            total = p.total
             if (asked == 1) {
                 photos = p.photos
                 claimed.clear()
@@ -209,7 +211,7 @@ fun PhotoGrid(
             sending = true
             sent = null
             var done = 0
-            val before = photos.size
+            val before = total
             try {
                 uris.forEachIndexed { i, uri ->
                     val data = withContext(Dispatchers.IO) {
@@ -227,13 +229,23 @@ fun PhotoGrid(
                 //   finished. Ask straight away and the album comes back
                 //   without it, which is why it looked as though it only
                 //   arrived after leaving the album and coming back in.
+                // ⚠ The TOTAL, not how many are on screen. A reload replaces the
+                //   list with the first page; in a big album the count on
+                //   screen FALLS, and a new photograph sorts to the last page
+                //   anyway. Comparing what is visible meant the wait always ran
+                //   its full thirty seconds and then said they had not
+                //   arrived -- while they were already there.
+                //
+                // ⚠ `return@repeat` is CONTINUE, not break. The loop used to
+                //   run all twenty rounds even when it was long since done.
                 sent = "$done sent — the site is converting."
-                repeat(20) {
+                var arrived = false
+                for (round in 0 until 20) {
                     reloadNow += 1
                     kotlinx.coroutines.delay(1500)
-                    if (photos.size >= before + done) return@repeat
+                    if (total >= before + done) { arrived = true; break }
                 }
-                sent = if (photos.size >= before + done) "$done added."
+                sent = if (arrived) "$done added."
                        else "$done sent. They will appear once the site has converted them."
             } catch (e: Exception) {
                 sent = (e as? ApiError)?.message ?: e.message

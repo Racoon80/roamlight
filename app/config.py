@@ -112,6 +112,9 @@ TRUSTED_PEERS = set(
 #   Ranges are allowed: 192.168.1.0/24
 # --- Bescheed soen ------------------------------------------------------------
 #
+# (D'Notiz zu FAMILY_TRUSTED_PROXIES steet ënnendrënner, direkt bei där
+#  Astellung -- si gehéiert net hei hin.)
+#
 # ⚠ Off until it is set up, and that is on purpose: a notification goes THROUGH
 #   Apple or Google, and that is a decision to make deliberately, not something
 #   that happens because the software was installed. Nothing is sent while

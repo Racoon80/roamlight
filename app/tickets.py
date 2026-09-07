@@ -28,7 +28,11 @@ import time
 
 from . import db
 
-MINUTES = 15
+# ⚠ Long enough for a long video. The player fetches its ranges as it goes: a
+#   ticket that runs out mid-film starts answering 403 to the next range, the
+#   picture stops, and nothing says why. Six hours covers anything a family
+#   films, and the ticket is still only good for that ONE address.
+MINUTES = 360
 _KEY_NAME = "ticket_key"
 
 
@@ -80,6 +84,13 @@ def user_for(path: str, ticket: str) -> str | None:
         return None
     # compare_digest, because otherwise how long the comparison takes says how
     # many characters were right.
-    if not hmac.compare_digest(sig, _sign(path, exp, user)):
+    #
+    # ⚠ .encode(): compare_digest RAISES on a string with a character outside
+    #   ASCII. `?t=1.YQ.é` from anybody at all would then be a 500 instead of a
+    #   refusal -- and this runs in the gate, for every request that carries a
+    #   `t`. app/security.py has the same note at the proxy secret, for the
+    #   same reason.
+    if not hmac.compare_digest(sig.encode("latin-1", "replace"),
+                               _sign(path, exp, user).encode("latin-1", "replace")):
         return None
     return user

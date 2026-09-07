@@ -10,6 +10,7 @@ It hangs directly off an upload -- nothing waits for the next library scan.
             v
     data/derivatives/<id>/400.avif|400.webp|lqip.txt   local, from the master
 """
+import logging
 import os
 import shutil
 import tempfile
@@ -17,6 +18,8 @@ from pathlib import Path
 
 from . import config, db, images, library
 from .worker import handler
+
+log = logging.getLogger("family")
 
 
 def derivative_dir(photo_id: int) -> Path:
@@ -135,12 +138,21 @@ def convert(job) -> None:
     #   it can actually be looked at. Before the conversion it is a row nobody
     #   can see -- announcing it then would send people to an empty album.
     #
-    # ⚠ Counted, not sent. An import of five hundred makes five hundred of
-    #   these calls and ONE message. See app/notify.py.
-    try:
-        from . import notify
-        notify.note("photos", f"{row['album_year']}/{row['country']}/{row['event']}",
-                    actor=row["owner"] or "", n=1)
-    except Exception:                                            # noqa: BLE001
-        # A notice must never be the reason a photograph fails to convert.
-        log.warning("notify: could not note photo %s", photo_id, exc_info=True)
+    # ⚠ ONLY when it was not already on the site. This job also runs again for a
+    #   photograph that is merely being REBUILT -- sync does that when an
+    #   original changes, and after a share comes back with new modification
+    #   times it does it for everything at once. Announcing those would tell the
+    #   family that fifteen hundred photographs are new when not one of them is.
+    #
+    # ⚠ Counted, not sent -- see app/notify.py.
+    if (row["state"] or "") != "ok":
+        try:
+            from . import notify
+            notify.note("photos", f"{row['album_year']}/{row['country']}/{row['event']}",
+                        actor=row["owner"] or "", n=1)
+        except Exception:                                        # noqa: BLE001
+            # ⚠ A notice must never be the reason a photograph fails to
+            #   convert. The photograph is already `ok` at this point; letting
+            #   this through would fail the JOB, and the worker would then
+            #   transcode the whole thing again, up to five times.
+            log.warning("notify: could not note photo %s", photo_id, exc_info=True)

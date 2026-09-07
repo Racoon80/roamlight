@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.cos
@@ -146,19 +148,31 @@ fun JourneyOverlay(journey: Journey, onDone: () -> Unit) {
         val x1 = floor((originX + size.width) / TILE).toInt()
         val y0 = floor(originY / TILE).toInt()
         val y1 = floor((originY + size.height) / TILE).toInt()
-        for (tx in x0..x1) for (ty in y0..y1) {
-            if (ty < 0 || ty >= span) continue
-            val wx = ((tx % span) + span) % span
-            val key = "$z/$wx/$ty"
-            if (tiles.containsKey(key)) continue
-            runCatching {
-                val d = api.tile(z, wx, ty)
-                BitmapFactory.decodeByteArray(d, 0, d.size)?.let {
-                    tiles[key] = it.asImageBitmap()
+
+        // ⚠ The drawing starts NOW, not once every tile is in. Fifteen tiles
+        //   fetched one after another is fifteen round trips before anything
+        //   moves -- on a slow link that is a black screen for several seconds
+        //   and then a journey. The path is what matters; the map fills in
+        //   underneath it as the tiles land.
+        start = true
+
+        // ⚠ And they are fetched side by side, not in a queue.
+        coroutineScope {
+            for (tx in x0..x1) for (ty in y0..y1) {
+                if (ty < 0 || ty >= span) continue
+                val wx = ((tx % span) + span) % span
+                val key = "$z/$wx/$ty"
+                if (tiles.containsKey(key)) continue
+                launch {
+                    runCatching {
+                        val d = api.tile(z, wx, ty)
+                        BitmapFactory.decodeByteArray(d, 0, d.size)?.let {
+                            tiles[key] = it.asImageBitmap()
+                        }
+                    }
                 }
             }
         }
-        start = true
     }
 
     // ⚠ The animation does not decide when it is over -- this does. A journey

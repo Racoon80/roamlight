@@ -21,3 +21,9 @@ DerivedData/
 
 # gebaute Archiven an .ipa
 build/
+
+# ⚠ Ni an de Repo. E Schlëssel deen eemol dobausse war, ass fir ëmmer dobaussen
+#   -- an dëse Bam gëtt op GitHub exportéiert.
+*.p8
+*.mobileprovision
+*.p12

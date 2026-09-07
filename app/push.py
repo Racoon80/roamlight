@@ -75,7 +75,7 @@ def _apns_jwt() -> str:
 def apns(token: str, title: str, body: str, data: dict) -> None:
     from . import notify
     if not config.apns_ready():
-        raise RuntimeError("APNs is not set up (key, key id, team, topic)")
+        raise notify.NotReady("APNs is not set up (key, key id, team, topic)")
     import httpx
 
     base = _APNS_TEST if config.APNS_SANDBOX else _APNS_LIVE
@@ -97,8 +97,14 @@ def apns(token: str, title: str, body: str, data: dict) -> None:
         reason = r.json().get("reason", "")
     except Exception:                                            # noqa: BLE001
         pass
-    if r.status_code == 410 or reason in ("BadDeviceToken", "Unregistered"):
+    if r.status_code == 410 or reason == "Unregistered":
         raise notify.Unregistered(reason or "410")
+    # ⚠ `BadDeviceToken` is NOT treated as dead. It is also exactly what Apple
+    #   answers when the address was minted by the other service -- a build
+    #   signed for development against the live endpoint, or FAMILY_APNS_SANDBOX
+    #   set the wrong way. Deleting on it would wipe every registered phone in
+    #   the house because of one line in a settings file. It counts as a
+    #   failure, and five of those hide the device until it registers again.
     raise RuntimeError(f"APNs {r.status_code} {reason}")
 
 
@@ -132,7 +138,7 @@ def _fcm_access_token(creds: dict) -> str:
 def fcm(token: str, title: str, body: str, data: dict) -> None:
     from . import notify
     if not config.fcm_ready():
-        raise RuntimeError("FCM is not set up (no service account file)")
+        raise notify.NotReady("FCM is not set up (no service account file)")
     import httpx
     creds = json.loads(Path(config.FCM_CREDENTIALS).read_text())
     access = _fcm_access_token(creds)

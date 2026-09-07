@@ -23,6 +23,9 @@ private func project(_ lat: Double, _ lon: Double) -> (x: Double, y: Double) {
 
 private let tileSize: Double = 256
 
+/// How long the whole journey takes to draw itself.
+private let RUN: Double = 3.4
+
 /// The points of one leg: the real road when there is one, otherwise an arc.
 ///
 /// ⚠ A straight line between two far-apart places looks wrong on a flat map —
@@ -70,17 +73,26 @@ private func glyph(_ transport: String) -> String {
 @MainActor
 final class TileStore: ObservableObject {
     static let shared = TileStore()
-    private var cache: [String: UIImage] = [:]
+
+    /// ⚠ An `NSCache`, not a dictionary — the same reason as for the
+    ///   photographs: it lets go of itself under memory pressure. A plain
+    ///   dictionary here grew by about fifteen tiles for every album ever
+    ///   opened and never gave any of them back.
+    private let cache = NSCache<NSString, UIImage>()
     @Published private(set) var version = 0
 
-    func cached(_ z: Int, _ x: Int, _ y: Int) -> UIImage? { cache["\(z)/\(x)/\(y)"] }
+    private init() { cache.totalCostLimit = 24 * 1024 * 1024 }
+
+    func cached(_ z: Int, _ x: Int, _ y: Int) -> UIImage? {
+        cache.object(forKey: "\(z)/\(x)/\(y)" as NSString)
+    }
 
     func load(_ api: API, _ z: Int, _ x: Int, _ y: Int) async {
-        let key = "\(z)/\(x)/\(y)"
-        guard cache[key] == nil else { return }
+        let key = "\(z)/\(x)/\(y)" as NSString
+        guard cache.object(forKey: key) == nil else { return }
         guard let d = try? await api.tile(z: z, x: x, y: y),
               let img = UIImage(data: d) else { return }
-        cache[key] = img
+        cache.setObject(img, forKey: key, cost: d.count)
         version += 1
     }
 }
@@ -92,8 +104,15 @@ struct JourneyView: View {
     let onDone: () -> Void
 
     @EnvironmentObject var state: AppState
-    @StateObject private var tiles = TileStore.shared
-    @State private var progress: Double = 0
+    // ⚠ `@ObservedObject`: `@StateObject` is for something this view OWNS,
+    //   and a shared store is not that.
+    @ObservedObject private var tiles = TileStore.shared
+    /// ⚠ The clock, not an animated number. A `Canvas` draws once for the value
+    ///   it is handed: `withAnimation` interpolates VIEW inputs, and the
+    ///   closure of a Canvas is not one. The line therefore appeared finished
+    ///   and the vehicle sat at the destination. `TimelineView` re-draws, and
+    ///   the progress is worked out from how long it has been running.
+    @State private var began: Date?
     @State private var zoom = 5
     @State private var origin: CGPoint = .zero          // top-left, in pixels at `zoom`
     @State private var laid = false
@@ -114,19 +133,21 @@ struct JourneyView: View {
             let size = geo.size
             ZStack {
                 Color.black
-                Canvas { ctx, _ in draw(&ctx, size: size) }
-                    .allowsHitTesting(false)
+                TimelineView(.animation) { tl in
+                    let p = progress(at: tl.date)
+                    Canvas { ctx, _ in draw(&ctx, size: size, progress: p) }
+                        .allowsHitTesting(false)
+                }
             }
             .onAppear {
                 guard !laid else { return }
                 laid = true
                 fit(into: size)
-                withAnimation(.easeInOut(duration: 3.4)) { progress = 1 }
-                // ⚠ The animation does not decide when it is over -- this does.
-                //   `withAnimation` has no completion that is safe to rely on
-                //   here, and a journey nobody can leave is a trap.
+                began = Date()
+                // ⚠ The drawing does not decide when it is over -- this does.
+                //   A journey nobody can leave is a trap.
                 Task {
-                    try? await Task.sleep(for: .seconds(4.2))
+                    try? await Task.sleep(for: .seconds(RUN + 0.8))
                     onDone()
                 }
             }
@@ -154,7 +175,14 @@ struct JourneyView: View {
 
     // MARK: - Molen
 
-    private func draw(_ ctx: inout GraphicsContext, size: CGSize) {
+    /// How far along, from the clock. Eases in and out, like the website's.
+    private func progress(at now: Date) -> Double {
+        guard let began else { return 0 }
+        let t = min(max(now.timeIntervalSince(began) / RUN, 0), 1)
+        return t * t * (3 - 2 * t)              // smoothstep
+    }
+
+    private func draw(_ ctx: inout GraphicsContext, size: CGSize, progress: Double) {
         _ = tiles.version                                  // redraw as tiles land
         // 1. The tiles
         let z = zoom

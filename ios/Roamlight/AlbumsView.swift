@@ -338,14 +338,20 @@ struct PhotosView: View {
             //   leaving the album and coming back in.
             //
             //   So: say what is happening, and keep looking until it is there.
-            let before = photos.count
+            // ⚠ The TOTAL, not how many are on screen. `load(page: 1)` replaces
+            //   the list with the first sixty; in an album with more than that,
+            //   the count on screen FALLS when it reloads, and a new photograph
+            //   sorts to the last page anyway. Comparing what is visible meant
+            //   the wait always ran its full thirty seconds and then said the
+            //   photographs had not arrived — while they were already there.
+            let before = total
             sent = "\(done) photograph\(done == 1 ? "" : "s") sent — the site is converting."
             for _ in 0..<20 {
                 await load(page: 1)
-                if photos.count >= before + done { break }
+                if total >= before + done { break }
                 try? await Task.sleep(for: .seconds(1.5))
             }
-            sent = photos.count >= before + done
+            sent = total >= before + done
                 ? "\(done) photograph\(done == 1 ? "" : "s") added."
                 : "\(done) sent. They will appear as soon as the site has converted them."
         }

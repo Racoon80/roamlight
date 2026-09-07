@@ -43,11 +43,23 @@ struct PhotoView: View {
                             //   connection and buffer — on a phone that is how
                             //   an app gets killed for using too much.
                             VideoPage(photo: p, active: i == index)
-                        } else {
+                        } else if abs(i - index) <= 1 {
+                            // ⚠ Only this page and the two beside it. `ForEach`
+                            //   in an `HStack` is NOT lazy: it builds every
+                            //   child at once, and each `RemoteImage` starts
+                            //   its own download and keeps the decoded picture
+                            //   in its own state. Opening one photograph in an
+                            //   album of a hundred and twenty therefore
+                            //   fetched a hundred and twenty at 1200 px and
+                            //   held them all -- which is how a phone kills an
+                            //   app. `TabView` was lazy; this pager has to say
+                            //   so itself.
                             RemoteImage(id: p.id, width: 1200, rev: p.rev ?? 0,
                                         contentMode: .fit)
                                 .scaleEffect(i == index ? zoom : 1)
                                 .offset(i == index ? pan : .zero)
+                        } else {
+                            Color.black
                         }
                     }
                     .frame(width: page.width, height: page.height)
@@ -88,6 +100,14 @@ struct PhotoView: View {
                             .onEnded { v in
                                 if zoomed {
                                     panStart = pan
+                                    // ⚠ A drag that began unzoomed and became
+                                    //   a pinch on the way ends here, and
+                                    //   `settle` never runs -- the strip would
+                                    //   stay hanging at whatever offset the
+                                    //   drag had reached.
+                                    if pageDrag != 0 {
+                                        withAnimation(.easeOut(duration: 0.2)) { pageDrag = 0 }
+                                    }
                                 } else {
                                     settle(v, page: page)
                                 }

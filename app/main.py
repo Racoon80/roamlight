@@ -1586,8 +1586,11 @@ def api_notify_register(request: Request, body: dict = Body(...)):
 @app.post("/api/notify/unregister")
 def api_notify_unregister(request: Request, body: dict = Body(...)):
     """A phone says it does not want them any more (or is being signed out)."""
-    security.identify(request)
-    return notify.unregister(str(body.get("kind", "")), str(body.get("token", "")))
+    who = security.identify(request)
+    if not who.user:
+        raise HTTPException(status_code=403, detail="forbidden")
+    return notify.unregister(who.user, str(body.get("kind", "")),
+                             str(body.get("token", "")))
 
 
 @app.get("/api/notify")

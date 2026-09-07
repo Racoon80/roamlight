@@ -47,20 +47,26 @@ def _audience(album_key: str, actor: str) -> list:
       guess made here.
     """
     conn = db.connect()
-    rows = conn.execute(
-        "SELECT principal FROM album_acl WHERE album_key=?", (album_key,)).fetchall()
-    people = set()
-    for r in rows:
+    named, wanted_groups = set(), set()
+    for r in conn.execute("SELECT principal FROM album_acl WHERE album_key=?", (album_key,)):
         p = (r["principal"] or "").strip()
         if p.lower().startswith("user:"):
-            people.add(p[5:])
-    for r in conn.execute(
-            "SELECT username, groups_json FROM members WHERE active=1"):
+            named.add(p[5:])
+        elif p.lower().startswith("group:"):
+            # ⚠ A group is a first-class name on that list -- `group:family` is
+            #   what the tick boxes on the album page write, and it is how an
+            #   album is normally published. Reading only `user:` rows meant
+            #   that for an ordinary album the audience was the administrators
+            #   and nobody else: the family heard nothing at all.
+            wanted_groups.add(p[6:])
+
+    people = set(named)
+    for r in conn.execute("SELECT username, groups_json FROM members WHERE active=1"):
         try:
             groups = set(json.loads(r["groups_json"] or "[]"))
         except (ValueError, TypeError):
             groups = set()
-        if config.ADMIN_GROUPS.intersection(groups):
+        if config.ADMIN_GROUPS.intersection(groups) or wanted_groups.intersection(groups):
             people.add(r["username"])
     people.discard(actor)
     people.discard("")
@@ -135,6 +141,17 @@ def _devices(username: str) -> list:
         (username,)).fetchall()
 
 
+class NotReady(Exception):
+    """The way out is not set up, or is having a bad day.
+
+    ⚠ Its own kind, because it says nothing about the PHONE. Counting it as a
+      failure of the device was enough to bury every phone in the house: five
+      pending rows with APNs unconfigured and `failures` reaches five, after
+      which `_devices()` hides them and only a re-registration brings them
+      back.
+    """
+
+
 def flush(limit: int = 200) -> dict:
     """Send what is due. Returns a small tally, so a caller can log it.
 
@@ -144,6 +161,11 @@ def flush(limit: int = 200) -> dict:
       empties eventually announces yesterday.
     """
     sent = failed = dropped = 0
+    # ⚠ With no way out at all, do not touch the queue. Sending would fail for
+    #   every row, and every row would be deleted anyway -- the whole backlog
+    #   would quietly evaporate while somebody was still fetching a key.
+    if not (config.apns_ready() or config.fcm_ready()):
+        return {"rows": 0, "sent": 0, "failed": 0, "no_device": 0, "no_transport": True}
     rows = db.connect().execute(
         "SELECT * FROM notify_pending WHERE send_after <= ? ORDER BY id LIMIT ?",
         (_stamp(_now()), limit)).fetchall()
@@ -166,14 +188,28 @@ def flush(limit: int = 200) -> dict:
                 with db.tx() as c:
                     c.execute("DELETE FROM notify_devices WHERE id=?", (d["id"],))
                 failed += 1
+            except NotReady as exc:
+                # Nothing to do with this phone -- do not hold it against it.
+                log.warning("notify: %s not ready -- %s", d["kind"], exc)
+                failed += 1
             except Exception as exc:                             # noqa: BLE001
                 log.warning("notify: %s failed -- %s", d["kind"], exc)
                 with db.tx() as c:
                     c.execute("UPDATE notify_devices SET failures=failures+1 WHERE id=?",
                               (d["id"],))
                 failed += 1
+        # ⚠ `AND n=?`: a photograph that arrived WHILE this was being sent has
+        #   already put the counter up. Deleting the row on the id alone would
+        #   throw that increment away and those photographs would never be
+        #   announced. With the count in the condition the row simply survives
+        #   and goes out on the next pass with the remainder.
+        #
+        # ⚠ It is also what stops two flushes sending the same row twice: the
+        #   second one finds nothing to delete and, having deleted nothing,
+        #   knows it lost the race.
         with db.tx() as c:
-            c.execute("DELETE FROM notify_pending WHERE id=?", (row["id"],))
+            c.execute("DELETE FROM notify_pending WHERE id=? AND n=?",
+                      (row["id"], row["n"]))
     return {"rows": len(rows), "sent": sent, "failed": failed, "no_device": dropped}
 
 
@@ -199,8 +235,14 @@ def register(username: str, kind: str, token: str, name: str = "") -> dict:
         raise ValueError("kind has to be apns or fcm, and a token is needed")
     with db.tx() as c:
         # ⚠ The same phone may come back with the same address after a
-        #   reinstall, and it may have belonged to somebody else before --
-        #   a family shares phones. So the row is claimed, not duplicated.
+        #   reinstall, and it may have belonged to somebody else before -- a
+        #   family shares phones. So the row is claimed, not duplicated.
+        #
+        # ⚠ Claiming it is safe here BECAUSE Apple mints a new address per app
+        #   install: whoever holds it really is the one with the app in their
+        #   hand. What is NOT safe is the other direction, and that is why
+        #   `unregister` is bound to the owner -- naming a token you do not own
+        #   must not switch off somebody else's notices.
         c.execute(
             "INSERT INTO notify_devices (username, kind, token, name) VALUES (?, ?, ?, ?) "
             "ON CONFLICT (kind, token) DO UPDATE SET username=excluded.username, "
@@ -209,9 +251,13 @@ def register(username: str, kind: str, token: str, name: str = "") -> dict:
     return {"ok": True}
 
 
-def unregister(kind: str, token: str) -> dict:
+def unregister(username: str, kind: str, token: str) -> dict:
+    """⚠ Only one's own. A push token is not a secret -- it travels to Apple and
+    to this site -- so anybody signed in could otherwise switch off somebody
+    else's notices simply by naming their token."""
     with db.tx() as c:
-        c.execute("DELETE FROM notify_devices WHERE kind=? AND token=?", (kind, token))
+        c.execute("DELETE FROM notify_devices WHERE kind=? AND token=? AND username=?",
+                  (kind, token, username))
     return {"ok": True}
 
 

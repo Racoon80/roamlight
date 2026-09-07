@@ -219,10 +219,11 @@ and you have backed up everything.
   `127.0.0.1`, behind another reverse proxy its address, and ranges like
   `192.168.1.0/24` work. Name nothing and every visitor counts as the proxy:
   one shared counter, which is a nuisance but still a throttle. Behind
-  Cloudflare also set `FAMILY_CLIENT_IP_HEADER=CF-Connecting-IP` —
-  Cloudflare overwrites that header, while it only *appends* to
-  `X-Forwarded-For`, so the first entry there is still whatever the visitor
-  sent.
+  Cloudflare also set `FAMILY_CLIENT_IP_HEADER=CF-Connecting-IP`: that is
+  the header Cloudflare sets itself, so it is the one worth reading.
+  Whether `X-Forwarded-For` keeps anything the visitor put there depends
+  on the account's transform rules — do not build the throttle on a header
+  whose handling is a setting somewhere else.
 
 Found something? Open an issue, or write to the address in the repository
 profile. Please do not post a working exploit before it is fixed.

@@ -105,8 +105,10 @@ def client_ip(request: Request) -> str:
     The example nginx configuration sets `X-Forwarded-For` to `$remote_addr` —
     only the hop it knows — and NOT to `$proxy_add_x_forwarded_for`, which
     would append whatever the client asked for. Behind Cloudflare, point
-    `FAMILY_CLIENT_IP_HEADER` at `CF-Connecting-IP`: Cloudflare overwrites that
-    one, while it only appends to `X-Forwarded-For`.
+    `FAMILY_CLIENT_IP_HEADER` at `CF-Connecting-IP`: that is the header
+    Cloudflare sets itself. What it does with `X-Forwarded-For` depends on the
+    account's transform rules, and a throttle should not rest on a header whose
+    handling is a setting somewhere else.
     """
     peer = request.client.host if request.client else ""
     if not config.trusts_proxy(peer):

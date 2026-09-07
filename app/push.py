@@ -99,6 +99,15 @@ def apns(token: str, title: str, body: str, data: dict) -> None:
         pass
     if r.status_code == 410 or reason == "Unregistered":
         raise notify.Unregistered(reason or "410")
+    # ⚠ These say something is wrong with the KEY or the settings, never with
+    #   the phone. Counting them against the device was enough to bury every
+    #   phone in the house over a wrong line in a file. Seen for real:
+    #   `BadEnvironmentKeyInToken` -- a key made for Sandbox only, used against
+    #   the live service, which is what TestFlight needs.
+    if reason in ("BadEnvironmentKeyInToken", "InvalidProviderToken",
+                  "MissingProviderToken", "ExpiredProviderToken",
+                  "TopicDisallowed", "BadTopic", "Forbidden"):
+        raise notify.NotReady(f"APNs {r.status_code} {reason}")
     # ⚠ `BadDeviceToken` is NOT treated as dead. It is also exactly what Apple
     #   answers when the address was minted by the other service -- a build
     #   signed for development against the live endpoint, or FAMILY_APNS_SANDBOX
@@ -160,4 +169,7 @@ def fcm(token: str, title: str, body: str, data: dict) -> None:
         pass
     if r.status_code == 404 or reason == "UNREGISTERED":
         raise notify.Unregistered(reason or "404")
+    # Same rule on the other side: the account, not the phone.
+    if r.status_code in (401, 403) or reason in ("PERMISSION_DENIED", "UNAUTHENTICATED"):
+        raise notify.NotReady(f"FCM {r.status_code} {reason}")
     raise RuntimeError(f"FCM {r.status_code} {reason}")

@@ -34,6 +34,27 @@ if [ -z "$PY" ]; then
         PY="$c"; break
     done
 fi
+# ⚠ Als DEE SELWECHTE Benotzer lafe loossen, deem d'Fotoen gehéieren.
+#
+#   Leeft d'Suite als root, da leet si Uerdner als root un -- an duerno kann de
+#   Service (deen als `roamlight`/`family` leeft) net méi eran. Wat een dann
+#   gesäit, ass `Permission denied` op enger Plaz déi guer näischt mam Test ze
+#   dinn huet, an et gesäit aus wéi e Feeler am Site. Et ass keen.
+if [ -n "${FAMILY_ORIGINS:-}" ] && [ -d "$FAMILY_ORIGINS" ]; then
+    tree_owner="$(stat -c %U "$FAMILY_ORIGINS" 2>/dev/null || stat -f %Su "$FAMILY_ORIGINS" 2>/dev/null)"
+    me="$(id -un)"
+    if [ -n "$tree_owner" ] && [ "$tree_owner" != "$me" ]; then
+        echo "REFUSED: the photographs belong to '$tree_owner', and this is running as '$me'."
+        echo
+        echo "  Anything this run creates would belong to '$me', and the site could"
+        echo "  not write into it afterwards. Start it as the service user:"
+        echo
+        echo "      su -s /bin/bash -c 'bash tests/run.sh' $tree_owner"
+        echo
+        exit 1
+    fi
+fi
+
 ALL="pages proxy convert gallery upload album album_undo owner tag share sync acl av"
 WANT="${*:-$ALL}"
 

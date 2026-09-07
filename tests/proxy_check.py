@@ -18,6 +18,20 @@ sys.path.insert(0, _env.app_root())
 from app import config, security                               # noqa: E402
 
 
+class Headers(dict):
+    """⚠ HTTP header names do not care about case, and Starlette's `Headers`
+    does not either. A plain dict does -- which is why the first version of
+    this test failed against perfectly good code: it asked for
+    `X-Forwarded-For` in a dict whose key was `x-forwarded-for`. A test double
+    that is stricter than the real thing tests nothing but itself."""
+
+    def __init__(self, d=None):
+        super().__init__({k.lower(): v for k, v in (d or {}).items()})
+
+    def get(self, key, default=None):
+        return super().get(str(key).lower(), default)
+
+
 class FakeRequest:
     """Only what `client_ip` touches: the peer and the headers."""
 
@@ -27,7 +41,7 @@ class FakeRequest:
 
     def __init__(self, peer, headers=None):
         self.client = self._Client(peer) if peer else None
-        self.headers = {k.lower(): v for k, v in (headers or {}).items()}
+        self.headers = Headers(headers)
 
 
 def check(name, got, want):

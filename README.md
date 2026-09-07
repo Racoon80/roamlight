@@ -18,13 +18,14 @@ hand someone a link.
 | | |
 |---|---|
 | **Keeps your originals** | The library folder is read. Masters and web sizes are written somewhere else, so the file off the camera is never touched. |
-| **Understands cameras** | JPEG, HEIC, PNG, TIFF — and RAW (CR3, CR2, ARW, NEF, RAF, DNG…) through LibRaw. Video through ffmpeg, with a poster frame. |
+| **Understands cameras** | JPEG, HEIC, PNG, TIFF — and RAW (CR3, CR2, ARW, NEF, RAF, DNG…) through LibRaw. Video through ffmpeg, with a poster frame, and it plays in the browser and in both apps. |
 | **Serves the right size** | AVIF and WebP at 400 / 800 / 1200 / 2000 / 2800 px, plus a blurred placeholder so a page never jumps while it loads. |
 | **Albums, people, tags** | Year → country → album. Tag who is on a photograph and find them again. |
-| **A map** | Every album with coordinates, and an optional journey (“car to the airport, plane to Málaga, bus to the coast”) drawn on it. |
+| **A map** | Every album with coordinates, and an optional journey (“car to the airport, plane to Málaga, bus to the coast”) drawn on it — as an opening animation when you walk into the album, on the website and in both apps. ⚠ The tiles come through this site, so a browser never talks to OpenStreetMap. |
 | **Who may see what** | Per album, per person. Nothing is visible by default. |
 | **Share links** | One collection, one link, a password, an end date, an optional view limit — for people without an account. |
-| **Phone and tablet** | Add the site to the home screen (it is a PWA), or use the apps: [`ios/`](ios/) for iPhone and iPad, [`android/`](android/) for Android. |
+| **Phone and tablet** | Add the site to the home screen (it is a PWA), or use the apps: [`ios/`](ios/) for iPhone and iPad, [`android/`](android/) for Android. Both do the whole thing — look, search, make an album, add to one, share, play a video. |
+| **A word when something arrives** | Optional, off until you set it up. One line when photographs land in an album you can see, or when you are let into one. ⚠ A hundred photographs are **one** message, not a hundred — see below. |
 
 ## Screenshots
 
@@ -169,6 +170,14 @@ Everything is environment variables. The ones that matter:
 | `FAMILY_REQUIRE_MOUNT` | `1` | Refuse to run if the photo folders are not mounted |
 | `FAMILY_TRUSTED_PROXIES` | — | Addresses whose `X-Forwarded-For` is believed. See below |
 | `FAMILY_CLIENT_IP_HEADER` | `X-Forwarded-For` | Which header carries the visitor's address |
+| `FAMILY_TILE_OFFLINE` | `0` | Map tiles from the cache only — no request ever leaves |
+| `FAMILY_NOTIFY_WINDOW` | `90` | Seconds a notice gathers before it goes out (see below) |
+| `FAMILY_APNS_KEY_FILE` | — | The `.p8` from Apple. Empty = nothing is sent to iPhones |
+| `FAMILY_APNS_KEY_ID` | — | The ten characters in the key's name |
+| `FAMILY_APNS_TEAM_ID` | — | Your Apple team |
+| `FAMILY_APNS_TOPIC` | — | The app's bundle id, exactly |
+| `FAMILY_APNS_SANDBOX` | `0` | `1` only for a build straight out of Xcode |
+| `FAMILY_FCM_CREDENTIALS` | — | A Firebase service account file, for Android |
 
 The full list is in [`app/config.py`](app/config.py), where each one says why it
 exists.
@@ -192,6 +201,38 @@ photographs reach you on other people's sticks and phones:
 file that was never looked at is not "clean" — that is the whole point of
 switching it on.
 
+### A word when something arrives
+
+Two things are worth being told about: photographs landing in an album you can
+see, and being let into an album. Nothing else.
+
+**The whole design is the counting, not the sending.** An event never goes out
+when it happens — it goes into a queue, one row per person, per kind, per
+album, and a counter goes up. A minute and a half later that row leaves as one
+sentence: *“2026 Ostende — 500 new photographs.”* Importing an evening's
+worth of photographs is one line on a lock screen, not five hundred.
+
+- ⚠ Nobody hears about their own upload.
+- ⚠ Nothing is announced until the site has actually **converted** the
+  photograph. Before that it is a row nobody can open, and the notice would
+  send people to an empty album.
+- ⚠ The window is set when the row is made and never moved. Pushing it forward
+  on every new photograph looks tidier and is wrong: during a long import the
+  moment would keep running away and nothing would ever be announced.
+
+Setting it up is the part that is not up to this software. A message that
+arrives while the app is closed has to pass through Apple or Google — there is
+no third way — so both are **off** until you say otherwise:
+
+* **iPhone and iPad**: an APNs key (`.p8`) from the Apple developer portal.
+  ⚠ Make it for **Sandbox & Production**. A Sandbox-only key answers
+  `BadEnvironmentKeyInToken` against the live service, which is the one
+  TestFlight and the App Store use.
+* **Android**: a Firebase project and its service account file.
+
+⚠ What travels through them is the album's own title and a count. Never a name,
+never a place beyond that title, never a photograph.
+
 ---
 
 ## How it is built
@@ -202,14 +243,19 @@ lifting is done by three programs — **libvips** resizes, **exiftool** reads an
 writes metadata, **ffmpeg** handles video.
 
 ```
-app/          the site        (33 modules; config.py is a good place to start)
+app/          the site        (37 modules; config.py is a good place to start)
 templates/    the pages       (Jinja2)
-static/       CSS, JS, fonts  (self-hosted; the CSP allows nothing from outside)
+static/       CSS, JS, fonts  (self-hosted; nothing in a browser talks to
+                               anybody but you — map tiles included)
 deploy/       systemd unit, nginx example, the Proxmox installer
 ios/          the iPhone and iPad app (SwiftUI)
 android/      the Android app (Kotlin, Jetpack Compose)
-tests/        checks that run against a real instance
+tests/        15 checks that run against a real instance
 ```
+
+⚠ The tests refuse to run unless the instance says `FAMILY_TEST=1`, and refuse
+to run as a user who does not own the photographs. Both guards exist because
+the suite was once pointed at the family's real library.
 
 The database is one SQLite file. Back that up together with the library folder
 and you have backed up everything.
@@ -222,6 +268,11 @@ and you have backed up everything.
 - Uploads are checked by content, not by file name, before anything else
   happens to them.
 - Photographs carry GPS. A share link can strip it; family members see it.
+- A video is played by the phone's own player, and that player will not carry
+  an authorisation header. So the address carries its own proof instead: a
+  signature over **that one address**, good for a few hours, naming the person
+  who asked. It opens nothing they could not already open, and it is worthless
+  on any other address (see [`app/tickets.py`](app/tickets.py)).
 - The site sets its own CSP, `X-Frame-Options` and `noindex` on every answer,
   even when a proxy in front forgets to.
 - Failed sign-ins are throttled per address, not per account — locking an

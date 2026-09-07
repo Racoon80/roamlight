@@ -55,7 +55,6 @@ struct PhotoView: View {
                     //   over its neighbour — which is exactly what the
                     //   screenshot of the bug showed.
                     .clipped()
-                    .overlay(alignment: .bottom) { caption(p) }
                 }
             }
             .frame(width: page.width * CGFloat(max(photos.count, 1)),
@@ -101,8 +100,13 @@ struct PhotoView: View {
                 }
             }
         }
-        .background(Color.black)
-        .ignoresSafeArea(edges: .bottom)
+        // ⚠ Only the BACKGROUND runs under the tab bar. The caption is an
+        //   overlay on the content, so it stays above it -- put the whole view
+        //   outside the safe area and the date ends up behind the tabs.
+        .background(Color.black.ignoresSafeArea())
+        .overlay(alignment: .bottom) {
+            if photos.indices.contains(index) { caption(photos[index]) }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { index = photos.firstIndex(of: start) ?? 0 }
     }
@@ -173,9 +177,10 @@ struct PhotoView: View {
             }
         }
         .foregroundStyle(.white.opacity(0.85))
-        .padding(8)
-        .background(.black.opacity(0.35), in: Capsule())
-        .padding(.bottom, 28)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.45), in: Capsule())
+        .padding(.bottom, 12)
     }
 }
 

@@ -21,6 +21,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.Icons
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.compose.rememberLauncherForActivityResult
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,19 +146,29 @@ fun PhotoGrid(
     //   round again for ever.
     val claimed = remember(album?.id, query) { mutableSetOf<Int>() }
     var want by remember(album?.id, query) { mutableIntStateOf(1) }
+    // Erhéijen heescht: kuck nach eng Kéier no, och wann d'Säitennummer
+    // déiselwecht bleift.
+    var reloadNow by remember(album?.id, query) { mutableIntStateOf(0) }
 
-    LaunchedEffect(album?.id, query, want) {
-        if (want > pages && page > 0) return@LaunchedEffect
+    LaunchedEffect(album?.id, query, want, reloadNow) {
+        if (reloadNow == 0 && want > pages && page > 0) return@LaunchedEffect
         loading = true
         try {
-            val p = api.photos(album, page = want, query = query)
+            val asked = if (reloadNow > 0) 1 else want
+            val p = api.photos(album, page = asked, query = query)
             pages = p.pages
             page = p.page
-            // ⚠ Also dedupe by id: a photograph added while somebody scrolls
-            //   shifts every page by one, and page 2 then repeats the last
-            //   picture of page 1.
-            val have = photos.mapTo(HashSet()) { it.id }
-            photos = photos + p.photos.filter { have.add(it.id) }
+            if (asked == 1) {
+                photos = p.photos
+                claimed.clear()
+                claimed.add(1)
+            } else {
+                // ⚠ Also dedupe by id: a photograph added while somebody
+                //   scrolls shifts every page by one, and page 2 then repeats
+                //   the last picture of page 1.
+                val have = photos.mapTo(HashSet()) { it.id }
+                photos = photos + p.photos.filter { have.add(it.id) }
+            }
             failed = null
         } catch (e: Exception) {
             failed = (e as? ApiError)?.message ?: e.message
@@ -157,8 +176,76 @@ fun PhotoGrid(
         loading = false
     }
 
+    // Fotoen an DËSEN Album bäisetzen. ⚠ Fir jiddereen deen den Album kucke
+    // kann, net nëmme fir en Auteur -- genee wéi op der Websäit an op iOS.
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var sending by remember(album?.id) { mutableStateOf(false) }
+    var sent by remember(album?.id) { mutableStateOf<String?>(null) }
+
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(30)
+    ) { uris ->
+        if (uris.isEmpty() || album == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            sending = true
+            sent = null
+            var done = 0
+            val before = photos.size
+            try {
+                uris.forEachIndexed { i, uri ->
+                    val data = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    } ?: return@forEachIndexed
+                    val ext = context.contentResolver.getType(uri)
+                        ?.substringAfterLast('/')?.substringBefore(';')
+                        ?.let { if (it == "jpeg") "jpg" else it } ?: "jpg"
+                    api.contribute(album, "IMG_${i + 1}.$ext", data)
+                    done += 1
+                }
+                // ⚠ One reload is not enough, and that is not a race -- it is
+                //   how the site works. A photograph is stored, then CONVERTED,
+                //   and it only counts as being on the site once that has
+                //   finished. Ask straight away and the album comes back
+                //   without it, which is why it looked as though it only
+                //   arrived after leaving the album and coming back in.
+                sent = "$done sent — the site is converting."
+                repeat(20) {
+                    reloadNow += 1
+                    kotlinx.coroutines.delay(1500)
+                    if (photos.size >= before + done) return@repeat
+                }
+                sent = if (photos.size >= before + done) "$done added."
+                       else "$done sent. They will appear once the site has converted them."
+            } catch (e: Exception) {
+                sent = (e as? ApiError)?.message ?: e.message
+            }
+            sending = false
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(Ink.ground)) {
-        Title(title)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { Title(title) }
+            if (album != null) {
+                if (sending) {
+                    CircularProgressIndicator(Modifier.padding(16.dp).size(20.dp),
+                                              strokeWidth = 2.dp, color = Ink.safelight)
+                } else {
+                    IconButton(onClick = {
+                        picker.launch(PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    }) {
+                        Icon(Icons.Filled.AddCircleOutline, contentDescription = "Add photographs",
+                             tint = Ink.safelight)
+                    }
+                }
+            }
+        }
+        sent?.let {
+            Text(it, color = Ink.inkSoft, fontSize = 12.sp,
+                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+        }
         header()
         if (failed != null) {
             Center { Text(failed!!, color = MaterialTheme.colorScheme.error) }

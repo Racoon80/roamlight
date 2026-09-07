@@ -193,6 +193,9 @@ struct PhotosView: View {
         .navigationDestination(for: Photo.self) { p in
             PhotoView(photos: photos, start: p)
         }
+        // Pull down to look again -- for the impatient, and for when a
+        // conversion took longer than the twenty tries above.
+        .refreshable { await load(page: 1) }
         .toolbar {
             if album != nil, state.me?.may.share == true {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -280,8 +283,24 @@ struct PhotosView: View {
             }
         }
         if done > 0 {
-            sent = "\(done) photograph\(done == 1 ? "" : "s") added. The site is converting."
-            await load(page: 1)
+            // ⚠ One reload is not enough, and that is not a race -- it is how
+            //   the site works. A photograph is stored, then CONVERTED, and it
+            //   only counts as being on the site once that is finished
+            //   (`state='ok'`). Ask straight away and the album comes back
+            //   without it, which is why it seemed to arrive only after
+            //   leaving the album and coming back in.
+            //
+            //   So: say what is happening, and keep looking until it is there.
+            let before = photos.count
+            sent = "\(done) photograph\(done == 1 ? "" : "s") sent — the site is converting."
+            for _ in 0..<20 {
+                await load(page: 1)
+                if photos.count >= before + done { break }
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            sent = photos.count >= before + done
+                ? "\(done) photograph\(done == 1 ? "" : "s") added."
+                : "\(done) sent. They will appear as soon as the site has converted them."
         }
     }
 

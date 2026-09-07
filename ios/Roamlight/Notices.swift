@@ -14,13 +14,22 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+/// ⚠ EVERYTHING HERE IS STATIC, and that is not laziness.
+///
+///   `@UIApplicationDelegateAdaptor(Notices.self)` builds its OWN instance --
+///   it does not use `Notices.shared`. Hanging the connection to the site on
+///   the shared object meant that Apple handed the address to one object while
+///   the way to send it lived on another, and the registration quietly did
+///   nothing at all: no call to the site, no line in its log, and a phone that
+///   simply never appeared on the list.
+enum NoticeStore {
+    /// Set by the app once it knows how to talk to the site.
+    static var api: (() -> API)?
+    static var lastToken: String?
+}
+
 final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     static let shared = Notices()
-
-    /// Set by the app once it knows how to talk to the site.
-    var api: (() -> API)?
-
-    private var lastToken: String?
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -30,7 +39,7 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
 
     /// Ask, and register if allowed. Doing it again is harmless -- iOS answers
     /// out of what was already decided and does not ask twice.
-    func askAndRegister() {
+    static func askAndRegister() {
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
                 guard granted else { return }
@@ -46,8 +55,11 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
         //   the push service expects in the address. Getting this wrong gives
         //   `BadDeviceToken`, which says nothing about what is actually wrong.
         let hex = data.map { String(format: "%02x", $0) }.joined()
-        lastToken = hex
-        guard let api = api?() else { return }
+        NoticeStore.lastToken = hex
+        guard let api = NoticeStore.api?() else {
+            NSLog("Roamlight: got a notice address before the site was known")
+            return
+        }
         Task {
             try? await api.registerForNotices(token: hex, name: UIDevice.current.name)
         }
@@ -60,10 +72,10 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
     }
 
     /// Taking this device off: the site should stop sending here.
-    func forget() {
-        guard let token = lastToken, let api = api?() else { return }
+    static func forget() {
+        guard let token = NoticeStore.lastToken, let api = NoticeStore.api?() else { return }
         Task { try? await api.forgetNotices(token: token) }
-        lastToken = nil
+        NoticeStore.lastToken = nil
     }
 
     /// A notice while the app is open is shown anyway -- otherwise somebody

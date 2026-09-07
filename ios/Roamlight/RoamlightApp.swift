@@ -76,7 +76,7 @@ final class AppState: ObservableObject {
     func signOut() {
         // ⚠ Before the token goes: tell the site to stop sending here.
         //   Afterwards there is nothing left to say it with.
-        Notices.shared.forget()
+        Notices.forget()
         Keychain.delete()
         token = nil
         me = nil
@@ -100,8 +100,8 @@ struct RootView: View {
             // ⚠ Only once there IS a connection. Asking before that means
             //   asking somebody who has not yet seen a single photograph.
             if state.connected {
-                Notices.shared.api = { state.api }
-                Notices.shared.askAndRegister()
+                NoticeStore.api = { state.api }
+                Notices.askAndRegister()
             }
         }
     }

@@ -40,10 +40,14 @@ struct SettingsView: View {
                     } else if n.devices.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("This phone is not on the list.")
-                            Text("Allow notifications for Roamlight in Settings. "
-                                 + "⚠ The Simulator never gets a real address — "
-                                 + "notices only arrive on a real phone.")
+                            #if targetEnvironment(simulator)
+                            Text("This is the Simulator — notices cannot arrive here, "
+                                 + "so it does not ask for an address.")
                                 .font(.caption).foregroundStyle(Theme.inkMute)
+                            #else
+                            Text("Allow notifications for Roamlight in Settings.")
+                                .font(.caption).foregroundStyle(Theme.inkMute)
+                            #endif
                         }
                     } else {
                         ForEach(Array(n.devices.enumerated()), id: \.offset) { _, d in

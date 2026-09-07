@@ -50,6 +50,17 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
     /// Ask, and register if allowed. Doing it again is harmless -- iOS answers
     /// out of what was already decided and does not ask twice.
     static func askAndRegister() {
+        // ⚠ Not from the Simulator. It happily asks, and Apple happily mints an
+        //   address -- and then refuses to deliver anything to it, for ever.
+        //   The site would carry a phone that can never be reached, count a
+        //   failure against it on every notice, and show it in the list beside
+        //   the real ones. Two of those had to be picked out by hand.
+        //
+        //   There is no way round this: a Simulator is reached with
+        //   `xcrun simctl push`, never through Apple's service.
+        #if targetEnvironment(simulator)
+        NSLog("Roamlight: Simulator — notices are not registered, they cannot arrive here")
+        #else
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
                 guard granted else { return }
@@ -57,6 +68,7 @@ final class Notices: NSObject, UIApplicationDelegate, UNUserNotificationCenterDe
                     UIApplication.shared.registerForRemoteNotifications()
                 }
             }
+        #endif
     }
 
     func application(_ application: UIApplication,

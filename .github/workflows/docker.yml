@@ -21,8 +21,12 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
-env:
-  IMAGE: ghcr.io/${{ github.repository }}
+# ⚠ NO `IMAGE: ghcr.io/${{ github.repository }}` here. A GitHub account may
+#   have capitals in its name (this one does), and a registry reference may
+#   not: the push fails with "repository name must be lowercase" -- at the very
+#   end, after the whole image has been built. `docker/metadata-action` lowers
+#   it for you, which is why this only bites where the name is used directly.
+#   So each job works it out in lower case first.
 
 jobs:
   build:
@@ -51,6 +55,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       # Each architecture is pushed WITHOUT a tag, by digest only. The tag is
       # put on the list that joins them, in the job below -- otherwise the two
       # would overwrite each other's `latest` and the last one to finish would
@@ -60,7 +67,7 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ steps.name.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.slug }}
           cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
 
@@ -101,10 +108,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE }}
+          images: ${{ steps.name.outputs.image }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
@@ -114,7 +124,7 @@ jobs:
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+            $(printf '${{ steps.name.outputs.image }}@sha256:%s ' *)
 
       - name: Say what came out
-        run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
+        run: docker buildx imagetools inspect ${{ steps.name.outputs.image }}:latest

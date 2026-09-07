@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ⚠ `production` and not `development`: TestFlight and the App Store
+         both hand out live tokens. A build signed for development gets a token
+         from Apple's test service, and the live service then answers
+         `BadDeviceToken` for it -- which reads like a broken token and is
+         nothing of the sort. See FAMILY_APNS_SANDBOX on the server. -->
+    <key>aps-environment</key>
+    <string>production</string>
+</dict>
+</plist>

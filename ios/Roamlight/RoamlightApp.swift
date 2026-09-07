@@ -7,6 +7,9 @@ import SwiftUI
 @main
 struct RoamlightApp: App {
     @StateObject private var state = AppState()
+    // ⚠ The delegate exists for one reason: only UIKit is handed the address
+    //   Apple mints for this phone. SwiftUI has no way to receive it.
+    @UIApplicationDelegateAdaptor(Notices.self) private var notices
 
     var body: some Scene {
         WindowGroup {
@@ -71,6 +74,9 @@ final class AppState: ObservableObject {
     }
 
     func signOut() {
+        // ⚠ Before the token goes: tell the site to stop sending here.
+        //   Afterwards there is nothing left to say it with.
+        Notices.shared.forget()
         Keychain.delete()
         token = nil
         me = nil
@@ -89,7 +95,15 @@ struct RootView: View {
                 PairView()
             }
         }
-        .task { await state.refresh() }
+        .task {
+            await state.refresh()
+            // ⚠ Only once there IS a connection. Asking before that means
+            //   asking somebody who has not yet seen a single photograph.
+            if state.connected {
+                Notices.shared.api = { state.api }
+                Notices.shared.askAndRegister()
+            }
+        }
     }
 }
 

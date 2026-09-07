@@ -179,6 +179,26 @@ struct API {
         try await run(try request("/photos/\(id)/\(width).webp?v=\(rev)"))
     }
 
+    // MARK: - Bescheed soen
+
+    /// Tell the site where this phone can be reached.
+    ///
+    /// ⚠ This is NOT the token that lets the app read the library -- that one
+    ///   lives in the keychain and is revoked when a phone is lost. This is
+    ///   only an address for a one-line notice, and the site keeps the two
+    ///   apart on purpose.
+    func registerForNotices(token: String, name: String) async throws {
+        _ = try await run(try request("/api/notify/register", method: "POST",
+            body: try JSONSerialization.data(withJSONObject: [
+                "kind": "apns", "token": token, "name": name])))
+    }
+
+    func forgetNotices(token: String) async throws {
+        _ = try await run(try request("/api/notify/unregister", method: "POST",
+            body: try JSONSerialization.data(withJSONObject: [
+                "kind": "apns", "token": token])))
+    }
+
     // MARK: - D'Rees an d'Kaart
 
     /// The opening animation for an album. `nil` when the place cannot be

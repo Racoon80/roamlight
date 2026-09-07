@@ -115,10 +115,8 @@
 })();
 
 /* --- The map --------------------------------------------------------------
-   ⚠ The tiles come STRAIGHT from OpenStreetMap, not through this site. That is
-   a decision, and it has a price -- see the note at the tile layer below. This
-   comment used to say the opposite, which was simply out of date: the /tiles/
-   proxy (app/tiles.py) still exists but nothing calls it. */
+   The tiles come from /tiles/... , that is from OUR server: a family member's
+   browser never talks to OpenStreetMap. See app/tiles.py. */
 (function () {
   "use strict";
   var el = document.getElementById("map");
@@ -148,11 +146,20 @@
     maxZoom: maxZoom,
     worldCopyJump: true
   });
-  // ⚠ The tiles come DIRECTLY from OSM here -- chosen deliberately: always
-  //   there, no holes, no upkeep. The price: the browser talks to OSM. That is
-  //   why OSM is in the CSP (img-src) as well. The /tiles/ proxy stays in the
-  //   code but is no longer used.
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  // ⚠ THROUGH this site, not straight from OSM.
+  //
+  //   It was direct for a while -- "always there, no holes, no upkeep". Then
+  //   OpenStreetMap started answering every tile with `Access blocked --
+  //   Referer is required`, and the whole map turned into a wall of those
+  //   words. It could not have worked: this site sends
+  //   `Referrer-Policy: no-referrer` on every answer, deliberately, so the
+  //   browser has none to give.
+  //
+  //   The proxy has none of that trouble: a server identifies itself with a
+  //   User-Agent (config.USER_AGENT), needs no Referer, and each tile is
+  //   fetched once and then cached here. And the old promise is true again --
+  //   a family member's browser talks to nobody but us.
+  L.tileLayer("/tiles/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 18,
     keepBuffer: 3                // a margin ahead, so dragging does not tear

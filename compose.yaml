@@ -61,13 +61,10 @@ services:
       # Share links (a guest without an account sees one collection).
       FAMILY_SHARES: "1"
       #
-      # ⚠ The map loads its tiles straight from OpenStreetMap, so a browser
-      #   looking at the map DOES talk to openstreetmap.org -- and which tiles
-      #   it asks for says roughly where your albums are. That is the trade for
-      #   a map that is always there and needs no upkeep. If that is not a
-      #   trade you want, seed the tiles into the container and switch it off:
-      #   FAMILY_TILE_OFFLINE=1 (see app/tileseed.py). Nothing else on the site
-      #   fetches anything from outside.
+      # The map draws its tiles from OpenStreetMap THROUGH this site, so a
+      # visitor's browser never talks to anyone else. Each tile is fetched once
+      # and kept. To cut even the server's requests, seed them in advance and
+      # set FAMILY_TILE_OFFLINE=1 (see app/tileseed.py).
       FAMILY_HOME_NAME: Luxembourg
       FAMILY_HOME_LAT: "49.6117"
       FAMILY_HOME_LON: "6.1319"

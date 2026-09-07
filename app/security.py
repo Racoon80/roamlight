@@ -237,11 +237,16 @@ _HEADERS = {
     "Cross-Origin-Resource-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
     "Content-Security-Policy": (
-        # Map tiles normally run through this server (see app/tiles.py), which
-        # is why everything else is 'self'. The OpenStreetMap entry is here for
-        # installations that would rather let the browser fetch tiles directly;
-        # drop it and nothing in a browser talks to anyone but you.
-        "default-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; "
+        # ⚠ Everything is 'self', with no exception for OpenStreetMap. The map
+        #   tiles run through this server (app/tiles.py), so nothing in a
+        #   browser talks to anybody but you.
+        #
+        #   There was an exception here while the map fetched tiles directly.
+        #   It had to go: OSM answers such a request with "Access blocked --
+        #   Referer is required", and this site sends `Referrer-Policy:
+        #   no-referrer` on purpose, so the browser has none to give. An
+        #   exception that nobody needs is one exception too many.
+        "default-src 'self'; img-src 'self' data:; "
         "style-src 'self' 'unsafe-inline'; script-src 'self'; "
         "font-src 'self'; connect-src 'self'; object-src 'none'; "
         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),

@@ -70,7 +70,9 @@
     scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
     keyboard: false, touchZoom: false, inertia: false
   });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+  // Through this site -- see the note in site.js. Straight from OSM this
+  // answers "Access blocked: Referer is required" for every single tile.
+  L.tileLayer("/tiles/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
   var bounds = L.latLngBounds(allPts);
 
   function pin(ll) {

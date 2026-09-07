@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _env                                                      # noqa: F401,E402
 
 sys.path.insert(0, _env.app_root())
-from app import db, notify                                       # noqa: E402
+from app import config, db, notify                               # noqa: E402
 
 ALBUM = "1994/Testland/Bescheed"
 PEOPLE = ("zz-notify-a", "zz-notify-b")
@@ -108,11 +108,51 @@ def main():
     with db.tx() as c:
         c.execute("UPDATE notify_pending SET send_after=datetime('now','-1 minute') "
                   "WHERE album_key=?", (ALBUM,))
+
+    # ⚠ Ouni ee Wee no baussen dierf d'Schlaang GUER net ugefaasst ginn --
+    #   soss géif de ganze Réckstand roueg verschwannen, wärend een nach e
+    #   Schlëssel besuergt. Op enger Testinstanz ass genee dat de Fall.
     tally = notify.flush()
-    check("duerno geet e fort", not pending("zz-notify-b"), str(tally))
+    check("ouni Transport bleift alles stoen",
+          tally.get("no_transport") and pending("zz-notify-b"), str(tally))
+
+    # An elo mat engem Wee -- ouni en echte Schlëssel: `apns_ready` gëtt fir
+    # dësen Test op True gesat, an `deliver` gëtt duerch ee ersat deen zielt.
+    echt_ready, echt_deliver = config.apns_ready, notify.deliver
+    geschéckt = []
+    config.apns_ready = lambda: True
+    notify.deliver = lambda d, ti, bo, da: geschéckt.append((d["token"], ti, bo))
+    try:
+        notify.register("zz-notify-b", "apns", "zz-token-flush", "Telefon")
+        tally = notify.flush()
+    finally:
+        config.apns_ready, notify.deliver = echt_ready, echt_deliver
+
+    check("mat engem Wee geet e fort", not pending("zz-notify-b"), str(tally))
     check("an all Reih vun deem Album ass fort", not pending(), f"{len(pending())} bliwwen")
-    check("an ouni Telefon gëtt näischt geschéckt", tally["sent"] == 0,
-          f"sent={tally['sent']}, no_device={tally['no_device']}")
+    check("an et gouf tatsächlech eppes geschéckt", len(geschéckt) == 1,
+          str(geschéckt[:1]))
+    check("mat der Zuel dran", geschéckt and "100" in geschéckt[0][2],
+          geschéckt[0][2] if geschéckt else "-")
+    notify.unregister("zz-notify-b", "apns", "zz-token-flush")
+
+    print("\n── eng GRUPP op der Lëscht ──")
+    grupp = "1994/Testland/Grupp"
+    with db.tx() as c:
+        c.execute("INSERT OR IGNORE INTO album_acl (album_key, principal) VALUES (?, ?)",
+                  (grupp, "group:zz-notify-grupp"))
+        c.execute("UPDATE members SET groups_json=? WHERE username=?",
+                  ('["zz-notify-grupp"]', "zz-notify-b"))
+    notify.note("photos", grupp, actor="zz-notify-a", n=2)
+    got = db.connect().execute(
+        "SELECT n FROM notify_pending WHERE username='zz-notify-b' AND album_key=?",
+        (grupp,)).fetchone()
+    check("wien iwwer eng Grupp dobäi ass, kritt och Bescheed", got is not None,
+          f"n={got['n'] if got else '-'}")
+    with db.tx() as c:
+        c.execute("DELETE FROM notify_pending WHERE album_key=?", (grupp,))
+        c.execute("DELETE FROM album_acl WHERE album_key=?", (grupp,))
+        c.execute("UPDATE members SET groups_json='[]' WHERE username='zz-notify-b'")
 
     print("\n── Zougang zu engem Album ──")
     notify.note_access(ALBUM, "zz-notify-b", actor="zz-notify-a")
@@ -131,8 +171,11 @@ def main():
     check("zweemol umellen = een Androen", n == 1, str(n))
     check("een onbekannte Wee gëtt refuséiert",
           _raises(lambda: notify.register("zz-notify-b", "carrier-pigeon", "x")))
-    notify.unregister("apns", "zz-token-1")
-    check("ofmellen hëlt en ewech", not notify.devices_of("zz-notify-b"))
+    # ⚠ Een aneren dierf en NET ofmellen -- en Token ass kee Geheimnis.
+    notify.unregister("zz-notify-a", "apns", "zz-token-1")
+    check("en anere kann en NET ofmellen", len(notify.devices_of("zz-notify-b")) == 1)
+    notify.unregister("zz-notify-b", "apns", "zz-token-1")
+    check("de Besëtzer awer schonn", not notify.devices_of("zz-notify-b"))
 
     clean()
     print(f"\n{'ALLES GRÉNG' if not bad else str(bad) + ' FEELER'} — {ok} ok")

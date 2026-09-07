@@ -94,6 +94,23 @@ struct AlbumCard: View {
     }
 }
 
+/// The mark on a video in the grid: the triangle, and how long it runs.
+@ViewBuilder
+func videoMark(_ p: Photo) -> some View {
+    HStack(spacing: 3) {
+        Image(systemName: "play.fill").font(.system(size: 8))
+        if let s = p.durationS, s > 0 {
+            Text("\(s / 60):\(String(format: "%02d", s % 60))")
+                .font(.system(size: 9, design: .monospaced))
+        }
+    }
+    .foregroundStyle(.white)
+    .padding(.horizontal, 4)
+    .padding(.vertical, 2)
+    .background(.black.opacity(0.55), in: Capsule())
+    .padding(4)
+}
+
 // MARK: - D'Fotoen an engem Album
 
 struct PhotosView: View {
@@ -135,6 +152,12 @@ struct PhotosView: View {
                             // Width pinned to the column -- see `AlbumCard`.
                             .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 110)
                             .clipped()
+                            // ⚠ A video has to look like a video. Without this
+                            //   it is a photograph that does nothing when you
+                            //   open it -- the poster frame and no way to tell.
+                            .overlay(alignment: .bottomTrailing) {
+                                if p.isVideo { videoMark(p) }
+                            }
                     }
                     .buttonStyle(.plain)
                     .onAppear {

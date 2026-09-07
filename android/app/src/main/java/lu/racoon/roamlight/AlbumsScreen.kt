@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -181,9 +182,26 @@ fun PhotoGrid(
                         }
                 ) {
                     RemoteImage(p.id, 400, Modifier.fillMaxSize(), rev = p.rev ?: 0)
+                    // ⚠ A video has to look like a video, and say how long it
+                    //   runs -- the same mark as the iOS app carries.
                     if (p.isVideo) {
-                        Text("▶", color = Ink.ink, fontSize = 20.sp,
-                             modifier = Modifier.align(Alignment.Center))
+                        Row(
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .background(Color.Black.copy(alpha = 0.55f),
+                                            RoundedCornerShape(50))
+                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("▶", color = Color.White, fontSize = 9.sp)
+                            p.durationS?.takeIf { it > 0 }?.let { s ->
+                                Text("%d:%02d".format(s / 60, s % 60),
+                                     color = Color.White, fontSize = 9.sp,
+                                     fontFamily = FontFamily.Monospace)
+                            }
+                        }
                     }
                 }
                 // The next page is asked for when the LAST picture appears --

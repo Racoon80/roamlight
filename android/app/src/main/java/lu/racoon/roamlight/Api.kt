@@ -172,6 +172,23 @@ class Api(private val store: Store) {
     suspend fun image(id: Int, width: Int, rev: Int = 0): ByteArray =
         run("/photos/$id/$width.webp?v=$rev")
 
+    // MARK: - Video
+
+    /**
+     * The address for the video, with its own proof in it.
+     *
+     * ⚠ Why not the Bearer header: the address is handed to the system's own
+     *   player, and that one makes its own requests -- with its own headers,
+     *   not ours. So the server signs the one address instead: fifteen
+     *   minutes, that photograph only, this person only. The same road the
+     *   iOS app takes.
+     */
+    suspend fun videoUrl(id: Int): String {
+        val t = VideoTicket.of(getJson("/api/photo/$id/video"))
+        if (t.url.isEmpty()) throw ApiError(0, "The site sent no address for that video.")
+        return java.net.URL(java.net.URL(site), t.url).toString()
+    }
+
     // MARK: - Deelen
 
     suspend fun share(album: Album, days: Int = 14): ShareResult =

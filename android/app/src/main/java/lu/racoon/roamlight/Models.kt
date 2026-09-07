@@ -134,6 +134,16 @@ data class PhotoPage(val total: Int, val page: Int, val pages: Int, val photos: 
     }
 }
 
+/** Where a video may be fetched from, and for how long that address is good. */
+data class VideoTicket(val url: String, val expiresIn: Int) {
+    companion object {
+        fun of(o: JSONObject) = VideoTicket(
+            url = o.optString("url", ""),
+            expiresIn = o.optInt("expires_in", 0),
+        )
+    }
+}
+
 data class ShareResult(val url: String, val password: String,
                        val expiresAt: String?, val n: Int?) {
     companion object {

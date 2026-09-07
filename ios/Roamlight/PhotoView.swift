@@ -1,5 +1,6 @@
 //  One photograph, large -- and the link for sharing an album.
 
+import AVKit
 import SwiftUI
 
 struct PhotoView: View {
@@ -22,6 +23,12 @@ struct PhotoView: View {
     @State private var panStart: CGSize = .zero
 
     private var zoomed: Bool { zoom > 1.001 }
+    /// ⚠ A video is left alone by the pinch and the pan: the player has its
+    ///   own controls, and two things fighting over the same drag is how a
+    ///   scrub bar becomes unusable. Turning the page still works.
+    private var onVideo: Bool {
+        photos.indices.contains(index) && photos[index].isVideo
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -29,15 +36,26 @@ struct PhotoView: View {
 
             HStack(spacing: 0) {
                 ForEach(Array(photos.enumerated()), id: \.offset) { i, p in
-                    RemoteImage(id: p.id, width: 1200, rev: p.rev ?? 0, contentMode: .fit)
-                        .scaleEffect(i == index ? zoom : 1)
-                        .offset(i == index ? pan : .zero)
-                        .frame(width: page.width, height: page.height)
-                        // ⚠ Clipped per page: a zoomed photograph must not
-                        //   spill over its neighbour — which is exactly what
-                        //   the screenshot of the bug showed.
-                        .clipped()
-                        .overlay(alignment: .bottom) { caption(p) }
+                    Group {
+                        if p.isVideo {
+                            // ⚠ Only the page you are on gets a player. Three
+                            //   AVPlayers side by side would each open their own
+                            //   connection and buffer — on a phone that is how
+                            //   an app gets killed for using too much.
+                            VideoPage(photo: p, active: i == index)
+                        } else {
+                            RemoteImage(id: p.id, width: 1200, rev: p.rev ?? 0,
+                                        contentMode: .fit)
+                                .scaleEffect(i == index ? zoom : 1)
+                                .offset(i == index ? pan : .zero)
+                        }
+                    }
+                    .frame(width: page.width, height: page.height)
+                    // ⚠ Clipped per page: a zoomed photograph must not spill
+                    //   over its neighbour — which is exactly what the
+                    //   screenshot of the bug showed.
+                    .clipped()
+                    .overlay(alignment: .bottom) { caption(p) }
                 }
             }
             .frame(width: page.width * CGFloat(max(photos.count, 1)),
@@ -47,6 +65,7 @@ struct PhotoView: View {
             .gesture(
                 MagnificationGesture()
                     .onChanged { v in
+                        guard !onVideo else { return }
                         zoom = min(max(zoomStart * v, 1), 5)
                         pan = clamped(pan, in: page)
                     }
@@ -58,7 +77,7 @@ struct PhotoView: View {
                     .simultaneously(with:
                         DragGesture()
                             .onChanged { v in
-                                if zoomed {
+                                if zoomed && !onVideo {
                                     pan = clamped(CGSize(
                                         width: panStart.width + v.translation.width,
                                         height: panStart.height + v.translation.height),
@@ -76,6 +95,7 @@ struct PhotoView: View {
                             })
             )
             .onTapGesture(count: 2) {
+                guard !onVideo else { return }
                 withAnimation(.spring(duration: 0.25)) {
                     if zoomed { reset() } else { zoom = 2.5; zoomStart = 2.5 }
                 }
@@ -156,6 +176,59 @@ struct PhotoView: View {
         .padding(8)
         .background(.black.opacity(0.35), in: Capsule())
         .padding(.bottom, 28)
+    }
+}
+
+/// One video, with the system's own player and its own controls.
+///
+/// ⚠ The player is made when this page becomes the one being looked at, and
+///   thrown away when it stops being it. Otherwise every video in the album
+///   would sit there holding a connection open behind your back.
+struct VideoPage: View {
+    let photo: Photo
+    let active: Bool
+
+    @EnvironmentObject var state: AppState
+    @State private var player: AVPlayer?
+    @State private var failed: String?
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if let player {
+                VideoPlayer(player: player)
+            } else if let failed {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(failed).font(.footnote).multilineTextAlignment(.center)
+                }
+                .foregroundStyle(Theme.inkSoft)
+                .padding(32)
+            } else {
+                // The poster frame, so there is something to look at while the
+                // address is being fetched.
+                RemoteImage(id: photo.id, width: 1200, rev: photo.rev ?? 0,
+                            contentMode: .fit)
+                ProgressView().tint(.white)
+            }
+        }
+        .task(id: active) {
+            guard active else {
+                player?.pause()
+                player = nil
+                return
+            }
+            do {
+                player = AVPlayer(url: try await state.api.videoURL(photo.id))
+                player?.play()
+            } catch {
+                failed = error.localizedDescription
+            }
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+        }
     }
 }
 

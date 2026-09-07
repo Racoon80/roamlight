@@ -179,6 +179,24 @@ struct API {
         try await run(try request("/photos/\(id)/\(width).webp?v=\(rev)"))
     }
 
+    // MARK: - Video
+
+    /// The address for the video, with its own proof in it.
+    ///
+    /// ⚠ Why not simply `/photos/<id>/video.mp4` with the token in a header:
+    ///   `AVPlayer` does not send headers you give it. Apple has an option for
+    ///   it that is not in the documentation, and a private key in a shipped
+    ///   app is how the app stops working one release later. So the server
+    ///   signs the one address instead -- fifteen minutes, that photograph
+    ///   only, this person only.
+    func videoURL(_ id: Int) async throws -> URL {
+        let t: VideoTicket = try await get("/api/photo/\(id)/video", as: VideoTicket.self)
+        guard let u = URL(string: t.url, relativeTo: Site.url) else {
+            throw APIError.badResponse
+        }
+        return u
+    }
+
     // MARK: - Deelen
 
     func share(album: Album, days: Int = 14) async throws -> ShareResult {

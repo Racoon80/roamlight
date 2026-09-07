@@ -194,6 +194,19 @@ def _identify(request: Request) -> Identity:
         if user:
             return _from_member(user)
 
+    # ⚠ A signed ticket, and ONLY for the address it was signed for. This is
+    #   how a video gets played: the operating system's player will not put a
+    #   header on its requests, so the address carries the proof instead. See
+    #   app/tickets.py -- the signature covers the path, so a ticket is
+    #   worthless anywhere else, and it carries no rights of its own: the
+    #   person it names is looked up and their ordinary permissions apply.
+    ticket = request.query_params.get("t", "")
+    if ticket:
+        from . import tickets
+        user = tickets.user_for(request.url.path, ticket)
+        if user:
+            return _from_member(user)
+
     if not config.AUTH_PROXY:
         return _empty()
 

@@ -2,6 +2,9 @@
 
 package lu.racoon.roamlight
 
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -21,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -79,6 +83,15 @@ fun PhotoScreen(nav: NavHostController, id: Int) {
             userScrollEnabled = scale <= 1.001f,
             modifier = Modifier.fillMaxSize(),
         ) { i ->
+            val photo = photos[i]
+            if (photo.isVideo) {
+                // ⚠ Only the page being looked at gets a player. Three players
+                //   side by side would each open their own connection and
+                //   buffer -- on a phone that is how an app gets killed for
+                //   using too much.
+                VideoPage(photo, active = i == pager.currentPage)
+                return@HorizontalPager
+            }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -144,6 +157,74 @@ private fun Caption(p: Photo, modifier: Modifier = Modifier) {
         }
         if (place != null) {
             Text(place, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+        }
+    }
+}
+
+/**
+ * Ee Video, mam Spiller vum System an dem seng eege Knäppercher.
+ *
+ * ⚠ `VideoView` an net eng Bibliothéik: de Server schéckt eng eenzeg
+ *   MP4-Datei, kee Stream deen d'Qualitéit wiesselt. Dofir kann de Spiller,
+ *   deen um Telefon souwisou do ass, alles wat gebraucht gëtt -- an d'App
+ *   bleift ouni eng weider Ofhängegkeet, wéi och beim Bild an beim JSON.
+ *
+ * ⚠ De Spiller gëtt gestoppt a fräiginn, soubal dës Säit net méi déi ass déi
+ *   ee kuckt. Soss hält all Video am Album eng Verbindung op.
+ */
+@Composable
+fun VideoPage(photo: Photo, active: Boolean) {
+    val api = LocalApi.current
+    var url by remember(photo.id) { mutableStateOf<String?>(null) }
+    var failed by remember(photo.id) { mutableStateOf<String?>(null) }
+    var view by remember(photo.id) { mutableStateOf<VideoView?>(null) }
+
+    LaunchedEffect(photo.id, active) {
+        if (!active) {
+            view?.pause()
+            return@LaunchedEffect
+        }
+        if (url == null && failed == null) {
+            try {
+                url = api.videoUrl(photo.id)
+            } catch (e: Exception) {
+                failed = (e as? ApiError)?.message ?: e.message
+            }
+        }
+    }
+
+    DisposableEffect(photo.id) {
+        onDispose {
+            view?.stopPlayback()
+            view = null
+        }
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        val u = url
+        when {
+            failed != null -> Text(failed!!, color = Ink.inkSoft, fontSize = 13.sp)
+            u == null -> {
+                // D'Standbild, sou datt eppes do ass wärend d'Adress gefrot gëtt.
+                RemoteImage(photo.id, 1200, Modifier.fillMaxSize(),
+                            rev = photo.rev ?: 0, contentScale = ContentScale.Fit)
+                CircularProgressIndicator(color = Color.White)
+            }
+            else -> AndroidView(
+                factory = { ctx ->
+                    VideoView(ctx).apply {
+                        setMediaController(MediaController(ctx).also { it.setAnchorView(this) })
+                        setVideoURI(Uri.parse(u))
+                        setOnPreparedListener { it.isLooping = false; start() }
+                        setOnErrorListener { _, what, extra ->
+                            failed = "The video could not be played ($what/$extra)."
+                            true
+                        }
+                        view = this
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }

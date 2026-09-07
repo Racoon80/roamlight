@@ -110,6 +110,17 @@ struct Facets: Decodable {
     let places: [String]
 }
 
+/// Where a video may be fetched from, and for how long that address is good.
+struct VideoTicket: Decodable {
+    let url: String
+    let expiresIn: Int
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case expiresIn = "expires_in"
+    }
+}
+
 struct Batch: Decodable {
     let batch: String
 }

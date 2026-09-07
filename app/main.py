@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import (acl, album, auth, collections, config, db, devices, gallery, geo,
                journey, members, register, scan, security, serve, shares, sync,
-               tagging, tiles, tileseed, tree, upload)
+               tagging, tickets, tiles, tileseed, tree, upload)
 from . import guests
 from . import convert as _convert          # registers the convert handler
 from .worker import Worker, enqueue, requeue_orphans
@@ -1560,6 +1560,33 @@ def api_photo(photo_id: int, request: Request):
     who = security.identify(request)
     p["lqip"] = serve.lqip(photo_id, who.is_admin, who)
     return p
+
+
+@app.get("/api/photo/{photo_id}/video")
+def api_photo_video(photo_id: int, request: Request):
+    """An address the phone's own player can fetch, with no header on it.
+
+    ⚠ Signed for that one address and for whoever asked -- see app/tickets.py.
+      The permission is decided HERE, the normal way: `gallery.photo` returns
+      nothing for an album this person may not see, and then there is no
+      ticket to be had. The ticket does not open anything; it only carries an
+      identity to a player that cannot carry one itself.
+    """
+    who = security.identify(request)
+    p = gallery.photo(photo_id, viewer=who)
+    if p is None:
+        raise HTTPException(status_code=404, detail="not found")
+    if p.get("kind") != "video":
+        raise HTTPException(status_code=404, detail="not a video")
+    # It has to actually be on disk -- a poster with no MP4 next to it would
+    # hand out a ticket to a 404.
+    serve.video(photo_id, who.is_admin, who)
+
+    path = f"/photos/{photo_id}/video.mp4"
+    ticket = tickets.mint(path, who.user)
+    return {"url": f"{path}?t={ticket}",
+            "expires_in": tickets.MINUTES * 60,
+            "duration_s": p.get("duration_s")}
 
 
 @app.get("/api/albums")

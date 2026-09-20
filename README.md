@@ -125,14 +125,43 @@ set -a && . ./.env && set +a
 
 ## Signing in
 
-Two ways, and they work side by side (`FAMILY_AUTH=local+proxy`).
+Three ways, and they work side by side. `local+oidc` is the usual pair:
+everybody through the provider, and one password account for the day the
+provider is down.
 
 **`local`** — accounts with a password, kept in this site's database. Passwords
 are argon2id. The first account you create is the administrator. This is the
 default, and for most people it is the whole story.
 
+**`oidc`** — the site is an OpenID Connect client **itself** and talks to your
+provider (Authentik, Keycloak, Entra…). Set the issuer and the client id, put
+the client secret in a file, and register
+`https://<your site>/auth/oidc/callback` with the provider:
+
+```
+FAMILY_AUTH=local+oidc
+FAMILY_OIDC_ISSUER=https://auth.example.com/application/o/roamlight/
+FAMILY_OIDC_CLIENT_ID=…
+FAMILY_OIDC_SECRET_FILE=/etc/roamlight/oidc-secret
+```
+
+The exchange uses PKCE, a one-use `state` tied to the browser by a cookie, and
+a `nonce`; the `id_token`'s signature, `iss`, `aud` and `exp` are all checked
+against the provider's published keys **before a single claim is read**. The
+groups in the token are matched by name against `FAMILY_ADMIN_GROUPS` and
+friends, so nothing else in the site learns a second vocabulary, and what comes
+out at the end is the same session cookie a password sign-in gives.
+
+⚠ **A provider account is never merged onto a password account.** The name in a
+token is often one the person can change themselves at the provider — so
+somebody renaming themselves to your emergency administrator's name would
+otherwise be handed that account. A name that already belongs to a password
+account is refused, loudly, and the two stay separate.
+
 **`proxy`** — an identity provider in front (Authentik, Authelia,
 oauth2-proxy…) authenticates, and passes the user and their groups as headers.
+The older arrangement: `oidc` does the same job inside the program, with
+nothing to configure in the proxy.
 
 ⚠ **Do not switch `proxy` on unless a proxy really is in front and really does
 overwrite those headers.** Otherwise anyone can send
@@ -141,10 +170,14 @@ demands a shared secret in `X-Family-Proxy` that only your proxy knows — that
 is what makes the header trustworthy. See [`deploy/nginx.conf`](deploy/nginx.conf)
 for a worked example.
 
-**Phones** get in a third way: a device token. On `/app` the site shows a QR
+**Phones** get in their own way: a device token. On `/app` the site shows a QR
 code that is good for five minutes and one device; the app scans it and trades
 it for a long-lived token. Tokens are listed on that page and can be taken off
 in one click — which works even when the phone itself is gone.
+
+⚠ With single sign-on this QR code is **the** way a phone gets in: the app has
+no password to send, because the provider holds it. The app says so on its
+sign-in screen rather than letting somebody type a password that cannot work.
 
 ---
 
@@ -154,7 +187,10 @@ Everything is environment variables. The ones that matter:
 
 | Variable | Default | What it is |
 |---|---|---|
-| `FAMILY_AUTH` | `local` | `local`, `proxy`, or `local+proxy` |
+| `FAMILY_AUTH` | `local` | `local`, `oidc`, `proxy` — or any of them together |
+| `FAMILY_OIDC_ISSUER` | — | Your provider, for `oidc`. https, no query string |
+| `FAMILY_OIDC_CLIENT_ID` | — | The client this site is registered as |
+| `FAMILY_OIDC_SECRET_FILE` | `/etc/roamlight/oidc-secret` | The client secret. Leave it out for a public client |
 | `FAMILY_SITE_TITLE` | `Roamlight` | The name in the masthead and on the home screen |
 | `FAMILY_SITE_URL` | `http://localhost:8080` | The address share links are built from |
 | `FAMILY_ORIGINS` | `/originals` | Your photographs. Read, not written |

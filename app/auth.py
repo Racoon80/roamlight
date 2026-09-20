@@ -82,6 +82,27 @@ def has_local_users() -> bool:
         "LIMIT 1").fetchone())
 
 
+def has_local_admin() -> bool:
+    """Is there still an administrator who signs in with a password?
+
+    ⚠ This is the way back in when the identity provider is down, or when it
+      hands out the wrong groups. `oidc.sign_in()` refuses to write onto an
+      account that has a password precisely so that this can never quietly
+      become false -- and something has to be able to ask.
+    """
+    import json
+    for row in db.connect().execute(
+            "SELECT groups_json FROM members "
+            "WHERE is_local=1 AND password_hash IS NOT NULL AND active=1"):
+        try:
+            groups = json.loads(row["groups_json"] or "[]")
+        except (ValueError, TypeError):
+            continue
+        if config.ADMIN_GROUPS.intersection(str(g) for g in groups):
+            return True
+    return False
+
+
 def create_user(username: str, password: str, display_name: str = "",
                 groups=None, email: str = "") -> None:
     """Create a local account, or set the password of one that exists.

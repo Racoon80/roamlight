@@ -67,6 +67,41 @@ AUTH_MODES = set(m.strip().lower() for m in
                  if m.strip())
 AUTH_LOCAL = "local" in AUTH_MODES
 AUTH_PROXY = "proxy" in AUTH_MODES
+# ⚠ The third road: the site is an OpenID Connect client ITSELF and talks to
+#   the provider (Authentik, Keycloak, Entra…) on its own. It does the same job
+#   as `proxy` and puts it in a different place: `proxy` has nginx ask the
+#   provider and the app believe a header, this has the app ask and believe
+#   nobody. That means no outpost, no shared secret in two files, and no
+#   arrangement that quietly stops being true when somebody edits the proxy.
+#   All three can run side by side (`FAMILY_AUTH=local+oidc` is the usual one:
+#   everybody through the provider, and one password account for the day the
+#   provider is down).
+AUTH_OIDC = "oidc" in AUTH_MODES
+
+# --- the provider, when FAMILY_AUTH contains `oidc` ---------------------------
+# ⚠ The issuer is read from the SETTINGS and never from a request. It decides
+#   which addresses this site will fetch and whose signatures it will trust, so
+#   it must not be something a caller can choose.
+OIDC_ISSUER = os.environ.get("FAMILY_OIDC_ISSUER", "").strip().rstrip("/")
+OIDC_CLIENT_ID = os.environ.get("FAMILY_OIDC_CLIENT_ID", "").strip()
+# Public clients (PKCE only) leave this unset; most providers want it.
+OIDC_SECRET_FILE = _path("FAMILY_OIDC_SECRET_FILE", "/etc/roamlight/oidc-secret")
+# ⚠ Built from SITE_URL by default, NOT from the Host header: a redirect_uri
+#   taken from the request is a redirect_uri somebody else can choose, and it
+#   is registered with the provider anyway -- so a mismatch should be loud.
+OIDC_REDIRECT_URI = os.environ.get("FAMILY_OIDC_REDIRECT_URI", "").strip()
+OIDC_SCOPES = os.environ.get("FAMILY_OIDC_SCOPES", "openid email profile").strip()
+OIDC_USERNAME_CLAIM = os.environ.get("FAMILY_OIDC_USERNAME_CLAIM",
+                                     "preferred_username").strip()
+OIDC_GROUPS_CLAIM = os.environ.get("FAMILY_OIDC_GROUPS_CLAIM", "groups").strip()
+# For a provider without discovery. An exception, not the road: with these
+# empty the endpoints come out of `/.well-known/openid-configuration`, which is
+# the only way `iss` checking is checking against the provider and not against
+# something somebody typed.
+OIDC_ENDPOINT_OVERRIDES = {
+    name: os.environ.get(f"FAMILY_OIDC_{name.upper()}_URL", "").strip()
+    for name in ("authorization", "token", "userinfo", "jwks", "end_session")
+}
 
 # How long a sign-in lasts, in days.
 # ⚠ The first start is an open door: while there is no account, ANYBODY who
@@ -337,6 +372,42 @@ def proxy_secret() -> str:
         return ""
 
 
+def oidc_issuer_ok(value: str) -> bool:
+    """Is this an address this site may be pointed at?
+
+    ⚠ Three rules, and each one is a way in that was left out:
+      * **https**, because the code, the token and the session that comes out
+        of them all cross the browser's network. `localhost` is the exception
+        every provider makes, for testing.
+      * **no query**, because the path is what `/.well-known/…` is appended to
+        and `?a=b` would put the well-known address after a question mark.
+      * **a real address**, not a bare word.
+    """
+    from urllib.parse import urlparse
+    try:
+        u = urlparse((value or "").strip())
+    except ValueError:
+        return False
+    if u.query or u.fragment or not u.netloc:
+        return False
+    if u.scheme == "https":
+        return True
+    return u.scheme == "http" and u.hostname in ("localhost", "127.0.0.1", "::1")
+
+
+def oidc_secret() -> str:
+    """The client secret, or "" for a public client.
+
+    ⚠ Read from the file each time and never held in a module variable that
+      could end up in a traceback or a settings page. It is never logged and
+      never sent to a browser.
+    """
+    try:
+        return OIDC_SECRET_FILE.read_text().strip()
+    except OSError:
+        return ""
+
+
 def check_startup() -> None:
     """Stop before the server listens, when the locks are not in place.
 
@@ -352,6 +423,18 @@ def check_startup() -> None:
         return
     if not AUTH_MODES:
         sys.exit("FAMILY_AUTH is empty -- use 'local', 'proxy' or 'local+proxy'.")
+    if AUTH_OIDC:
+        missing = [name for name, value in
+                   (("FAMILY_OIDC_ISSUER", OIDC_ISSUER),
+                    ("FAMILY_OIDC_CLIENT_ID", OIDC_CLIENT_ID)) if not value]
+        if missing:
+            sys.exit("FAMILY_AUTH contains 'oidc', but " + " and ".join(missing) +
+                     " is not set. Without the issuer this site does not know "
+                     "whose signatures to trust.")
+        if not oidc_issuer_ok(OIDC_ISSUER):
+            sys.exit(f"FAMILY_OIDC_ISSUER is {OIDC_ISSUER!r} -- it has to be an "
+                     "https address with no query string (http is allowed only "
+                     "for localhost).")
     if not AUTH_PROXY:
         return
     secret = proxy_secret()

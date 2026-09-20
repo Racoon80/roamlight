@@ -84,6 +84,14 @@ fun PairScreen(state: AppState) {
         }
 
         if (withPassword) {
+            // ⚠ Not every site's road. Where the family signs in through a
+            //   provider (single sign-on) there is no password here to type --
+            //   the provider holds it and the code above is the way in. Saying
+            //   so BEFORE somebody types their work password into an app that
+            //   cannot use it is the whole point of this line.
+            Text("Only if the site has its own accounts. With single sign-on " +
+                 "there is no password here — use the code above.",
+                 color = Ink.inkMute, fontSize = 12.sp)
             OutlinedTextField(
                 value = site, onValueChange = { site = it },
                 label = { Text("Site") },

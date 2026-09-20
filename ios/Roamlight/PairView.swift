@@ -50,8 +50,20 @@ struct PairView: View {
                 //   needs a second machine: the site open on a computer, and
                 //   five minutes. Somebody holding only a phone had no way in
                 //   at all -- which is also what an App Store reviewer is.
+                //
+                // ⚠ And it is not every site's road. Where the family signs in
+                //   through a provider (single sign-on), there is no password
+                //   here to type: the provider holds it, and the code above is
+                //   the way in. Saying so HERE, rather than after somebody has
+                //   typed their work password into an app that cannot use it,
+                //   is the whole point of this line.
                 DisclosureGroup("Sign in with a password") {
                     VStack(spacing: 10) {
+                        Text("Only if the site has its own accounts. With single "
+                             + "sign-on there is no password here — use the code above.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.inkMute)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         TextField("Site", text: $site)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()

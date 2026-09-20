@@ -3,7 +3,11 @@
 Every request in the site funnels through `identify()`, and identity can arrive
 by three different roads:
 
-  1. a **session cookie**, from someone who signed in with a password
+  1. a **session cookie** — from someone who signed in with a password, OR who
+     came back from the identity provider (app/oidc.py). Those two end in the
+     same cookie on purpose: single sign-on did not add a fourth road here, it
+     added a second way of arriving on the first one, and nothing else in the
+     site can tell the difference.
   2. a **device token** (`Authorization: Bearer fam_…`), from the phone app
   3. **headers from an identity proxy** in front (Authentik, Authelia, …)
 
@@ -39,8 +43,15 @@ _NO_USER_PREFIXES = ("/s/", "/static/")
 # ⚠ `/api/app/login` is here for the same reason as `/api/app/pair`: it is
 #   the door itself. It checks the password on its own and is throttled by
 #   the same counter as the website's form.
+# ⚠ `/auth/oidc/login` and `/auth/oidc/callback` are the door itself when the
+#   site signs people in through a provider (app/oidc.py). Behind the gate they
+#   would need the identity they exist to establish, and single sign-on would
+#   be a locked door with the key inside. They carry no rights of their own:
+#   the callback checks the state cookie, the PKCE verifier, the signature,
+#   `iss`, `aud`, `exp` and the nonce before anybody is anybody.
 _NO_USER_EXACT = ("/api/health", "/robots.txt", "/api/app/authz", "/api/app/pair",
                   "/api/app/login",
+                  "/auth/oidc/login", "/auth/oidc/callback",
                   "/login", "/logout", "/setup")
 
 
@@ -62,7 +73,12 @@ def _no_access(request: Request):
     a dead end. A **request** (API, image) gets the 403: an app needs an error,
     not a sign-in page it will then try to read as JSON.
     """
-    if config.AUTH_LOCAL and "text/html" in (request.headers.get("accept") or ""):
+    # ⚠ `or config.AUTH_OIDC`: with the provider road alone there is still a
+    #   sign-in page to send somebody to -- it carries the button instead of a
+    #   password box. Without this an `oidc`-only installation answered a
+    #   browser with a bare 403 and no way onward.
+    if ((config.AUTH_LOCAL or config.AUTH_OIDC)
+            and "text/html" in (request.headers.get("accept") or "")):
         from urllib.parse import quote
         from fastapi.responses import RedirectResponse
         target = request.url.path + (("?" + request.url.query) if request.url.query else "")
@@ -182,7 +198,13 @@ def _built(user: str, email: str, groups: tuple, local: bool) -> Identity:
 
 
 def _identify(request: Request) -> Identity:
-    if config.AUTH_LOCAL:
+    # ⚠ `or config.AUTH_OIDC`. The provider road ENDS in an ordinary session
+    #   cookie -- `oidc.sign_in()` calls the same `auth.new_session()` a
+    #   password sign-in does. With this reading the cookie only in `local`
+    #   mode, a site set to `FAMILY_AUTH=oidc` alone would hand out a session
+    #   at the end of the sign-in and then never look at it again: signed in,
+    #   and locked out, on the same request.
+    if config.AUTH_LOCAL or config.AUTH_OIDC:
         cookie = request.cookies.get(config.SESSION_COOKIE)
         if cookie:
             from . import auth

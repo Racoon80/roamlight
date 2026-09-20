@@ -21,8 +21,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from . import (acl, album, auth, collections, config, db, devices, gallery, geo,
-               journey, members, register, scan, security, serve, shares, sync,
-               notify, tagging, tickets, tiles, tileseed, tree, upload)
+               journey, members, oidc, register, scan, security, serve, shares,
+               sync, notify, tagging, tickets, tiles, tileseed, tree, upload)
 from . import guests
 from . import convert as _convert          # registers the convert handler
 from .worker import Worker, enqueue, requeue_orphans
@@ -998,8 +998,33 @@ def page_person(request: Request, name: str, page: int = 1):
 #  identity proxy does this, and these paths do not exist.
 # ---------------------------------------------------------------------------
 def _sso_link() -> str:
-    """Where the "sign in with SSO" button points -- or empty."""
+    """Where the "sign in with SSO" button points -- or empty.
+
+    ⚠ Two different arrangements end up on this one button. With `oidc` the
+      site does the whole exchange itself (app/oidc.py) and the button is our
+      own path. With `proxy` the provider's outpost sits in front and the
+      address is whatever that outpost is -- which only the installation
+      knows, hence the environment variable.
+    """
+    if oidc.enabled():
+        return "/auth/oidc/login"
     return os.environ.get("FAMILY_SSO_START", "") if config.AUTH_PROXY else ""
+
+
+def _sso_href(next_url: str) -> str:
+    """The button's address, with where to come back to.
+
+    ⚠ The joining is done HERE and not in the template, because
+      `FAMILY_SSO_START` is somebody's own address and may well carry a query
+      of its own already -- a second `?` would make the whole thing one
+      parameter with a strange name.
+    """
+    link = _sso_link()
+    if not link:
+        return ""
+    from urllib.parse import quote
+    goal = next_url if next_url.startswith("/") and not next_url.startswith("//") else "/"
+    return link + ("&" if "?" in link else "?") + "next=" + quote(goal, safe="/")
 
 
 def _https(request: Request) -> bool:
@@ -1077,18 +1102,21 @@ async def do_setup(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 def page_login(request: Request, next: str = "/", error: str = ""):
-    # ⚠ Without local sign-in this page does NOT exist. Otherwise an
-    #   SSO installation would show a password box nobody can type anything
-    #   into -- and that looks like a fault in the site.
-    if not config.AUTH_LOCAL:
+    # ⚠ The page exists when there is SOMETHING to sign in with. Without local
+    #   accounts it shows no password box -- one nobody can type into looks
+    #   like a fault in the site -- but with a provider configured it still has
+    #   to exist, because that is where the button lives and where `_no_access`
+    #   sends a browser.
+    if not (config.AUTH_LOCAL or oidc.enabled()):
         raise HTTPException(status_code=404, detail="not found")
-    if not auth.has_local_users():
+    if config.AUTH_LOCAL and not auth.has_local_users():
         return RedirectResponse("/setup", status_code=303)
     if security.identify(request).is_viewer:
         return RedirectResponse(next or "/", status_code=303)
     return templates.TemplateResponse(request, "login.html", {
         "site_title": config.SITE_TITLE, "static_ver": _static_ver(),
-        "next": next or "/", "error": error, "sso": _sso_link()})
+        "next": next or "/", "error": error, "sso": _sso_href(next or "/"),
+        "local": config.AUTH_LOCAL})
 
 
 @app.post("/login")
@@ -1119,11 +1147,97 @@ async def do_login(request: Request):
     return _set_session(request, RedirectResponse(goal_, status_code=303), cookie)
 
 
+# ---------------------------------------------------------------------------
+#  Signing in through the identity provider (app/oidc.py)
+# ---------------------------------------------------------------------------
+@app.get("/auth/oidc/login")
+def oidc_login(request: Request, next: str = "/"):
+    """Off to the provider.
+
+    ⚠ Behind no check at all, because this IS the way in. What it must not
+      become is a way to make this site fetch an address somebody chose -- and
+      it cannot: the issuer comes from the configuration and never from the
+      request.
+    """
+    if not oidc.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        url, state = oidc.begin(next)
+    except oidc.OidcError as exc:
+        logging.getLogger("family").warning("oidc: cannot start: %s", exc)
+        raise HTTPException(status_code=503,
+                            detail="single sign-on is not usable right now")
+    resp = RedirectResponse(url, status_code=303)
+    # ⚠ This cookie is what makes the callback belong to THIS browser. `state`
+    #   on its own is server-side and one-use, which proves some browser
+    #   started the exchange -- not that this one did. See oidc.begin().
+    resp.set_cookie(oidc.STATE_COOKIE, state, max_age=oidc.PENDING_MINUTES * 60,
+                    httponly=True, samesite="lax", secure=_https(request),
+                    path="/auth/oidc/")
+    return resp
+
+
+@app.get("/auth/oidc/callback")
+def oidc_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    """Back from the provider, with a code.
+
+    ⚠ One sentence comes back to the browser when this fails. The provider's
+      own words, the token endpoint's answer, which check did not hold -- all
+      of that goes to the log. A page that explains exactly why a token was
+      refused is a tool for whoever is forging them.
+    """
+    if not oidc.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    log = logging.getLogger("family")
+    if error:
+        log.warning("oidc: the provider refused: %s", error[:200])
+        raise HTTPException(status_code=403, detail="the provider did not let you in")
+    mine = request.cookies.get(oidc.STATE_COOKIE, "")
+    if not mine or not hmac.compare_digest(mine, state or ""):
+        log.warning("oidc: callback without the matching state cookie "
+                    "(cookie=%s, query=%s) -- refused", bool(mine), bool(state))
+        raise HTTPException(
+            status_code=403,
+            detail="that sign-in did not start in this browser. Open the site "
+                   "and press sign in again.")
+    try:
+        claims, goal = oidc.finish(code, state)
+        cookie = oidc.sign_in(claims)
+    except oidc.OidcError as exc:
+        log.warning("oidc: sign-in refused: %s", exc)
+        raise HTTPException(status_code=403,
+                            detail="that sign-in could not be completed")
+    resp = _set_session(request, RedirectResponse(goal or "/", status_code=303), cookie)
+    resp.delete_cookie(oidc.STATE_COOKIE, path="/auth/oidc/")
+    return resp
+
+
 @app.get("/logout")
 @app.post("/logout")
 def do_logout(request: Request):
-    auth.end_session(request.cookies.get(config.SESSION_COOKIE, ""))
-    resp = RedirectResponse("/login", status_code=303)
+    """Sign out -- by whichever road this person came in.
+
+    ⚠ The road is decided by whether there was a session to end, not by the
+      configuration. With `local+oidc` both are open at once and only the
+      cookie says which one this visitor used: ending the local session and
+      stopping there would leave a single-sign-on visitor signed in, and
+      bouncing everybody to the provider would drag a password visitor through
+      a sign-in screen that is not theirs.
+    """
+    cookie = request.cookies.get(config.SESSION_COOKIE, "")
+    was_password = bool(cookie) and auth.session_user(cookie) is not None \
+        and not oidc.enabled()
+    auth.end_session(cookie)
+    goal = "/login"
+    if oidc.enabled() and not was_password:
+        # ⚠ The provider's own sign-out, when it names one. Ending only our
+        #   session leaves theirs -- and one click later the person is back in
+        #   without typing anything.
+        try:
+            goal = oidc.endpoint("end_session") or "/login"
+        except Exception:                                        # noqa: BLE001
+            goal = "/login"
+    resp = RedirectResponse(goal, status_code=303)
     resp.delete_cookie(config.SESSION_COOKIE, path="/")
     return resp
 
@@ -1253,7 +1367,18 @@ def api_app_login(request: Request, body: dict = Body(...)):
       to tell one visitor from another.
     """
     if not config.AUTH_LOCAL:
-        raise HTTPException(status_code=404, detail="not found")
+        # ⚠ Say WHY, and say what to do instead. This used to be a bare
+        #   "not found", and on a site that signs people in through a provider
+        #   that is the answer every single person gets when they try the
+        #   obvious thing -- with nothing to tell them the road exists but runs
+        #   elsewhere. It gives nothing away: the sign-in page says the same to
+        #   anybody who opens it.
+        raise HTTPException(
+            status_code=404,
+            detail="This site signs people in through single sign-on, so there "
+                   "is no password to type here. Open the site in a browser, "
+                   "sign in there, and press “Phone & tablet” → “Show the "
+                   "code”; then scan or type that code.")
     ip = security.client_ip(request)
     if auth.blocked(ip):
         raise HTTPException(status_code=429, detail="Too many tries. Wait a few minutes.")

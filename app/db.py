@@ -377,6 +377,19 @@ CREATE TABLE IF NOT EXISTS jobs (
     updated_at TEXT
 );
 
+-- One sign-in through the identity provider, while it is in flight.
+-- ⚠ The verifier (PKCE) and the nonce live HERE and never leave this machine.
+--    That is what makes a stolen authorisation code worthless. The row is
+--    deleted in the same transaction that reads it (see oidc._take) -- two
+--    callbacks carrying the same `state` must not both be allowed through.
+CREATE TABLE IF NOT EXISTS oidc_pending (
+    state      TEXT PRIMARY KEY,
+    verifier   TEXT NOT NULL,
+    nonce      TEXT NOT NULL,
+    next       TEXT NOT NULL DEFAULT '/',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS state (
     key   TEXT PRIMARY KEY,
     value TEXT

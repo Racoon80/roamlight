@@ -6,17 +6,23 @@
   <p class="meta">{{ "Welcome back." if not error else "" }}</p>
   {% if error %}<p class="signin__bad">{{ error }}</p>{% endif %}
   <input type="hidden" name="next" value="{{ next }}">
+  {# ⚠ No password box where there are no password accounts (`FAMILY_AUTH=oidc`
+     on its own). One nobody can type into looks like a fault in the site. #}
+  {% if local %}
   <label><span>Name</span>
     <input name="username" autocomplete="username" autocapitalize="none"
            autocorrect="off" required autofocus></label>
   <label><span>Password</span>
     <input name="password" type="password" autocomplete="current-password" required></label>
   <button class="btn btn--go" type="submit">Sign in</button>
+  {% endif %}
   {% if sso %}
-  {# ⚠ Both ways side by side: `FAMILY_AUTH=local+proxy`. The button goes to the
-     proxy, which then does its own sign-in. #}
-  <p class="meta signin__or">or</p>
-  <a class="btn" href="{{ sso }}">Sign in with single sign-on</a>
+  {# ⚠ Both ways side by side: `FAMILY_AUTH=local+oidc` (or `local+proxy`).
+     With `oidc` the link is this site's own path and the site talks to the
+     provider itself; with `proxy` it is the outpost's address. #}
+  {% if local %}<p class="meta signin__or">or</p>{% endif %}
+  <a class="btn {{ 'btn--go' if not local else '' }}"
+     href="{{ sso }}">Sign in with single sign-on</a>
   {% endif %}
 </form>
 {% endblock %}

@@ -4,11 +4,26 @@
         |  sha256, exiftool, duplicate check
         v
     a suggestion: year - country - name - place
-        |  the person uploading confirms or changes it
+        |  the person uploading confirms or changes it       (`begin`)
         v
-    originals/<year>/<country>/<name>/  verified (sha256 read back)
-        |
-        +- and only THEN is the copy in incoming removed
+    the queue files it away                                  (`file_away`)
+        |  originals/<year>/<country>/<name>/, sha256 read back
+        |  and only THEN is the copy in incoming removed
+        v
+    ask how far it has got, as often as you like             (`progress`)
+
+⚠ The last step is a QUEUE and not the request, and that is the one thing in
+  here worth knowing. Filing 247 photographs takes about twelve minutes -- a
+  virus scan, a copy, a read-back and a database row, each -- and no HTTP
+  request survives that: nginx gives up after sixty seconds unless told
+  otherwise, Cloudflare after a hundred and there is no telling it otherwise, a
+  phone goes to sleep sooner than both. On 20.09.2026 a batch of 247 was filed
+  perfectly and the person who sent it was shown a 504, because by the time
+  there was an answer there was nobody left to give it to.
+
+  So: `begin` writes down what was confirmed and hands the work over, and what
+  happened to each file is written into `upload_files` as it goes -- where it
+  can still be read tomorrow, by whoever asks.
 """
 import logging
 import re
@@ -17,6 +32,7 @@ import shutil
 from pathlib import Path
 
 from . import av, config, db, library, meta, tree
+from .worker import enqueue, handler
 
 log = logging.getLogger("family")
 
@@ -42,8 +58,12 @@ def create_batch() -> str:
 
 
 def add_file(batch: str, original_name: str, size: int) -> dict:
+    # ⚠ `filing_at IS NULL` too: once the filing has started, the list of files
+    #   is what the worker is walking through. A file added now would either be
+    #   missed or picked up half-written.
     row = db.connect().execute(
-        "SELECT id FROM upload_batches WHERE token=? AND committed_at IS NULL", (batch,)
+        "SELECT id FROM upload_batches WHERE token=? AND committed_at IS NULL "
+        "AND filing_at IS NULL", (batch,)
     ).fetchone()
     if row is None:
         raise ValueError("unknown batch")
@@ -137,14 +157,149 @@ def proposal(batch: str) -> dict:
     }
 
 
-def commit(batch: str, year: str, country: str, event: str = "", place: str = "",
-           include_duplicates: bool = False, owner: str = None,
-           keep_original: bool = True) -> dict:
-    """The four fields are confirmed -- now it gets filed away.
+# --------------------------------------------------------------------------
+#  Filing away: ASK for it, DO it, ask HOW FAR it has got.
+#
+#  ⚠ These three used to be one single request, and that was a bug waiting for
+#    a big upload to find it. Filing 247 photographs takes about twelve
+#    minutes -- a virus scan, a copy, a sha256 read back and a database row,
+#    each, one after the other -- and nothing survives twelve minutes of HTTP:
+#    nginx gives up after sixty seconds unless told otherwise, Cloudflare after
+#    a hundred whatever anybody configures, a phone goes into a pocket sooner
+#    than either. On 20.09.2026 all 247 photographs were filed perfectly and
+#    the person who sent them was shown an error, because the answer had
+#    nowhere left to arrive.
+#
+#    So the request only writes down what was confirmed and hands the work to
+#    the queue. The work then takes as long as it takes, and the client asks
+#    how far it has got. A commit that is repeated does NOT file anything
+#    twice -- `file_away` only ever looks at files that are still `ready`.
+# --------------------------------------------------------------------------
+
+
+def _mark(file_id: int, state: str, note: str = None) -> None:
+    """Write down how one file of a batch ended up.
+
+    ⚠ This is why the reason survives. It used to live only in the answer to
+      the commit request -- and when that answer was lost (a proxy giving up,
+      a phone asleep), nobody could ever find out why a photograph had not
+      arrived.
+    """
+    with db.tx() as conn:
+        conn.execute("UPDATE upload_files SET state=?, note=? WHERE id=?",
+                     (state, note, file_id))
+
+
+def begin(batch: str, year: str, country: str, event: str = "", place: str = "",
+          include_duplicates: bool = False, owner: str = None,
+          keep_original: bool = True) -> dict:
+    """The four fields are confirmed. Returns AT ONCE; the filing runs in the queue.
 
     The FOLDER is the name: a wedding is called "Anna's wedding" and not the name
     of the village. The place is something else and stays as metadata (for the
     map). With no name the place is used instead, and the other way round.
+    """
+    b = db.connect().execute(
+        "SELECT * FROM upload_batches WHERE token=? AND committed_at IS NULL", (batch,)
+    ).fetchone()
+    if b is None:
+        raise ValueError("unknown batch (or already finished)")
+    # ⚠ Asked for twice -- a phone that lost the answer and sent it again. That
+    #   is not an error and it must not start a second run: say where the first
+    #   one has got to.
+    if b["filing_at"]:
+        return progress(batch)
+
+    event = (event or "").strip() or (place or "").strip()
+    place = (place or "").strip() or event
+    folder = tree.target_dir(year, country, event)      # ValueError if it is not a path
+    n = db.connect().execute(
+        "SELECT COUNT(*) FROM upload_files WHERE batch_id=? AND state='ready'",
+        (b["id"],)).fetchone()[0]
+    with db.tx() as conn:
+        conn.execute(
+            "UPDATE upload_batches SET year=?, country=?, event=?, place=?, owner=?, "
+            "keep_original=?, include_duplicates=?, filing_at=datetime('now') WHERE id=?",
+            (year, country, event, place, owner,
+             1 if keep_original else 0, 1 if include_duplicates else 0, b["id"]))
+    enqueue("file-batch", batch)
+    log.info("upload %s: %d file(s) handed to the queue for %s/%s/%s",
+             batch, n, year, country, folder.name)
+    # ⚠ `stored`, `skipped` and `failed` go out empty rather than missing: a
+    #   client that reads them without looking gets an empty list, not a crash.
+    return {"state": "working", "batch": batch, "files": n,
+            "folder": str(folder), "web_folder": str(tree.web_dir(year, country, event)),
+            "event": folder.name, "year": year, "country": country,
+            "stored": [], "skipped": [], "failed": [], "incoming_left": n}
+
+
+@handler("file-batch")
+def _file_batch_job(row) -> None:
+    """The queue's side of it. ⚠ A job that breaks comes back (see worker.py),
+    and the second run carries on where the first stopped.
+
+    ⚠ A batch that is already finished is NOT an error here. The service can
+      stop between the last file and the line that marks the job done, and then
+      the job runs once more -- with nothing left to do. Raising there would
+      put a red `error` on the queue for a batch that went perfectly."""
+    token = row["payload"]
+    done = db.connect().execute(
+        "SELECT 1 FROM upload_batches WHERE token=? AND committed_at IS NOT NULL",
+        (token,)).fetchone()
+    if done:
+        return
+    file_away(token)
+
+
+def progress(batch: str) -> dict:
+    """How far the filing has got. Safe to ask as often as you like."""
+    b = db.connect().execute(
+        "SELECT * FROM upload_batches WHERE token=?", (batch,)).fetchone()
+    if b is None:
+        raise ValueError("unknown batch")
+    rows = db.connect().execute(
+        "SELECT id, state, original_name, note, photo_id FROM upload_files "
+        "WHERE batch_id=? ORDER BY id", (b["id"],)).fetchall()
+    # ⚠ `file_id` goes out with every one of them. That is the number the
+    #   client gave its row on the screen when the file went up -- `photo_id`
+    #   only exists once the photograph has been filed, and a row that FAILED
+    #   never gets one. Without this the page could not say which line went
+    #   wrong.
+    stored = [{"file_id": r["id"], "file": r["original_name"],
+               "photo_id": r["photo_id"]}
+              for r in rows if r["state"] == "stored"]
+    skipped = [{"file_id": r["id"], "file": r["original_name"],
+                "reason": r["note"] or "Duplikat"}
+               for r in rows if r["state"] == "skipped"]
+    failed = [{"file_id": r["id"], "file": r["original_name"],
+               "error": r["note"] or "unknown"}
+              for r in rows if r["state"] == "failed"]
+    waiting = sum(1 for r in rows if r["state"] == "ready")
+    folder = web_folder = ""
+    if b["year"] and b["country"] and b["event"]:
+        try:
+            folder = str(tree.target_dir(b["year"], b["country"], b["event"]))
+            web_folder = str(tree.web_dir(b["year"], b["country"], b["event"]))
+        except ValueError:
+            pass
+    return {
+        # ⚠ `done` is `committed_at`, and nothing else. Counting the files
+        #   would call it finished in the gap between the last one and the
+        #   last line of `file_away`.
+        "state": ("done" if b["committed_at"] else
+                  "working" if b["filing_at"] else "waiting"),
+        "batch": batch,
+        "total": len(stored) + len(skipped) + len(failed) + waiting,
+        "waiting": waiting,
+        "stored": stored, "skipped": skipped, "failed": failed,
+        "folder": folder, "web_folder": web_folder,
+        "year": b["year"], "country": b["country"], "event": b["event"],
+        "incoming_left": waiting,
+    }
+
+
+def file_away(batch: str) -> dict:
+    """Write the batch into the library. Runs in the queue, never in a request.
 
     Per file: write into the originals tree, read it back, compare the sha256,
     create the row in `photos`, and ONLY THEN remove the copy in incoming. If
@@ -156,8 +311,11 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
     if b is None:
         raise ValueError("unknown batch (or already finished)")
 
-    event = (event or "").strip() or (place or "").strip()
-    place = (place or "").strip() or event
+    year, country = b["year"], b["country"]
+    event, place = b["event"] or "", b["place"] or ""
+    owner = b["owner"]
+    keep_original = bool(b["keep_original"])
+    include_duplicates = bool(b["include_duplicates"])
     folder = tree.target_dir(year, country, event)
     rows = db.connect().execute(
         "SELECT * FROM upload_files WHERE batch_id=? AND state='ready' ORDER BY taken_at, id",
@@ -165,10 +323,18 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
     ).fetchall()
 
     stored, skipped, failed = [], [], []
-    seq = 0
+    # ⚠ NOT 0. The file name is built out of the capture date and this number,
+    #   and this job can run a second time (it broke, the service restarted).
+    #   Starting at zero again would build a name that is already on disk, and
+    #   `store_original` refuses to overwrite -- so the second run would report
+    #   a collision for work the first run did correctly.
+    seq = db.connect().execute(
+        "SELECT COUNT(*) FROM upload_files WHERE batch_id=? AND state='stored'",
+        (b["id"],)).fetchone()[0]
     for r in rows:
         if r["dup_of"] and not include_duplicates:
             skipped.append({"file": r["original_name"], "reason": "Duplikat"})
+            _mark(r["id"], "skipped", "Duplikat")
             continue
         seq += 1
         src = _batch_dir(batch) / f"{r['id']}.{r['ext']}"
@@ -179,9 +345,10 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
         # something you did not put there.
         av_state, av_detail = av.scan(src)
         if av_state != av.CLEAN:
-            failed.append({"file": r["original_name"],
-                           "error": ("virus scan: infected" if av_state == av.INFECTED
-                                     else "virus scan could not run")})
+            why = ("virus scan: infected" if av_state == av.INFECTED
+                   else "virus scan could not run")
+            failed.append({"file": r["original_name"], "error": why})
+            _mark(r["id"], "failed", why)
             log.warning("upload refused (%s): %s -- %s",
                         av_state, av_detail, r["original_name"])
             continue
@@ -192,6 +359,7 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
                 res = library.store_original(src, folder, name, expect_sha=r["sha256"])
             except Exception as exc:                   # noqa: BLE001 -- reported
                 failed.append({"file": r["original_name"], "error": str(exc)})
+                _mark(r["id"], "failed", str(exc))
                 continue
             rel = str(Path(res["path"]).relative_to(config.ORIGIN_DIR))
             origin_root, source_path = "my_photos", None
@@ -210,6 +378,7 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
                 shutil.move(str(src), str(staged))
             except Exception as exc:                   # noqa: BLE001
                 failed.append({"file": r["original_name"], "error": str(exc)})
+                _mark(r["id"], "failed", str(exc))
                 continue
             rel = web_rel
             origin_root, source_path = "user", str(staged)
@@ -238,14 +407,15 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
             src.unlink(missing_ok=True)
         stored.append({"file": r["original_name"], "path": rel, "photo_id": photo_id})
         # The conversion hangs off the upload itself -- no waiting for a scan.
-        from .worker import enqueue
         enqueue("convert", str(photo_id))
 
+    # ⚠ `committed_at` is written LAST and only here. It is what the client
+    #   reads as "finished", so it must not be set while a single file is
+    #   still to be done.
     with db.tx() as conn:
         conn.execute(
-            "UPDATE upload_batches SET committed_at=datetime('now'), year=?, country=?, "
-            "event=?, place=? WHERE id=?",
-            (year, country, event, place, b["id"]),
+            "UPDATE upload_batches SET committed_at=datetime('now') WHERE id=?",
+            (b["id"],),
         )
     left = [p for p in _batch_dir(batch).iterdir()] if _batch_dir(batch).is_dir() else []
     if not left:
@@ -265,8 +435,7 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
         if not _acl.of_album(year, tree.clean_name(country), folder.name):
             _acl.set_audience(year, tree.clean_name(country), folder.name,
                               [f"user:{owner}"])
-    from .worker import enqueue as _eq
-    _eq("geocode", "")
+    enqueue("geocode", "")
     return {
         "folder": str(folder), "web_folder": str(tree.web_dir(year, country, event)),
         # The name as it lands on disk -- with the trailing year removed
@@ -295,7 +464,14 @@ def purge_orphans(older_than_hours: int = 24) -> dict:
         "SELECT token FROM upload_batches WHERE committed_at IS NULL")}
     gone_ = 0
     for d in config.INCOMING_DIR.iterdir():
-        if not d.is_dir() or d.name.startswith("share-") or d.name in known:
+        # ⚠ `staged` is NOT an orphan. It holds the master sources of every
+        #   contributor's photographs (origin_root='user') until the conversion
+        #   has built the master from them -- `photos.master_source_path` points
+        #   straight into it. It is not a batch token and it does not start with
+        #   `share-`, so without this line a backlog of conversions older than a
+        #   day would have been deleted out from under the queue.
+        if not d.is_dir() or d.name in ("staged",) or d.name.startswith("share-") \
+                or d.name in known:
             continue
         try:
             if d.stat().st_mtime > cutoff:

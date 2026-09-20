@@ -284,20 +284,76 @@ class Api(private val store: Store) {
         postJson("/api/upload/$batch/file",
             JSONObject().put("name", name).put("size", size)).getInt("file_id")
 
-    suspend fun sendChunk(batch: String, file: Int, offset: Int, data: ByteArray) {
-        run("/api/upload/$batch/file/$file/chunk?offset=$offset", "PUT", data,
-            "application/octet-stream", readTimeoutMs = 120_000)
-    }
+    /**
+     * Send one chunk. Returns how many bytes the site now holds of this file.
+     *
+     * ⚠ On a `409` the site says in its answer how far it REALLY got
+     * ("wrong offset: we have 1234, you sent 5678"). That is what makes an
+     * upload resumable, and the app used to throw the sentence away and give
+     * up. Now the number is read out and handed back, so the caller carries on
+     * from there instead of losing the whole run to one dropped packet.
+     */
+    suspend fun sendChunk(batch: String, file: Int, offset: Int, data: ByteArray): Int =
+        try {
+            val answer = run("/api/upload/$batch/file/$file/chunk?offset=$offset", "PUT", data,
+                "application/octet-stream", readTimeoutMs = 120_000)
+            try { JSONObject(String(answer)).optInt("have", offset + data.size) }
+            catch (_: Exception) { offset + data.size }
+        } catch (e: ApiError) {
+            if (e.code == 409) haveFrom(e.detail) ?: throw e else throw e
+        }
 
+    /** `wrong offset: we have 1234, you sent 5678` -> 1234 */
+    private fun haveFrom(detail: String): Int? =
+        Regex("we have (\\d+)").find(detail)?.groupValues?.get(1)?.toIntOrNull()
+
+    /**
+     * ⚠ Long: the site hashes the file and reads its metadata here, and for a
+     *   video off a phone that is not instant.
+     */
     suspend fun finishFile(batch: String, file: Int) {
-        run("/api/upload/$batch/file/$file/done", "POST", "{}".toByteArray())
+        run("/api/upload/$batch/file/$file/done", "POST", "{}".toByteArray(),
+            readTimeoutMs = 180_000)
     }
 
+    /**
+     * Confirm the album.
+     *
+     * ⚠ The site answers AT ONCE and files the photographs away in its own
+     * time -- ask [uploadStatus] whether it has finished. Waiting for the
+     * commit itself is what used to fail: 247 photographs take the site about
+     * twelve minutes, and nothing in between waits that long (nginx sixty
+     * seconds by default, Cloudflare a hundred and no way to raise it, a phone
+     * less than either).
+     */
     suspend fun commit(batch: String, year: String, country: String,
                        event: String, place: String) {
         run("/api/upload/$batch/commit", "POST", JSONObject()
             .put("year", year).put("country", country)
-            .put("event", event).put("place", place).toString().toByteArray())
+            .put("event", event).put("place", place).toString().toByteArray(),
+            readTimeoutMs = 120_000)
+    }
+
+    /** How far the filing has got: `waiting` / `working` / `done`. */
+    suspend fun uploadStatus(batch: String): UploadStatus {
+        val o = getJson("/api/upload/$batch/status")
+        fun list(key: String, field: String): List<String> {
+            val a = o.optJSONArray(key) ?: return emptyList()
+            return (0 until a.length()).mapNotNull { i ->
+                val e = a.optJSONObject(i) ?: return@mapNotNull null
+                val what = e.optString(field, "")
+                if (what.isEmpty()) null
+                else "${e.optString("file", "one photograph")}: $what"
+            }
+        }
+        return UploadStatus(
+            state = o.optString("state", "working"),
+            total = o.optInt("total", 0),
+            settled = (o.optJSONArray("stored")?.length() ?: 0) +
+                (o.optJSONArray("skipped")?.length() ?: 0) +
+                (o.optJSONArray("failed")?.length() ?: 0),
+            failed = list("failed", "error"),
+        )
     }
 
     companion object {

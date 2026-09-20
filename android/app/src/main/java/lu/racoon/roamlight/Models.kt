@@ -225,3 +225,24 @@ data class Facets(val years: List<String>, val countries: List<String>,
         )
     }
 }
+
+/**
+ * How far the site has got with filing a batch away.
+ *
+ * ⚠ The commit answers AT ONCE and the filing runs in the site's own queue --
+ * so this is what says whether it is finished. Waiting for the commit itself
+ * is what used to fail: on 20.09.2026 a batch of 247 photographs was filed
+ * perfectly in about twelve minutes and the person who sent it was shown an
+ * error, because no proxy and no phone waits that long for one answer.
+ */
+data class UploadStatus(
+    /** `waiting` (nothing asked for yet), `working`, `done`. */
+    val state: String,
+    val total: Int,
+    /** Stored + skipped + failed, i.e. how many are settled one way or another. */
+    val settled: Int,
+    /** One line per photograph that did not make it, reason included. */
+    val failed: List<String>,
+) {
+    val isDone: Boolean get() = state == "done"
+}

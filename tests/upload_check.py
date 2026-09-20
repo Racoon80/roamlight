@@ -150,6 +150,28 @@ def call(method, path, data=None, raw=None, ctype="application/json"):
         return e.code, json.loads(e.read() or b"{}")
 
 
+def commit(batch, **fields):
+    """Confirm a batch and wait until the site has filed it away.
+
+    ⚠ The commit ANSWERS AT ONCE and the filing runs in the queue, so a test
+      that read `stored` out of the commit's answer would read an empty list
+      every time. Everything that used to be in that answer is in
+      `/status` -- and stays there, which is the whole point: the outcome no
+      longer depends on anybody still listening when it is ready.
+    """
+    import time
+    st, out = call("POST", f"/api/upload/{batch}/commit", fields)
+    if st != 200:
+        return st, out
+    t0 = time.time()
+    while time.time() - t0 < 300:
+        st, out = call("GET", f"/api/upload/{batch}/status")
+        if st != 200 or out.get("state") == "done":
+            return st, out
+        time.sleep(1)
+    return 504, {"error": "the filing did not finish within 300s", **(out or {})}
+
+
 def make_photo(path, dt, seq):
     """A real JPEG with EXIF -- Pillow for the image, exiftool for the metadata."""
     from PIL import Image
@@ -232,9 +254,9 @@ def main():
     chk("Virschlag: Joer aus dem EXIF", prop["proposal"]["year"] == "1999", prop)
     chk("the proposal counts three files", prop["files"] == 3, prop)
 
-    st, out = call("POST", f"/api/upload/{batch}/commit",
-                   {"year": YEAR, "country": COUNTRY, "event": EVENT, "place": PLACE})
+    st, out = commit(batch, year=YEAR, country=COUNTRY, event=EVENT, place=PLACE)
     chk("Commit ok", st == 200 and len(out.get("stored", [])) == 3, out)
+    chk("the filing says it is finished", out.get("state") == "done", out.get("state"))
     chk("no error while storing", not out.get("failed"), out.get("failed"))
 
     chk("the folder is the proposed path", Path(out["folder"]) == target, out.get("folder"))
@@ -274,8 +296,7 @@ def main():
     st, b2 = call("POST", "/api/upload/batch"); batch2 = b2["batch"]; MY_BATCHES.append(batch2)
     r2 = upload(batch2, src[0])
     chk("a duplicate is recognised", bool(r2.get("duplicate_of")), r2)
-    st, out2 = call("POST", f"/api/upload/{batch2}/commit",
-                    {"year": YEAR, "country": COUNTRY, "event": EVENT, "place": PLACE})
+    st, out2 = commit(batch2, year=YEAR, country=COUNTRY, event=EVENT, place=PLACE)
     chk("a duplicate is skipped by default",
         len(out2.get("stored", [])) == 0 and len(out2.get("skipped", [])) == 1, out2)
     chk("no fourth file in the originals tree", len(list(target.iterdir())) == 3,

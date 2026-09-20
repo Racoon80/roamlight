@@ -11,6 +11,9 @@ enum APIError: LocalizedError {
     case notConnected
     case http(Int, String)
     case badResponse
+    /// The site already holds this many bytes of the file -- carry on there.
+    /// ⚠ Not a failure: this is how a broken-off upload is picked up again.
+    case wrongOffset(Int)
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +21,7 @@ enum APIError: LocalizedError {
         case .badResponse:  return "The site sent something unexpected."
         case .http(401, _): return "This device was taken off the list. Connect it again."
         case .http(let c, let m): return m.isEmpty ? "The site said \(c)." : m
+        case .wrongOffset(let n): return "Carrying on from \(n) bytes."
         }
     }
 }
@@ -47,8 +51,15 @@ struct API {
 
     // MARK: - Ufroen
 
+    /// ⚠ `timeout` is a parameter and no longer a constant 30 seconds. Thirty
+    ///   is right for reading a page of photographs and wrong for everything an
+    ///   upload does: a chunk on a mobile network, and above all the commit,
+    ///   which the site answers at once but which still has to get there.
+    ///   A constant 30 here is what made a perfectly good upload of 247
+    ///   photographs report a failure on 20.09.2026.
     private func request(_ path: String, method: String = "GET",
-                         body: Data? = nil, json: Bool = true) throws -> URLRequest {
+                         body: Data? = nil, json: Bool = true,
+                         timeout: TimeInterval = 30) throws -> URLRequest {
         guard let url = URL(string: path, relativeTo: Site.url) else {
             throw APIError.badResponse
         }
@@ -57,7 +68,7 @@ struct API {
         r.httpBody = body
         if json, body != nil { r.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        r.timeoutInterval = 30
+        r.timeoutInterval = timeout
         return r
     }
 
@@ -304,23 +315,55 @@ struct API {
                        as: NewFile.self).fileID
     }
 
-    func sendChunk(batch: String, file: Int, offset: Int, data: Data) async throws {
+    /// Send one chunk. Returns how many bytes the site has of this file.
+    ///
+    /// ⚠ The site answers `409` with the offset it actually holds when ours
+    ///   does not match -- that is the whole point of a resumable upload, and
+    ///   the app used to throw the answer away and give up. Now the number is
+    ///   read out and the caller carries on from there.
+    @discardableResult
+    func sendChunk(batch: String, file: Int, offset: Int, data: Data) async throws -> Int {
         var r = try request("/api/upload/\(batch)/file/\(file)/chunk?offset=\(offset)",
-                            method: "PUT", body: data, json: false)
+                            method: "PUT", body: data, json: false, timeout: 120)
         r.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        _ = try await run(r)
+        do {
+            // ⚠ `answer`, not `data`: `data` is the chunk we just sent, and
+            //   shadowing it here would count the ANSWER's bytes as the
+            //   file's.
+            let answer = try await run(r)
+            if let obj = try? JSONSerialization.jsonObject(with: answer) as? [String: Any],
+               let have = obj["have"] as? Int { return have }
+            return offset + data.count
+        } catch APIError.http(409, let message) {
+            throw APIError.wrongOffset(API.offset(in: message) ?? offset)
+        }
     }
 
+    /// `wrong offset: we have 1234, you sent 5678` -> 1234
+    private static func offset(in message: String) -> Int? {
+        guard let r = message.range(of: "we have ") else { return nil }
+        return Int(message[r.upperBound...].prefix { $0.isNumber })
+    }
+
+    /// ⚠ Long: the site hashes the file and reads its metadata here, and for a
+    ///   video off a phone that is not instant.
     func finishFile(batch: String, file: Int) async throws {
         _ = try await run(try request("/api/upload/\(batch)/file/\(file)/done", method: "POST",
-                                      body: Data("{}".utf8)))
+                                      body: Data("{}".utf8), timeout: 180))
     }
 
+    /// Confirm the album. ⚠ The site answers AT ONCE and files the photographs
+    /// away in its own time -- ask `status` whether it has finished.
     func commit(batch: String, year: String, country: String,
                 event: String, place: String) async throws {
         _ = try await run(try request(
             "/api/upload/\(batch)/commit", method: "POST",
             body: try JSONSerialization.data(withJSONObject: [
-                "year": year, "country": country, "event": event, "place": place])))
+                "year": year, "country": country, "event": event, "place": place]),
+            timeout: 120))
+    }
+
+    func uploadStatus(batch: String) async throws -> UploadStatus {
+        try await get("/api/upload/\(batch)/status", as: UploadStatus.self)
     }
 }

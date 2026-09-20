@@ -334,16 +334,49 @@
   });
   drop.addEventListener("drop", function (e) { e.preventDefault(); handle(e.dataTransfer.files); });
 
+  /* ⚠ The commit ANSWERS AT ONCE and the filing runs in the queue -- so this
+     asks how far it has got, once a second, until the site says `done`.
+     It used to wait for the one answer, and for a few hundred photographs that
+     answer came twelve minutes later: past nginx's sixty seconds, past
+     Cloudflare's hundred, past the patience of anybody watching. The work was
+     always done; the answer was what got lost. */
+  function follow(token, say) {
+    return j("/api/upload/" + token + "/status").then(function (st) {
+      var did = st.stored.length + st.skipped.length + st.failed.length;
+      if (say) say(did, st.total);
+      /* ⚠ Keyed on `file_id` and not on `photo_id`: the row on the screen was
+         made when the file went up, and that is the number it carries. A file
+         that FAILED has no photo_id at all -- with the old key its line simply
+         never changed, and the failure was invisible. */
+      st.stored.forEach(function (f) {
+        setRow(f.file_id, 100, "stored", "on the site"); });
+      st.skipped.forEach(function (f) {
+        setRow(f.file_id, 100, "ready", f.reason || "already known"); });
+      st.failed.forEach(function (f) {
+        setRow(f.file_id, 100, "rejected", f.error || "failed"); });
+      if (st.state === "done") return st;
+      return new Promise(function (ok) { setTimeout(ok, 1000); })
+        .then(function () { return follow(token, say); });
+    });
+  }
+
   $("commit").addEventListener("click", function () {
-    var dups = $("dups");
+    var dups = $("dups"), btn = this, token = batch;
+    btn.disabled = true;
+    result.innerHTML = '<p class="warn">Filing them away…</p>';
     j("/api/upload/" + batch + "/commit", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         year: val("year"), country: val("country"), event: val("event"),
         place: val("place"), include_duplicates: !!(dups && dups.checked)
       })
+    }).then(function () {
+      return follow(token, function (did, total) {
+        result.innerHTML = '<p class="warn">Filing them away… ' + did + " of " +
+          total + "</p>";
+      });
     }).then(function (out) {
-      out.stored.forEach(function (s) { setRow(s.photo_id, 100, "stored", "on the site"); });
+      btn.disabled = false;
       /* ⚠ Only now: before the commit the album does not exist yet, and a
          viewing list on an album that does not exist would be a row hanging
          nowhere. */
@@ -371,7 +404,10 @@
       result.innerHTML = html + "</div>";
       after.hidden = true; batch = null; rows = {};
       loadTree().then(redrawDrawer);
-    }).catch(function (e) { result.innerHTML = '<p class="warn">' + esc(e.message) + "</p>"; });
+    }).catch(function (e) {
+      btn.disabled = false;
+      result.innerHTML = '<p class="warn">' + esc(e.message) + "</p>";
+    });
   });
 
   $("reset").addEventListener("click", function () {

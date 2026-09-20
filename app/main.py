@@ -352,10 +352,17 @@ def api_commit(batch: str, request: Request, body: dict = Body(...)):
 
     ⚠ An admin uploads into the library (the original stays in the originals
     tree, owner=NULL). A contributor uploads THEIR OWN photographs: owner=their
-    name, and the original is thrown away after the conversion."""
+    name, and the original is thrown away after the conversion.
+
+    ⚠ This ANSWERS AT ONCE and the filing runs in the queue -- ask
+    `/api/upload/{batch}/status` how far it has got. It used to do the whole
+    job here, and a batch of 247 photographs took twelve minutes: longer than
+    nginx waits (60s by default), longer than Cloudflare waits (100s, and that
+    one cannot be configured away), longer than a phone stays awake. The work
+    was done correctly every time and the answer had nowhere to arrive."""
     ident = _contributor(request)
     try:
-        return upload.commit(
+        return upload.begin(
             batch,
             year=str(body.get("year", "")),
             country=str(body.get("country", "")),
@@ -367,6 +374,17 @@ def api_commit(batch: str, request: Request, body: dict = Body(...)):
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/upload/{batch}/status")
+def api_upload_status(batch: str, request: Request):
+    """How far the filing has got: `waiting` / `working` / `done`, and per file
+    what became of it. Cheap enough to ask every second."""
+    _contributor(request)
+    try:
+        return upload.progress(batch)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # --------------------------------------------------------------------------

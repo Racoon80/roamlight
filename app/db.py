@@ -102,6 +102,13 @@ CREATE TABLE IF NOT EXISTS upload_batches (
     country      TEXT,
     event        TEXT,
     place        TEXT,
+    -- ⚠ What the person confirmed on the form. The filing runs in the queue
+    -- (upload.file_away), so the answer has to outlive the request that
+    -- brought it.
+    owner        TEXT,
+    keep_original      INTEGER NOT NULL DEFAULT 1,
+    include_duplicates INTEGER NOT NULL DEFAULT 0,
+    filing_at    TEXT,              -- filing started; committed_at = finished
     share_id     INTEGER REFERENCES shares(id) ON DELETE SET NULL
 );
 
@@ -122,7 +129,11 @@ CREATE TABLE IF NOT EXISTS upload_files (
     dup_of        INTEGER REFERENCES photos(id) ON DELETE SET NULL,
     photo_id      INTEGER REFERENCES photos(id) ON DELETE SET NULL,
     state         TEXT NOT NULL DEFAULT 'uploading',
-        -- uploading | ready | rejected | stored
+        -- uploading | ready | rejected | stored | failed
+        -- ⚠ `failed` carries its reason in `note`. It used to live only in the
+        --   answer to the commit request -- so when that answer was lost (a
+        --   proxy timing out, a phone going to sleep), the reason was lost
+        --   with it and the file looked simply absent.
     note          TEXT
 );
 
@@ -499,6 +510,16 @@ MIGRATIONS = [
     # apart from one that came out of a directory.
     ("members", "password_hash", "TEXT"),
     ("members", "is_local", "INTEGER NOT NULL DEFAULT 0"),
+    # The filing of a batch happens in the queue, not in the request that asks
+    # for it (see upload.begin / upload.file_away). So what the person
+    # confirmed on the form has to be WRITTEN DOWN -- the request that carried
+    # it is long gone by the time the worker picks the job up.
+    ("upload_batches", "owner", "TEXT"),
+    ("upload_batches", "keep_original", "INTEGER NOT NULL DEFAULT 1"),
+    ("upload_batches", "include_duplicates", "INTEGER NOT NULL DEFAULT 0"),
+    # When the filing STARTED. `committed_at` says when it finished; between
+    # the two the batch is being worked on, and a second commit is refused.
+    ("upload_batches", "filing_at", "TEXT"),
 ]
 
 

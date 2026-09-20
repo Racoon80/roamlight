@@ -61,6 +61,14 @@ fun UploadScreen(nav: NavHostController) {
     var made by remember { mutableStateOf<Album?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf<String?>(null) }
+    /**
+     * ⚠ One line per photograph that would not go up -- collected, not thrown.
+     * The run carries on, and at the end the person is told the whole truth
+     * instead of the first half of it.
+     */
+    var trouble by remember { mutableStateOf<List<String>>(emptyList()) }
+    /** What the site says while it files them away ("143 of 247"). */
+    var filing by remember { mutableStateOf<String?>(null) }
 
     /**
      * ⚠ Swallows its errors on purpose: these lists are a convenience. If they
@@ -131,32 +139,89 @@ fun UploadScreen(nav: NavHostController) {
                 onClick = {
                     scope.launch {
                         running = true; failed = null; note = null; made = null; done = 0
+                        trouble = emptyList(); filing = null
                         val wasNew = existing == null
                         try {
                             val batch = api.newBatch()
                             picked.forEachIndexed { i, uri ->
-                                val data = withContext(Dispatchers.IO) {
-                                    context.contentResolver.openInputStream(uri)
-                                        ?.use { it.readBytes() }
-                                } ?: return@forEachIndexed
-                                // ⚠ There HAS to be a name: the server hangs the
-                                //   extension off it and tells from that what
-                                //   kind of file it is.
-                                val ext = context.contentResolver.getType(uri)
-                                    ?.substringAfterLast('/')?.substringBefore(';')
-                                    ?.let { if (it == "jpeg") "jpg" else it } ?: "jpg"
-                                val fid = api.addFile(batch, "IMG_${i + 1}.$ext", data.size)
-                                var offset = 0
-                                while (offset < data.size) {
-                                    val end = minOf(offset + Api.CHUNK, data.size)
-                                    api.sendChunk(batch, fid, offset, data.copyOfRange(offset, end))
-                                    offset = end
+                                // ⚠ One photograph that will not go up must NOT
+                                //   take the other 246 with it. This used to sit
+                                //   inside the one `try` around everything: a
+                                //   single chunk failing (a handover from wifi to
+                                //   the mobile network is enough) ended the whole
+                                //   run there and then.
+                                try {
+                                    val data = withContext(Dispatchers.IO) {
+                                        context.contentResolver.openInputStream(uri)
+                                            ?.use { it.readBytes() }
+                                    } ?: return@forEachIndexed
+                                    // ⚠ There HAS to be a name: the server hangs
+                                    //   the extension off it and tells from that
+                                    //   what kind of file it is.
+                                    val ext = context.contentResolver.getType(uri)
+                                        ?.substringAfterLast('/')?.substringBefore(';')
+                                        ?.let { if (it == "jpeg") "jpg" else it } ?: "jpg"
+                                    val fid = api.addFile(batch, "IMG_${i + 1}.$ext", data.size)
+                                    var offset = 0
+                                    var tries = 0
+                                    while (offset < data.size) {
+                                        val end = minOf(offset + Api.CHUNK, data.size)
+                                        try {
+                                            offset = api.sendChunk(
+                                                batch, fid, offset,
+                                                data.copyOfRange(offset, end))
+                                            tries = 0
+                                        } catch (e: Exception) {
+                                            // ⚠ Three goes, a moment apart. A
+                                            //   mobile network drops a packet; that
+                                            //   is not a reason to lose an album.
+                                            tries += 1
+                                            if (tries >= 3) throw e
+                                            delay(1000L * tries)
+                                        }
+                                    }
+                                    api.finishFile(batch, fid)
+                                    done += 1
+                                } catch (e: Exception) {
+                                    trouble = trouble +
+                                        ((e as? ApiError)?.message ?: e.message ?: "failed")
                                 }
-                                api.finishFile(batch, fid)
-                                done += 1
+                            }
+                            if (done == 0) {
+                                failed = trouble.firstOrNull() ?: "Nothing could be sent."
+                                running = false
+                                return@launch
                             }
                             api.commit(batch, year.trim(), country.trim(),
                                        name.trim(), place.trim())
+
+                            // ⚠ The commit answers at once; the site files them
+                            //   away in its own time. So ask how far it has got
+                            //   instead of waiting for an answer that is not
+                            //   coming. It gives up ASKING after five minutes,
+                            //   not the upload -- the photographs are on the site
+                            //   either way and the album turns up on its own.
+                            // ⚠ A `for` with `break`, not `repeat { return@repeat }`:
+                            //   `return@repeat` leaves the LAMBDA, which is a
+                            //   `continue` -- the loop would race through its
+                            //   turns with no pause, asking the site as fast as
+                            //   it can.
+                            var lastFailed = emptyList<String>()
+                            for (turn in 0 until 150) {
+                                val st = runCatching { api.uploadStatus(batch) }.getOrNull()
+                                if (st != null) {
+                                    filing = "${st.settled} of ${st.total}"
+                                    lastFailed = st.failed
+                                    if (st.isDone) break
+                                }
+                                delay(2000)
+                            }
+                            // ⚠ The LAST answer only. A file that has gone wrong
+                            //   is in every answer from then on, so adding them up
+                            //   would report one bad photograph a hundred times.
+                            trouble = trouble + lastFailed
+                            filing = null
+
                             note = "$done sent" +
                                 (if (wasNew) " — the album is being made."
                                  else " — the site is converting them.")
@@ -168,7 +233,12 @@ fun UploadScreen(nav: NavHostController) {
                             //   does not appear in the list. So wait for it --
                             //   otherwise "Create the album" ends with nothing
                             //   to show for it.
-                            repeat(20) {
+                            // ⚠ `for`/`break` for the same reason as above: this
+                            //   said `return@repeat`, which only ends that one
+                            //   turn of the lambda. So once the album HAD been
+                            //   found it kept going round, nineteen more times,
+                            //   with no pause between them.
+                            for (turn in 0 until 20) {
                                 refreshLists()
                                 val found = albums.firstOrNull {
                                     it.year == year.trim() && it.country == country.trim() &&
@@ -178,7 +248,7 @@ fun UploadScreen(nav: NavHostController) {
                                     made = found
                                     note = "$done photograph${if (done == 1) "" else "s"} " +
                                         "in ${found.title}."
-                                    return@repeat
+                                    break
                                 }
                                 delay(1500)
                             }
@@ -189,6 +259,11 @@ fun UploadScreen(nav: NavHostController) {
                         } catch (e: Exception) {
                             failed = (e as? ApiError)?.message ?: e.message
                         }
+                        if (trouble.isNotEmpty()) {
+                            note = (note ?: "") + " ${trouble.size} did not go up."
+                            failed = trouble.take(3).joinToString(" · ")
+                        }
+                        filing = null
                         running = false
                     }
                 },
@@ -206,6 +281,10 @@ fun UploadScreen(nav: NavHostController) {
                 }
             }
 
+            // ⚠ While the site is filing them away: say so, and say how far.
+            //   The photographs are already there at this point -- a screen that
+            //   said nothing is what made people think it had gone wrong.
+            filing?.let { Text("Filing them away… $it", color = Ink.inkSoft, fontSize = 13.sp) }
             note?.let { Text(it, color = Ink.inkSoft, fontSize = 13.sp) }
             failed?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
             made?.let { a ->

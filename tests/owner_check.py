@@ -155,6 +155,15 @@ def main():
     batch = _upload_as(MEMBER, "mine.jpg")
     st, d = req(f"/api/upload/{batch}/commit", MEMBER, "POST", data={
         "year": YEAR, "country": "Testland", "event": EVENT, "place": "Testplaz"})
+    chk("the commit is accepted at once", st == 200, f"{st} {d}")
+    # ⚠ The filing runs in the queue now, so `stored` is read from `/status`
+    #   and not from the commit's answer -- the answer is sent before the work
+    #   is done, on purpose. See app/upload.py.
+    for _ in range(300):
+        st, d = req(f"/api/upload/{batch}/status", MEMBER)
+        if st != 200 or d.get("state") == "done":
+            break
+        time.sleep(1)
     chk("the member can upload", st == 200 and len(d.get("stored", [])) == 1,
         f"{st} {d}")
     for _ in range(60):

@@ -197,3 +197,30 @@ struct NewFile: Decodable {
         case ext
     }
 }
+
+/// How far the filing of a batch has got.
+///
+/// ⚠ The commit answers AT ONCE and the site files the photographs away in its
+///   own time -- so this is what says whether it is finished. Waiting for the
+///   commit itself is what used to fail: 247 photographs take the site about
+///   twelve minutes, and nothing in between (nginx, Cloudflare, a sleeping
+///   phone) waits that long.
+struct UploadStatus: Decodable {
+    /// `waiting` (nothing asked for yet), `working`, `done`.
+    let state: String
+    let total: Int
+    let stored: [Entry]
+    let skipped: [Entry]
+    let failed: [Entry]
+
+    var isDone: Bool { state == "done" }
+    var settled: Int { stored.count + skipped.count + failed.count }
+
+    struct Entry: Decodable {
+        let file: String?
+        /// Only on `failed`.
+        let error: String?
+        /// Only on `skipped`.
+        let reason: String?
+    }
+}

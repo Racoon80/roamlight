@@ -218,6 +218,15 @@ def main():
         req(f"/api/upload/{batch}/file/{fid}/done", method="POST")
     req(f"/api/upload/{batch}/commit", method="POST",
         data={"year": YEAR, "country": COUNTRY, "event": EVENT, "place": PLACE})
+    # ⚠ The commit answers at once and the filing runs in the queue -- so wait
+    #   for it before counting anything. (The loop underneath waits for the
+    #   CONVERSION, which is a second thing again and comes after this one.)
+    t0 = time.time()
+    while time.time() - t0 < 300:
+        st, b, _ = req(f"/api/upload/{batch}/status")
+        if st != 200 or json.loads(b or b"{}").get("state") == "done":
+            break
+        time.sleep(1)
 
     t0 = time.time(); n = 0
     while time.time() - t0 < 120:

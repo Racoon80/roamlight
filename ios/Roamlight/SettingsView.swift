@@ -63,6 +63,15 @@ struct SettingsView: View {
                 }
             }
 
+            // ⚠ Which version this is. It was nowhere in the app at all, and
+            //   that shows up the moment somebody says "it does that here" --
+            //   the first question is which build they are holding, and
+            //   neither of us could answer it. The build number is in there
+            //   too: two people on "1.0" can be on different builds.
+            Section("This app") {
+                Row2("Version", Self.version)
+            }
+
             Section {
                 Button("Take this device off", role: .destructive) { askSignOut = true }
             } footer: {
@@ -85,6 +94,27 @@ struct SettingsView: View {
                             titleVisibility: .visible) {
             Button("Take it off", role: .destructive) { state.signOut() }
             Button("Keep it", role: .cancel) {}
+        }
+    }
+
+    /// `1.0 (2609071418)` — what Info.plist says, which is what the App Store
+    /// shows. ⚠ Read, never typed: a version written out by hand in a second
+    /// place is a version that disagrees with the build sooner or later.
+    static var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return build == short ? short : "\(short) (\(build))"
+    }
+
+    /// A label and a value on one line, the way the rows above read.
+    @ViewBuilder
+    private func Row2(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value).foregroundStyle(Theme.inkSoft)
+                .textSelection(.enabled)
         }
     }
 }

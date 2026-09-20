@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.net.URI
@@ -42,6 +43,12 @@ fun DeviceScreen(state: AppState) {
                 else -> Text("Not reached", color = Ink.inkMute)
             }
             Row2("Site", hostOf(state.api.site))
+            // ⚠ Which version this is. It was nowhere in the app at all, and
+            //   that shows the moment somebody says "it does that here": the
+            //   first question is which build they are holding, and nobody
+            //   could answer it. The build number goes with it -- two people
+            //   on "0.1.0" can be on different builds.
+            Row2("Version", appVersion(LocalContext.current))
 
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
@@ -95,6 +102,26 @@ private fun Row2(label: String, value: String) {
         Text(value, color = Ink.ink)
     }
 }
+
+/**
+ * `0.1.0 (1)` -- out of the installed package, never typed here.
+ *
+ * ⚠ Read from the PackageManager and not from `BuildConfig`: generating that
+ *   class is a build flag (`buildFeatures { buildConfig = true }`) which this
+ *   project does not set, so it may simply not exist. The package always does.
+ */
+private fun appVersion(context: android.content.Context): String =
+    try {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        val name = info.versionName ?: "?"
+        @Suppress("DEPRECATION")
+        val code = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+            info.longVersionCode else info.versionCode.toLong()
+        if (name == code.toString()) name else "$name ($code)"
+    } catch (_: Exception) {
+        "—"
+    }
+
 
 private fun hostOf(site: String): String =
     try { URI(site).host ?: "—" } catch (_: Exception) { "—" }

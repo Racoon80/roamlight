@@ -252,7 +252,7 @@ def main():
     # ⚠ Béid Duerchgäng vum 08.09.2026 hunn dat als dat Schaarft gefonnt: den
     #   Upsert lauft op de bloussen Numm, an de Numm kënnt aus engem Anspréch,
     #   deen d'Persoun beim Ubidder dacks selwer setze kann. Wien sech do
-    #   "guyadmin" nennt, kritt soss eng Sessioun op de Noutfall-Admin -- an
+    #   "admin" nennt, kritt soss eng Sessioun op de Noutfall-Admin -- an
     #   iwwerschreift him dobäi seng Gruppen, sou datt keen Admin méi do ass.
     from app import auth as _auth
     _auth.create_user("notfall", "eng-laang-Noutfall-Sach",

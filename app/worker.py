@@ -43,30 +43,79 @@ def enqueue(kind: str, payload: str = "") -> int:
         ).lastrowid
 
 
-def requeue_orphans() -> int:
+def requeue_orphans(kinds=None, exclude=None) -> int:
     """Put jobs that were left on `running` back to `pending`.
 
     ⚠ A job that was running when the service stopped stays on `running` -- and
     the worker only ever looks for `pending`. So it is never picked up again.
     Found the hard way: one conversion hung like that, and the photograph sat
-    at "new" and never appeared on the site. There is only ever one instance,
-    so this cannot interrupt another process's work.
+    at "new" and never appeared on the site.
+
+    ⚠ ONLY this process's own kinds, and that is new. The old version swept
+      every `running` row and said so in a comment: "there is only ever one
+      instance, so this cannot interrupt another process's work". That stopped
+      being true the day the uploads moved into `family-convert.service`. A
+      restart of the site would have reset a conversion that the OTHER process
+      was in the middle of -- and then both would have been working on the same
+      photograph, one of them writing a master that the other had already
+      replaced.
     """
+    where, args = "", []
+    if kinds:
+        where = " AND kind IN (%s)" % ",".join("?" for _ in kinds)
+        args = list(kinds)
+    elif exclude:
+        where = " AND kind NOT IN (%s)" % ",".join("?" for _ in exclude)
+        args = list(exclude)
     with db.tx() as conn:
         n = conn.execute(
             "UPDATE jobs SET status='pending', updated_at=datetime('now'), "
-            "last_error='the service was restarted' WHERE status='running'").rowcount
+            "last_error='the service was restarted' WHERE status='running'" + where,
+            args).rowcount
     return n or 0
 
 
+# ⚠ The kinds the SITE's own worker leaves alone. A photograph somebody
+#   uploaded is a file from outside the house, and decoding it means handing a
+#   stranger's bytes to libheif, LibRaw or ffmpeg. That must not happen in the
+#   process that has the family's only copy of the originals mounted `rw`.
+#
+#   So it happens in `family-convert.service` instead -- the same code, the
+#   same queue, a different process with `/mnt/my-photos` not mounted at all.
+#   See `app/convert_cli.py`.
+FOREIGN_KINDS = ("convert-upload",)
+
+
 class Worker:
-    def __init__(self) -> None:
+    def __init__(self, kinds=None, notices: bool = True) -> None:
+        """`kinds` = the job kinds this worker may take. `None` = everything
+        except what belongs to another process (`FOREIGN_KINDS`).
+
+        ⚠ The filter has to be in the SQL that takes the job, not in a check
+          afterwards. `_one()` marks a row `running` the moment it picks it up;
+          a worker that took a job it cannot handle would have to put it back,
+          and the put-back path defers it by an hour. With two processes on one
+          queue that would mean every upload waits an hour for the wrong
+          worker to hand it over.
+        """
+        self._kinds = tuple(kinds) if kinds else None
+        self._do_notices = notices
         self._stop = threading.Event()
         self._threads = []
         self._lock = threading.Lock()
         self._last_error = None
         self._done = 0
         self._busy = 0
+
+    def _where(self):
+        """The kind condition for the taking query, and its parameters."""
+        if self._kinds:
+            marks = ",".join("?" for _ in self._kinds)
+            return f"AND kind IN ({marks})", list(self._kinds)
+        if FOREIGN_KINDS:
+            marks = ",".join("?" for _ in FOREIGN_KINDS)
+            return f"AND kind NOT IN ({marks})", list(FOREIGN_KINDS)
+        return "", []
 
     def start(self) -> None:
         if any(t.is_alive() for t in self._threads):
@@ -82,10 +131,14 @@ class Worker:
         #   through -- they are work to hold back: the whole point is that a row
         #   sits for a while and collects. Putting it in the job queue would
         #   mean a job per photograph, which is exactly what it exists to avoid.
-        post = threading.Thread(target=self._notices, name="family-notices",
-                                daemon=True)
-        post.start()
-        self._threads.append(post)
+        #
+        # ⚠ And only in the SITE's worker. Two processes flushing the same
+        #   window would send the same notice twice.
+        if self._do_notices:
+            post = threading.Thread(target=self._notices, name="family-notices",
+                                    daemon=True)
+            post.start()
+            self._threads.append(post)
 
     def _notices(self) -> None:
         from . import notify
@@ -130,14 +183,16 @@ class Worker:
         # marks AND returns -- SQLite can do that with `RETURNING` (3.35 and
         # later). The row that comes back belongs to this thread and to nobody
         # else.
+        kind_sql, kind_args = self._where()
         with db.tx() as c:
             row = c.execute(
                 "UPDATE jobs SET status='running', attempts=attempts+1, "
                 "  updated_at=datetime('now') "
                 "WHERE id = (SELECT id FROM jobs WHERE status='pending' "
                 "            AND (run_after IS NULL OR run_after <= datetime('now')) "
+                f"           {kind_sql} "
                 "            ORDER BY id LIMIT 1) "
-                "RETURNING *").fetchone()
+                "RETURNING *", kind_args).fetchone()
         if row is None:
             return
         fn = HANDLERS.get(row["kind"])

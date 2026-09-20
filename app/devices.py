@@ -170,6 +170,24 @@ def list_for(username: str, all_users: bool = False) -> list:
     return [dict(r) for r in db.connect().execute(sql + " ORDER BY id DESC", args)]
 
 
+def revoke_all(username: str) -> int:
+    """Take every device of one person off. Returns how many.
+
+    ⚠ It lives here, next to `_CACHE`, and that is the whole point. The first
+      version of this revoked the rows from `auth.end_all()` with a plain
+      UPDATE -- correct in the database, and useless for thirty seconds,
+      because `identify()` answers out of an in-memory cache that nothing had
+      told. A caller cannot be expected to know that; the module that keeps the
+      cache has to be the one that empties it.
+    """
+    with db.tx() as c:
+        n = c.execute(
+            "UPDATE app_devices SET revoked_at=datetime('now') "
+            "WHERE username=? AND revoked_at IS NULL", (username,)).rowcount or 0
+    _CACHE.clear()
+    return n
+
+
 def revoke(device_id: int, username: str, is_admin: bool = False) -> bool:
     """Take a device off. One click, immediately -- no dialog in between.
 

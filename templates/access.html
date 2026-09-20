@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Who sees which album — {{ site_title }}{% endblock %}
+
+{% block content %}
+{{ m.back("/admin", "Workbench") }}
+<header class="wrap dest-head">
+  <p class="eyebrow">Workbench</p>
+  <h1 class="reveal d1">Who sees which album</h1>
+  <p class="dest-head__sub">no ticks = nobody but you</p>
+</header>
+
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  <p class="meta">Tick the people who may see an album. Everyone else stops seeing it —
+     the album, its photographs, the map pin, the search results, and the direct
+     image address. <b>An album with nothing ticked is seen by nobody but you.</b>
+     Administrators are not in the list: they see every album anyway.</p>
+
+  <div class="alb" id="acl">
+    {% for a in alb_rows %}
+    {% set key = a.year ~ '/' ~ a.country ~ '/' ~ a.event %}
+    {% set liste = acls.get(key, []) %}
+    <form class="alb__row aclrow" data-year="{{ a.year }}" data-country="{{ a.country }}"
+          data-event="{{ a.event }}">
+      <div class="alb__pic">
+        {% if a.cover %}<img src="/photos/{{ a.cover }}/400.webp" alt="" loading="lazy" decoding="async">
+        {% else %}<span class="alb__nopic">no plate</span>{% endif %}
+      </div>
+      <div class="aclrow__who">
+        <code class="alb__path">{{ key }}</code>
+        <span class="meta">{{ a.n }} photograph{{ '' if a.n == 1 else 's' }}
+          &middot; <span class="aclrow__state">{{ 'only you' if not liste else liste|length ~ ' allowed' }}</span></span>
+        <div class="ticks">
+          {% set gewosst = pickable|map(attribute='username')|list %}
+          {% for p in pickable %}
+          <label class="tick"><input type="checkbox" value="user:{{ p.username }}"
+                 {{ 'checked' if 'user:' ~ p.username in liste }}>
+            <span>{{ p.display_name }}</span></label>
+          {% endfor %}
+          {% for pr in liste if pr.startswith('user:') and pr[5:] not in gewosst
+                       and pr[5:] not in admins %}
+          <label class="tick tick--gone"><input type="checkbox" value="{{ pr }}" checked>
+            <span>{{ pr[5:] }} <em>not in a site group</em></span></label>
+          {% endfor %}
+        </div>
+        <div class="ticks ticks--groups">
+          {% for g in groups %}
+          <label class="tick tick--group"><input type="checkbox" value="group:{{ g }}"
+                 {{ 'checked' if 'group:' ~ g in liste }}>
+            <span>{{ g }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="alb__act">
+        <button class="btn btn--go" type="submit">save</button>
+        <button class="btn" type="button" data-open>only me</button>
+        <span class="alb__say" aria-live="polite"></span>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{{ m.back("/admin", "Workbench") }}
+{% endblock %}
+
+{% block scripts %}<script src="/static/access.js?v={{ static_ver }}" defer></script>{% endblock %}

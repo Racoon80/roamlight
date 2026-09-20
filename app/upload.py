@@ -238,8 +238,15 @@ def commit(batch: str, year: str, country: str, event: str = "", place: str = ""
             src.unlink(missing_ok=True)
         stored.append({"file": r["original_name"], "path": rel, "photo_id": photo_id})
         # The conversion hangs off the upload itself -- no waiting for a scan.
+        #
+        # ⚠ Which queue depends on where the file came from. An administrator's
+        #   upload was written into the originals tree and is converted from
+        #   there by the site itself. A contributor's or a guest's file is a
+        #   file from OUTSIDE, and it goes to `convert-upload`, which runs in a
+        #   process without the originals mounted -- see app/convert_cli.py.
         from .worker import enqueue
-        enqueue("convert", str(photo_id))
+        enqueue("convert" if origin_root != "user" else "convert-upload",
+                str(photo_id))
 
     with db.tx() as conn:
         conn.execute(

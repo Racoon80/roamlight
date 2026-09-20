@@ -127,10 +127,47 @@ def refresh() -> dict:
             "  email=excluded.email, active=excluded.active, "
             "  groups_json=excluded.groups_json, seen_in_authentik=1, "
             "  updated_at=datetime('now')", rows)
+    # ⚠ An elo dee Fall, deen dës Funktioun bis den 08.09.2026 net gemaach huet:
+    #   wien AUS de Gruppen erausgeholl gouf, steet net méi an `rows` -- an eng
+    #   Zeil, déi net an engem Upsert virkënnt, gëtt net ugefaasst. Seng al
+    #   Gruppe stoungen also weider do, an domat säin Zougang.
+    #
+    #   Ënner dem Forward-Auth war dat egal: d'nginx huet de Ubidder bei ALL
+    #   Ufro gefrot, also war en Entzuch souzesoen direkt. Zënter datt de Site
+    #   selwer entscheet, entscheet en 30 Deeg laang -- sou laang wéi d'Sessioun
+    #   -- an e gepaarten Telefon fir ëmmer. Vum zweeten Duerchgang gemellt.
+    #
+    # ⚠ D'Zeil gëtt NET geläscht a kritt keng `active=0`: si steet an de
+    #   Kucklëschten vun den Albumen, an eng Lëscht, déi roueg en Numm
+    #   verléiert, mécht en Album op. Wat ewechgeholl gëtt, sinn d'GRUPPEN --
+    #   an ouni Grupp kënnt een net méi eran.
+    #
+    # ⚠ An NËMMEN Leit aus dem Verzeechnes (`is_local=0`). Ee lokale Kont kënnt
+    #   guer net vum Authentik; him hei d'Gruppen ze huelen wier de Noutfall-
+    #   Admin ewechzemaachen, an zwar automatesch, all Stonn.
+    fort = [r["username"] for r in db.connect().execute(
+        "SELECT username FROM members WHERE seen_in_authentik=0 AND is_local=0 "
+        "AND groups_json NOT IN ('[]', '')")]
+    if fort:
+        with db.tx() as c:
+            c.execute(
+                "UPDATE members SET groups_json='[]', updated_at=datetime('now') "
+                "WHERE seen_in_authentik=0 AND is_local=0 AND groups_json NOT IN ('[]', '')")
+        # ⚠ An déi Weeër, déi scho stinn, ginn zougemaach. D'Gruppe ginn zwar
+        #   bei all Ufro nei gelies, also wier de Zougang esou oder esou fort --
+        #   mä eng Sessioun, déi nach do läit, an en Telefon, deen nach en Token
+        #   huet, sinn net dat, wat "zréckgezunn" heescht.
+        from . import auth
+        for name in fort:
+            auth.end_all(name)
+        log.warning("Authentik: %s ass/sinn net méi an eise Gruppen -- Gruppen "
+                    "ewechgeholl, Sessiounen an Apparater zougemaach", ", ".join(fort))
+
     db.set_state("members_refreshed", "now")
-    log.info("Authentik: %d Memberen aus %d Gruppen (vun %d)",
-             len(rows), len(important), len(groups))
-    return {"ok": True, "members": len(rows),
+    log.info("Authentik: %d Memberen aus %d Gruppen (vun %d)%s",
+             len(rows), len(important), len(groups),
+             f", {len(fort)} erausgefall" if fort else "")
+    return {"ok": True, "members": len(rows), "dropped": fort,
             "groups": sorted(important), "groups_seen": len(groups)}
 
 

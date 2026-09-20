@@ -21,11 +21,12 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from . import (acl, album, auth, collections, config, db, devices, gallery, geo,
+               oidc,
                journey, members, register, scan, security, serve, shares, sync,
                notify, tagging, tickets, tiles, tileseed, tree, upload)
 from . import guests
 from . import convert as _convert          # registers the convert handler
-from .worker import Worker, enqueue, requeue_orphans
+from .worker import FOREIGN_KINDS, Worker, enqueue, requeue_orphans
 
 app = FastAPI(title="Family-Website", docs_url=None, redoc_url=None, openapi_url=None)
 app.middleware("http")(security.gate)
@@ -86,22 +87,28 @@ def _page(request: Request, name: str, **ctx):
         "admin_group": config.ADMIN_GROUP,
         "is_contributor": ident.is_contributor,
         "user": ident.user, "email": ident.email, "q": ctx.pop("q", None),
-        # ⚠ Signing out does not mean the same everywhere: locally the session
-        #   is deleted, behind a proxy THAT session has to end.
-        "logout_url": ("/logout" if config.AUTH_LOCAL else
-                       os.environ.get("FAMILY_SSO_LOGOUT",
-                                      "/outpost.goauthentik.io/sign_out")),
+        # ⚠ One door, and `/logout` decides behind it. It used to be decided
+        #   HERE, as "/logout if local else the provider's sign-out" -- which
+        #   in `local+proxy` sent everybody to /logout, so somebody who came in
+        #   through the proxy dropped a cookie they did not have and kept the
+        #   single sign-on session they did. One click later they were back in.
+        "logout_url": "/logout",
         "structure": st, "counts": counts,
         "here": ctx.pop("here", {}), **ctx})
 
 
 @app.on_event("startup")
 def _startup() -> None:
-    config.check_startup()
     config.ensure_dirs()
+    # ⚠ `db.init()` comes BEFORE the check now: the sign-in modes may have been
+    #   set on the settings page, and those live in the database. Reading them
+    #   before the schema exists would mean the check silently only ever looked
+    #   at the environment -- and let a site start in proxy mode without the
+    #   shared secret.
+    db.init()
+    config.check_startup()
     config.ensure_marker(config.ORIGIN_DIR)
     config.ensure_marker(config.WEB_DIR)
-    db.init()
     auth.sweep()          # expired sessions can go
     # Scratch folders of conversions that a restart interrupted.
     swept = config.sweep_work()
@@ -111,16 +118,23 @@ def _startup() -> None:
     # ⚠ While there is no account, the setup page is open. That belongs in the
     #   log, and not quietly: on a network with other people on it, whoever
     #   opens the address first becomes the administrator.
-    if config.AUTH_LOCAL and not auth.has_local_users():
+    if config.auth_local() and not auth.has_local_users():
         if config.SETUP_TOKEN:
             logging.getLogger("family").warning(
                 "no account yet -- /setup needs FAMILY_SETUP_TOKEN as ?t=...")
         else:
             logging.getLogger("family").warning(
                 "⚠ NO ACCOUNT YET: whoever opens this site first becomes the "
-                "administrator. Set FAMILY_SETUP_TOKEN to put a lock on it, or "
-                "create the account now.")
-    n = requeue_orphans()
+                "administrator. Shut that door by making the account here, "
+                "which needs no open page at all:\n"
+                "    python -m app.cli user add <name> --admin\n"
+                "  (in Docker: docker compose exec roamlight "
+                "python -m app.cli user add <name> --admin)\n"
+                "  Or set FAMILY_SETUP_TOKEN and use /setup?t=...")
+    # ⚠ Ours only. The uploads belong to family-convert.service, and
+    #   sweeping them from here would reset a conversion that the other
+    #   process is in the middle of.
+    n = requeue_orphans(exclude=FOREIGN_KINDS)
     if n:
         logging.getLogger("family").warning(
             "%d job(s) were left on `running` -- they run once more", n)
@@ -163,8 +177,27 @@ def _state() -> dict:
     #   without this distinction a fresh installation would stand at "not ok"
     #   for ever -- and the Docker health check would restart the container
     #   again and again.
-    if config.AUTH_PROXY and not config.proxy_secret():
-        problems.append("proxy-secret")
+    # ⚠ Single sign-on switched on but not configured: the button leads
+    #   nowhere. Not fatal -- the password road is still there -- but it should
+    #   not be silent.
+    if config.auth_oidc() and not (config.setting("oidc_issuer")
+                                   and config.setting("oidc_client_id")):
+        problems.append("oidc-config")
+    # ⚠ Is the unit that converts uploads actually running? Nothing on this
+    #   side takes a `convert-upload` job, so if that service is down the only
+    #   symptom is uploaded photographs quietly sitting at "new" for ever --
+    #   the kind of failure nobody notices for a week. A job of that kind that
+    #   has been waiting a while is the tell.
+    try:
+        marks = ",".join("?" for _ in FOREIGN_KINDS)
+        stuck = db.connect().execute(
+            f"SELECT COUNT(*) AS n FROM jobs WHERE status='pending' AND kind IN ({marks}) "
+            "AND created_at <= datetime('now','-15 minutes')",
+            list(FOREIGN_KINDS)).fetchone()
+        if stuck and stuck["n"]:
+            problems.append("convert-unit")
+    except Exception:                                            # noqa: BLE001
+        pass
     return {
         "ok": not problems, "version": __import__("app").__version__,
         "problems": problems, "origins": origins, "web": web,
@@ -179,10 +212,23 @@ def health(request: Request):
 
     `problems` gives away mount paths and how much is stored -- nobody looking
     in from outside needs that."""
-    ident = security.identify(request)
+    # ⚠ "From this machine" is worked out HERE now, not taken from the
+    #   identity. It used to be `Identity.local`, which was only ever set on the
+    #   forward-auth road -- and that road is gone, so the flag was always false
+    #   and the full state was answerable to nobody, monitoring included.
+    #
+    # ⚠ The two halves both matter, and the second is the one that was missing
+    #   for months: the reverse proxy runs on this same host, so everything it
+    #   forwards arrives from 127.0.0.1. Without "and no forwarding header" this
+    #   answered the whole state -- mount paths, free space, how many
+    #   photographs, the worker -- to anybody on the internet who asked.
+    here = (security.client_ip(request) in config.trusted_peers()
+            and not request.headers.get(config.CLIENT_IP_HEADER)
+            and not request.headers.get("x-forwarded-for"))
     st = _state()
-    if not ident.local:
+    if not here:
         return {"ok": st["ok"]}
+    ident = security.identify(request)
     st["seen"] = {"user": ident.user, "groups": list(ident.groups),
                   "client": security.client_ip(request)}
     return st
@@ -980,8 +1026,14 @@ def page_person(request: Request, name: str, page: int = 1):
 #  identity proxy does this, and these paths do not exist.
 # ---------------------------------------------------------------------------
 def _sso_link() -> str:
-    """Where the "sign in with SSO" button points -- or empty."""
-    return os.environ.get("FAMILY_SSO_START", "") if config.AUTH_PROXY else ""
+    """Where the "sign in with single sign-on" button points -- or empty.
+
+    ⚠ Our own route, not the provider's. The app is the OpenID Connect client
+      now, so the browser has to come through here first: this is where the
+      state, the nonce and the PKCE verifier are made. A button that went
+      straight to the provider would skip all three.
+    """
+    return "/auth/oidc/login" if oidc.enabled() else ""
 
 
 def _https(request: Request) -> bool:
@@ -1017,14 +1069,13 @@ def _set_session(request, resp, cookie: str):
 def page_setup(request: Request, error: str = ""):
     """First start: there is no account yet. ⚠ Once there is one this path is
     SHUT -- otherwise anyone could add a second admin to a running site."""
-    if not config.AUTH_LOCAL:
+    if not config.auth_local():
         raise HTTPException(status_code=404, detail="not found")
     if auth.has_local_users():
         return RedirectResponse("/login", status_code=303)
-    # ⚠ An optional lock for the first start (FAMILY_SETUP_TOKEN). Without it
-    #   the page is open -- otherwise nobody could get in the first time.
-    if config.SETUP_TOKEN and not hmac.compare_digest(
-            request.query_params.get("t", ""), config.SETUP_TOKEN):
+    # ⚠ The rule itself is in config.setup_is_open() -- see the note there
+    #   on why an installation with an identity proxy never opens this page.
+    if not config.setup_is_open(request.query_params.get("t", "")):
         raise HTTPException(status_code=404, detail="not found")
     return templates.TemplateResponse(request, "setup.html", {
         "site_title": config.SITE_TITLE, "static_ver": _static_ver(), "error": error,
@@ -1033,11 +1084,10 @@ def page_setup(request: Request, error: str = ""):
 
 @app.post("/setup")
 async def do_setup(request: Request):
-    if not config.AUTH_LOCAL or auth.has_local_users():
+    if not config.auth_local() or auth.has_local_users():
         return RedirectResponse("/login", status_code=303)
     f = await request.form()
-    if config.SETUP_TOKEN and not hmac.compare_digest(
-            str(f.get("t", "")), config.SETUP_TOKEN):
+    if not config.setup_is_open(str(f.get("t", ""))):
         raise HTTPException(status_code=404, detail="not found")
     pw, pw2 = str(f.get("password", "")), str(f.get("password2", ""))
     if pw != pw2:
@@ -1062,7 +1112,7 @@ def page_login(request: Request, next: str = "/", error: str = ""):
     # ⚠ Without local sign-in this page does NOT exist. Otherwise an
     #   SSO installation would show a password box nobody can type anything
     #   into -- and that looks like a fault in the site.
-    if not config.AUTH_LOCAL:
+    if not config.auth_local():
         raise HTTPException(status_code=404, detail="not found")
     if not auth.has_local_users():
         return RedirectResponse("/setup", status_code=303)
@@ -1101,11 +1151,97 @@ async def do_login(request: Request):
     return _set_session(request, RedirectResponse(goal_, status_code=303), cookie)
 
 
+# ---------------------------------------------------------------------------
+#  Signing in through the identity provider (app/oidc.py)
+# ---------------------------------------------------------------------------
+@app.get("/auth/oidc/login")
+def oidc_login(request: Request, next: str = "/"):
+    """Off to the provider.
+
+    ⚠ Not behind `_admin` or any check: this IS the way in. What it must not be
+      is a way to make this site fetch arbitrary addresses -- which is why the
+      issuer comes from the settings and never from the request.
+    """
+    if not oidc.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        url, state = oidc.begin(next)
+        resp = RedirectResponse(url, status_code=303)
+        # ⚠ This cookie is what makes the callback belong to THIS browser. See
+        #   the note on `oidc.begin()`. Path-confined, so it goes nowhere else.
+        resp.set_cookie(oidc.STATE_COOKIE, state, max_age=oidc.PENDING_MINUTES * 60,
+                        httponly=True, samesite="lax", secure=_https(request),
+                        path="/auth/oidc/")
+        return resp
+    except oidc.OidcError as exc:
+        logging.getLogger("family").warning("oidc: cannot start: %s", exc)
+        raise HTTPException(status_code=503, detail="single sign-on is not usable right now")
+
+
+@app.get("/auth/oidc/callback")
+def oidc_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    """Back from the provider, with a code.
+
+    ⚠ What comes back to the browser when this fails is one sentence. The
+      provider's own words, the token endpoint's answer, which check did not
+      hold -- all of that goes to the log. An error page that explains exactly
+      why a token was refused is a tool for the person forging them.
+    """
+    if not oidc.enabled():
+        raise HTTPException(status_code=404, detail="not found")
+    log = logging.getLogger("family")
+    if error:
+        log.warning("oidc: the provider refused: %s", error[:200])
+        raise HTTPException(status_code=403, detail="the provider did not let you in")
+    # ⚠ Before anything else: is this the browser that started the exchange?
+    #   `state` alone says "some browser did"; the cookie says "this one".
+    mine = request.cookies.get(oidc.STATE_COOKIE, "")
+    if not mine or not hmac.compare_digest(mine, state or ""):
+        log.warning("oidc: callback without the matching state cookie "
+                    "(cookie=%s, query=%s) -- refused", bool(mine), bool(state))
+        raise HTTPException(
+            status_code=403,
+            detail="that sign-in did not start in this browser. Open the site and "
+                   "press sign in again.")
+    try:
+        claims, goal = oidc.finish(code, state)
+        cookie = oidc.sign_in(claims)
+    except oidc.OidcError as exc:
+        log.warning("oidc: sign-in refused: %s", exc)
+        raise HTTPException(status_code=403, detail="that sign-in could not be completed")
+    resp = _set_session(request, RedirectResponse(goal or "/", status_code=303), cookie)
+    resp.delete_cookie(oidc.STATE_COOKIE, path="/auth/oidc/")
+    return resp
+
+
 @app.get("/logout")
 @app.post("/logout")
 def do_logout(request: Request):
-    auth.end_session(request.cookies.get(config.SESSION_COOKIE, ""))
-    resp = RedirectResponse("/login", status_code=303)
+    """Sign out -- by whichever road this person came in.
+
+    ⚠ The road is decided by whether there was a session to end, not by the
+      configuration. In `local+proxy` both roads are open at the same time, and
+      only the cookie says which one this visitor used. Ending the local
+      session and stopping there would leave a single-sign-on visitor signed
+      in; bouncing everybody to the provider's sign-out would drag a local
+      visitor through a login screen that is not theirs.
+    """
+    cookie = request.cookies.get(config.SESSION_COOKIE, "")
+    was_local = bool(cookie) and auth.session_user(cookie) is not None
+    auth.end_session(cookie)
+    if was_local and config.auth_local():
+        goal = "/login"
+    elif config.auth_oidc():
+        # ⚠ The provider's own sign-out, when it names one. Ending only our
+        #   session would leave the provider's -- and one click later the
+        #   person is back in without typing anything.
+        try:
+            goal = oidc.endpoint("end_session") or "/login"
+        except Exception:                                        # noqa: BLE001
+            goal = "/login"
+    else:
+        goal = "/login"
+    resp = RedirectResponse(goal, status_code=303)
     resp.delete_cookie(config.SESSION_COOKIE, path="/")
     return resp
 
@@ -1140,11 +1276,359 @@ def page_devices(request: Request):
     return _page(request, "app.html", user=ident.user)
 
 
+# ---------------------------------------------------------------------------
+#  Switching single sign-on on, from the settings page
+# ---------------------------------------------------------------------------
+# ⚠ Three routes, and the shape of them is the safety. `arm` writes a choice
+#   down and changes NOTHING. `confirm` is the only one that changes anything,
+#   and it answers only to a request that really came through the proxy --
+#   which is the proof that the proxy works, made by using it. `cancel` throws
+#   the choice away. An armed choice nobody confirms runs out on its own.
+#
+#   The alternative -- a checkbox that takes effect on save -- is a checkbox
+#   that locks a family out of their photographs when a line in nginx is
+#   wrong, on a machine most of them have no shell on.
+def _auth_state() -> dict:
+    """Everything the settings page shows about signing in."""
+    return {
+        "modes": sorted(config.auth_modes()),
+        "local": config.auth_local(),
+        "oidc": config.auth_oidc(),
+        "locked": config.AUTH_LOCKED,
+        "env": sorted(config.ENV_AUTH_MODES),
+        # ⚠ Asked by TRYING it, not by restating the conditions: a button shown
+        #   by one copy of the rule and a route guarded by another is how the
+        #   two drift apart, and here the drift is a button that locks the
+        #   family out.
+        "may_switch_off": _may_switch(False),
+        "may_switch_on": _may_switch(True),
+        "peers": sorted(config.trusted_peers()),
+        "groups": {"admin": sorted(config.admin_groups()),
+                   "viewer": sorted(config.viewer_groups()),
+                   "contributor": sorted(config.contributor_groups())},
+        # The provider. ⚠ The client secret is NOT in here and never will be --
+        # the page is told whether one is set, and nothing else.
+        "oidc_cfg": {k: config.setting(k) for k in (
+            "oidc_provider", "oidc_issuer", "oidc_client_id", "oidc_redirect_uri",
+            "oidc_scopes", "oidc_username_claim", "oidc_groups_claim",
+            "oidc_authorization_url", "oidc_token_url", "oidc_userinfo_url",
+            "oidc_jwks_url", "oidc_end_session_url")},
+        "oidc_secret_ok": bool(config.read_secret("oidc")),
+        "oidc_redirect_real": oidc.redirect_uri(),
+        # The directory (reading the member list) is a separate thing from
+        # signing in, and it stays as it was.
+        "authentik_url": config.authentik_url(),
+        "token_file": str(config.secret_path("authentik")),
+        "token_ok": members.configured(),
+        "token_mine": config.secret_is_writable("authentik"),
+    }
+
+
+def _may_switch(on: bool) -> bool:
+    try:
+        config.set_auth_oidc  # noqa: B018  (it exists)
+    except AttributeError:                                       # pragma: no cover
+        return False
+    if config.AUTH_LOCKED:
+        return False
+    if on:
+        return bool(config.setting("oidc_issuer") and config.setting("oidc_client_id"))
+    return "local" in config.ENV_AUTH_MODES and auth.has_local_admin()
+
+
+@app.post("/api/members/password")
+def api_member_password(request: Request, body: dict = Body(...)):
+    """Change the password of an account that has one.
+
+    ⚠ Your OWN password needs the old one. A session that has been stolen is
+      already bad; without this it is permanent, because the first thing the
+      thief does is set a password of their own and the owner can never get back
+      in. An administrator setting SOMEBODY ELSE's does not need it -- that is
+      what being an administrator is, and it is the way back in when a person
+      has forgotten theirs.
+
+    ⚠ Every session of that person ends. A password is changed either because it
+      was forgotten or because somebody else might have it, and in the second
+      case leaving the old sessions alive changes nothing at all.
+    """
+    ident = security.identify(request)
+    if not ident.user:
+        raise HTTPException(status_code=403, detail="not signed in")
+    who = str(body.get("username", "") or ident.user).strip().lower()
+    mine = who == ident.user
+    if not mine and not ident.is_admin:
+        raise HTTPException(status_code=403, detail="only for an administrator")
+    # ⚠ The CSRF check that `_admin` does, done here too: this route changes
+    #   something and is reachable by anybody signed in, not only an admin.
+    site = request.headers.get("sec-fetch-site")
+    origin = request.headers.get("origin") or ""
+    if not (site in ("same-origin", "none")
+            or (not site and (not origin or origin.rstrip("/") == config.SITE_URL))):
+        raise HTTPException(status_code=403, detail="cross-site request refused")
+
+    row = db.connect().execute(
+        "SELECT is_local, password_hash IS NOT NULL AS has_pw FROM members WHERE username=?",
+        (who,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such person")
+    if mine:
+        # ⚠ ASK the brake, do not only feed it. This counted failures and never
+        #   looked at the counter -- so a stolen session could guess the current
+        #   password at argon2 speed, for ever, on the one route whose whole
+        #   purpose is to stop exactly that. Both reviews found it.
+        ip = security.client_ip(request)
+        if auth.blocked(ip):
+            raise HTTPException(status_code=429,
+                                detail="Too many tries. Wait a few minutes.")
+        if not row["has_pw"]:
+            raise HTTPException(
+                status_code=400,
+                detail="you sign in through the provider -- there is no password here to change")
+        if not auth.check(who, str(body.get("current", ""))):
+            auth.note_fail(ip)
+            raise HTTPException(status_code=403, detail="that is not your current password")
+        auth.note_ok(ip)
+    try:
+        auth.set_password(who, str(body.get("password", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    ended = auth.end_all(who)
+    logging.getLogger("family").info(
+        "password changed for %s by %s, %d session(s) ended", who, ident.user, ended)
+    # ⚠ Your own sessions went with it -- including this one. A fresh one, or
+    #   the person is signed out by their own password change.
+    resp = JSONResponse({"ok": True, "user": who, "sessions_ended": ended})
+    if mine:
+        return _set_session(request, resp, auth.new_session(who, request.headers.get("user-agent", "")))
+    return resp
+
+
+@app.post("/api/members/make-admin")
+def api_member_make(request: Request, body: dict = Body(...)):
+    """Make a local account, or set a password on one, from the settings page.
+
+    ⚠ The way in when the provider is down. An installation that signs everybody
+      in through OIDC has no password account at all -- and the day the provider
+      is unreachable, that is a site nobody can open. One account with a
+      password is the difference between an outage and a locked house.
+    """
+    ident = _admin(request)
+    name = str(body.get("username", "")).strip().lower()
+    if not name:
+        raise HTTPException(status_code=400, detail="a name is needed")
+    groups = [sorted(config.admin_groups())[0]] if body.get("admin") else \
+             [sorted(config.viewer_groups())[0]]
+    try:
+        auth.create_user(name, str(body.get("password", "")), str(body.get("display_name", "")),
+                         groups=groups)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # ⚠ Every session of that person ends. The card on the page says so, and for
+    #   a while it said so untruthfully: `create_user` writes the new hash and
+    #   nothing else, so somebody signed in with the OLD password stayed signed
+    #   in for thirty days. A password is changed either because it was
+    #   forgotten or because somebody else might have it -- and in the second
+    #   case leaving the old sessions alive changes nothing at all.
+    ended = auth.end_all(name)
+    logging.getLogger("family").warning(
+        "%s set the password of %s (%s), %d session(s) ended",
+        ident.user, name, ", ".join(groups), ended)
+    out = {"ok": True, "user": name, "groups": groups, "sessions_ended": ended}
+    # ⚠ Including this one, if it was your own account. A fresh cookie, or the
+    #   administrator is signed out by their own password change.
+    if name == ident.user:
+        return _set_session(request, JSONResponse(out),
+                            auth.new_session(name, request.headers.get("user-agent", "")))
+    return out
+
+
+@app.post("/api/auth/mode")
+def api_auth_mode(request: Request, body: dict = Body(...)):
+    """Switch signing in through the provider on or off.
+
+    ⚠ No arm-and-confirm here, and there used to be. That dance existed to prove
+      that a shared secret really travelled from the reverse proxy to the app
+      before the setting took effect. The app talks to the provider itself now:
+      there is no secret to prove, and a wrong issuer is a failed sign-in and a
+      line in the log, not a locked door -- because `local` comes from the YAML
+      and nothing here can take it away.
+    """
+    _admin(request)
+    try:
+        config.set_auth_oidc(bool(body.get("on")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _auth_state()
+
+
+@app.post("/api/auth/oidc/test")
+def api_auth_oidc_test(request: Request):
+    """Ask the provider to describe itself, and say what came back.
+
+    ⚠ This is the honest replacement for the confirm step: it does not prove a
+      sign-in works, and it does not pretend to. What it proves is that the
+      issuer answers, that it calls itself what you typed, and which endpoints
+      it names -- which is where nearly every misconfiguration actually is.
+    """
+    _admin(request)
+    try:
+        doc = oidc.discovery()
+    except oidc.OidcError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        "issuer": doc.get("issuer"),
+        "authorization": doc.get("authorization_endpoint"),
+        "token": doc.get("token_endpoint"),
+        "jwks": doc.get("jwks_uri"),
+        "end_session": doc.get("end_session_endpoint"),
+        "algs": doc.get("id_token_signing_alg_values_supported"),
+        "scopes": doc.get("scopes_supported"),
+    }
+
+
+@app.post("/api/auth/config")
+def api_auth_config(request: Request, body: dict = Body(...)):
+    """The settings that describe the identity provider.
+
+    ⚠ These used to be `family.env` / `compose.yaml` only, which meant that
+      pointing the site at an Authentik or an Authelia was an edit-and-restart
+      job on the machine. The environment is still the default; what is set
+      here overrides it.
+    """
+    ident = _admin(request)
+    keys = ("authentik_url", "trusted_peers",
+            "admin_groups", "viewer_groups", "contributor_groups",
+            "oidc_provider", "oidc_issuer", "oidc_client_id", "oidc_redirect_uri",
+            "oidc_scopes", "oidc_username_claim", "oidc_groups_claim",
+            "oidc_authorization_url", "oidc_token_url", "oidc_userinfo_url",
+            "oidc_jwks_url", "oidc_end_session_url")
+    if config.AUTH_LOCKED:
+        raise HTTPException(status_code=400,
+                            detail="FAMILY_AUTH_LOCK is on -- the configuration decides this")
+    # ⚠ Only what was REALLY stored, not what `setting()` answers. The rollback
+    #   below writes these back -- and `setting()` falls back to the environment,
+    #   so rolling back used to write every environment default into the
+    #   database. From then on `FAMILY_ADMIN_GROUPS` and friends in family.env
+    #   were silently ignored, and nothing said why.
+    before = {}
+    for k in keys:
+        row = db.connect().execute("SELECT value FROM state WHERE key=?",
+                                   ("cfg." + k,)).fetchone()
+        if row is not None:
+            before[k] = row["value"]
+    saved = {}
+    try:
+        for k in keys:
+            if k in body:
+                saved[k] = config.set_setting(k, str(body[k]))
+
+        # ⚠ You may not take away your own way back in. Renaming the admin
+        #   group is one typo away from a site with no administrator at all,
+        #   and the page that could put it right is the one you just locked.
+        #   Checked by ASKING the site who you are now, with the new settings
+        #   in force -- not by reasoning about what the change ought to do.
+        config.forget_settings()
+        request.state.family_ident = None
+        if not security.identify(request).is_admin:
+            raise ValueError(
+                "with those group names you would not be an administrator any "
+                "more, and nobody could undo it from here. Nothing was changed.")
+
+        # ⚠ The same for the peers, and it is the same class of mistake: with
+        #   single sign-on on, a peer list that does not contain the address
+        #   this very request came from means the next one is refused.
+        if False:
+            peer = request.client.host if request.client else ""
+            if peer and peer not in config.trusted_peers():
+                raise ValueError(
+                    f"this request came from {peer}, and that is not in the list "
+                    "you just gave. The next one would be refused. Nothing was changed.")
+    except ValueError as exc:
+        # ⚠ Back to exactly what stood there: a key that had no row gets its row
+        #   taken away again, not filled with the environment's answer.
+        for k in keys:
+            if k in before:
+                config.set_setting(k, before[k])
+            elif k in saved:
+                db.clear_state("cfg." + k)
+        config.forget_settings()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"saved": saved, **_auth_state()}
+
+
+@app.post("/api/auth/secret")
+def api_auth_secret(request: Request, body: dict = Body(...)):
+    """Write one of the two secrets to its file.
+
+    ⚠ To a FILE, never to the database. `deploy/db-backup.sh` copies the
+      database with `VACUUM INTO`, so a secret in there would sit in fourteen
+      rotating backups in the clear -- and these two are the ones worth
+      stealing: one forges identity headers, the other reads the directory.
+
+    ⚠ Write-only from here. The value is never sent back to the page; the page
+      is told whether one is present and how long it is, and nothing else.
+    """
+    _admin(request)
+    which = str(body.get("which", ""))
+    if which not in ("proxy", "authentik", "oidc"):
+        raise HTTPException(status_code=400, detail="which: 'authentik' or 'oidc'")
+    value = str(body.get("value", "")).strip()
+    if which == "proxy" and len(value) < 32:
+        raise HTTPException(
+            status_code=400,
+            detail="the shared secret needs at least 32 characters -- it is the one "
+                   "thing that makes an identity header worth believing")
+    if not value:
+        raise HTTPException(status_code=400, detail="nothing to write")
+    try:
+        config.write_secret(which, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _auth_state()
+
+
+@app.post("/api/auth/secret/make")
+def api_auth_secret_make(request: Request):
+    """Make up a shared secret, so nobody has to think one up.
+
+    ⚠ `secrets.token_urlsafe`, never `random`. And it is written straight to
+      the file and NOT returned: the page has no use for the value -- only
+      nginx does, and that is a copy somebody makes on the proxy.
+    """
+    _admin(request)
+    import secrets as _s
+    try:
+        config.write_secret("proxy", _s.token_urlsafe(36))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _auth_state()
+
+
+@app.get("/admin/access", response_class=HTMLResponse)
+def page_access(request: Request):
+    """Who sees which album.
+
+    ⚠ Its own page since 08.09.2026. It used to be section 05 of the settings,
+      at the bottom, under the members and the tags -- and it is the one thing
+      on that page somebody opens ON PURPOSE, repeatedly, rather than to look
+      something up once. A row per album with a tick per person does not belong
+      at the end of a page about configuration.
+    """
+    _admin(request)
+    return _page(request, "access.html",
+                 acls=acl.all_acls(),
+                 alb_rows=album.list_all(),
+                 pickable=members.pickable(),
+                 groups=members.group_choices(),
+                 admins=members.admin_names())
+
+
 @app.get("/admin/settings", response_class=HTMLResponse)
 def page_settings(request: Request):
     """What the site knows about signing in -- and what there is."""
     ident = _admin(request)
     return _page(request, "settings.html",
+                 auth=_auth_state(),
                  members=members.all_of(),
                  pickable=members.pickable(),
                  groups=members.group_choices(),
@@ -1160,10 +1644,8 @@ def page_settings(request: Request):
                          "viewer": sorted(config.VIEWER_GROUPS)},
                  seen={"user": ident.user, "groups": sorted(ident.groups),
                        "email": ident.email, "admin": ident.is_admin},
-                 acls=acl.all_acls(),
                  tagpick=tagging.tag_choices(),
-                 peoplepick=tagging.person_choices(),
-                 alb_rows=album.list_all())
+                 peoplepick=tagging.person_choices())
 
 
 # ---------------------------------------------------------------------------
@@ -1234,7 +1716,7 @@ def api_app_login(request: Request, body: dict = Body(...)):
       same house. See FAMILY_TRUSTED_PROXIES for what makes that counter able
       to tell one visitor from another.
     """
-    if not config.AUTH_LOCAL:
+    if not config.auth_local():
         raise HTTPException(status_code=404, detail="not found")
     ip = security.client_ip(request)
     if auth.blocked(ip):

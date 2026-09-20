@@ -33,11 +33,32 @@ def web_path_for(origin_path: str) -> Path:
 
 
 @handler("convert")
+@handler("convert-upload")
 def convert(job) -> None:
+    """Build the master and the web sizes for one photograph.
+
+    ⚠ Two job kinds, one function, and the difference is not what it does but
+      WHERE it runs. `convert` is the library: the family's own originals,
+      converted by the site itself. `convert-upload` is a file somebody handed
+      in, and it runs in `family-convert.service`, a process that does not have
+      `/mnt/my-photos` mounted at all -- because decoding a stranger's file
+      means handing their bytes to libheif, LibRaw or ffmpeg, and a hole in any
+      of those must not reach the only copy of the originals.
+    """
     photo_id = int(job["payload"])
     row = db.connect().execute("SELECT * FROM photos WHERE id=?", (photo_id,)).fetchone()
     if row is None:
         return
+    # ⚠ A `convert-upload` job may ONLY ever be a staged upload. The isolated
+    #   process cannot read the originals tree, so a library photograph sent
+    #   down this road would fail with a confusing "the original is gone" --
+    #   and, worse, a job put on the wrong queue by a future mistake would be
+    #   an attempt to make the sandboxed worker reach for the very tree it is
+    #   sandboxed away from. Say no here, out loud.
+    if job["kind"] == "convert-upload" and row["origin_root"] != "user":
+        raise RuntimeError(
+            f"photograph {photo_id} is not a staged upload "
+            f"(origin_root={row['origin_root']!r}) -- it belongs on the 'convert' queue")
     # ⚠ Two sources. A library photograph builds its master from the original
     # in the originals tree. A photograph somebody uploaded for themselves
     # (origin_root='user') has no original there -- it is read from the staging

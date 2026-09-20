@@ -64,8 +64,31 @@ def note_fail(ip: str) -> None:
     if not ip:
         return
     # Bounded on purpose: what falls out of the window falls out of memory.
+    #
+    # ⚠ It used to be `_fails.clear()`, and that handed the throttle to whoever
+    #   wanted it: an attacker walks through 5001 invented addresses, the whole
+    #   table is emptied, and EVERY counter -- including the one counting their
+    #   own guesses -- is back at nought.
+    #
+    # ⚠ And shedding the OLDEST is no better, which is the mistake this comment
+    #   exists to stop somebody making again. The oldest entry is the one that
+    #   has been blocked longest; the newest are the thousands of invented
+    #   addresses the attacker is writing right now. Evicting by age therefore
+    #   throws away exactly the block that matters and keeps the noise.
+    #
+    #   What has to survive is a COUNT that is holding somebody back. So the
+    #   order is: entries outside the window first (they hold nobody back),
+    #   then the ones with the fewest failures. An address with one failure is
+    #   worth nothing to keep; one that has reached MAX_TRIES is the whole
+    #   point of the table.
     if len(_fails) > 5000:
-        _fails.clear()
+        cutoff = _now() - LOCK_MINUTES * 60
+        for k in [k for k, v in _fails.items() if not v or max(v) <= cutoff]:
+            _fails.pop(k, None)
+        if len(_fails) > 5000:
+            order = sorted(_fails, key=lambda k: (len(_fails[k]), max(_fails[k])))
+            for k in order[:len(_fails) - 4000]:
+                _fails.pop(k, None)
     _fails.setdefault(ip, []).append(_now())
 
 
@@ -80,6 +103,32 @@ def has_local_users() -> bool:
     return bool(db.connect().execute(
         "SELECT 1 FROM members WHERE is_local=1 AND password_hash IS NOT NULL "
         "LIMIT 1").fetchone())
+
+
+def has_local_admin() -> bool:
+    """Is there somebody with a PASSWORD who can administer this site?
+
+    ⚠ Not the same question as `has_local_users()`, and the difference is what
+      makes it worth its own function: an installation can have a password
+      account that may only look, and switching single sign-on off there leaves
+      a site nobody can manage. It is asked before the settings page is allowed
+      to take the proxy road away.
+
+    ⚠ The group names come from the configuration, so this asks what THIS
+      installation calls an administrator, not what the code guesses.
+    """
+    import json
+    from . import config
+    for row in db.connect().execute(
+            "SELECT groups_json FROM members "
+            "WHERE is_local=1 AND active=1 AND password_hash IS NOT NULL"):
+        try:
+            groups = set(str(g) for g in json.loads(row["groups_json"] or "[]"))
+        except (ValueError, TypeError):
+            continue
+        if config.ADMIN_GROUPS.intersection(groups):
+            return True
+    return False
 
 
 def create_user(username: str, password: str, display_name: str = "",
@@ -185,10 +234,33 @@ def end_session(cookie: str) -> None:
             c.execute("DELETE FROM sessions WHERE ref=?", (cookie.split(".", 1)[0],))
 
 
-def end_all(username: str) -> int:
-    """End every session of one person -- after a password change, say."""
+def end_all(username: str, devices: bool = True) -> int:
+    """End every way that person is currently signed in.
+
+    ⚠ Sessions AND device tokens. It was sessions only, and both callers told
+      the person "every session of that person ends" -- which was true and
+      useless: a paired phone carries a `fam_…` token that never expires and is
+      checked on every request. Somebody who had the old password could mint one
+      through `/api/app/login` and keep full access after the password was
+      changed, until a human noticed the device on the phone page.
+
+      A password is changed either because it was forgotten or because somebody
+      else might have it. In the second case a revocation that leaves the
+      phones alone has revoked nothing.
+
+    ⚠ `devices=False` is for the case where only the browser side should go.
+      Nothing uses it today; it exists so that a future caller has to say so.
+    """
     with db.tx() as c:
-        return c.execute("DELETE FROM sessions WHERE username=?", (username,)).rowcount or 0
+        n = c.execute("DELETE FROM sessions WHERE username=?", (username,)).rowcount or 0
+    if devices:
+        # ⚠ Through `devices`, not with an UPDATE from here. `devices.identify()`
+        #   answers out of an in-memory cache for thirty seconds, and a row
+        #   marked revoked behind that cache is a token that still works. The
+        #   module that keeps the cache is the one that may empty it.
+        from . import devices as _dev
+        n += _dev.revoke_all(username)
+    return n
 
 
 def sweep() -> int:

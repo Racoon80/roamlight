@@ -55,7 +55,7 @@ if [ -n "${FAMILY_ORIGINS:-}" ] && [ -d "$FAMILY_ORIGINS" ]; then
     fi
 fi
 
-ALL="pages proxy oidc ticket notify convert gallery upload album album_undo owner tag share sync acl av"
+ALL="pages auth worker oidc ticket notify convert gallery upload album album_undo owner tag share sync acl av"
 WANT="${*:-$ALL}"
 
 pass=0; fail=0

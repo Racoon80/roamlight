@@ -377,11 +377,17 @@ CREATE TABLE IF NOT EXISTS jobs (
     updated_at TEXT
 );
 
--- One sign-in through the identity provider, while it is in flight.
--- ⚠ The verifier (PKCE) and the nonce live HERE and never leave this machine.
---    That is what makes a stolen authorisation code worthless. The row is
---    deleted in the same transaction that reads it (see oidc._take) -- two
---    callbacks carrying the same `state` must not both be allowed through.
+-- ---------------------------------------------------------------------------
+--  One sign-in through the identity provider, while it is in flight.
+--  See app/oidc.py.
+-- ---------------------------------------------------------------------------
+-- ⚠ Server-side, and each row is used ONCE. `state` ties the callback to the
+--   request that started it (without it, somebody can hand a browser a callback
+--   URL of their own and sign that person into an account they control), and
+--   `verifier` is the PKCE half that never leaves this machine -- so a stolen
+--   authorisation code is worth nothing on its own.
+-- ⚠ In the database and not in memory: a restart in the middle of a sign-in
+--   should send somebody back to the start, not lose the site.
 CREATE TABLE IF NOT EXISTS oidc_pending (
     state      TEXT PRIMARY KEY,
     verifier   TEXT NOT NULL,
@@ -725,6 +731,17 @@ def init() -> None:
 def get_state(key: str, default=None):
     row = connect().execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
     return row["value"] if row else default
+
+
+def clear_state(key: str) -> None:
+    """Take the row away entirely.
+
+    ⚠ Not the same as writing "". `get_state` gives back `None` for a row that
+    is not there and `""` for one that holds an empty string, and callers use
+    that difference: an armed setting that was cancelled must read as "nothing
+    was armed", while one deliberately armed as empty must read as "empty".
+    """
+    connect().execute("DELETE FROM state WHERE key=?", (key,))
 
 
 def set_state(key: str, value) -> None:

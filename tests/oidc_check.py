@@ -119,19 +119,11 @@ def token(**over):
 
 def main():
     db.init()
-    # ⚠ Set on the module and not through a settings page: in this repository
-    #   every setting is an environment variable read once at import. The
-    #   endpoints are given by hand so that NO discovery runs -- this test does
-    #   not touch the network.
-    config.AUTH_OIDC = True
-    config.OIDC_ISSUER = ISSUER
-    config.OIDC_CLIENT_ID = CLIENT
-    config.OIDC_ENDPOINT_OVERRIDES = {
-        "authorization": ISSUER + "/authorize",
-        "token": ISSUER + "/token",
-        "jwks": ISSUER + "/jwks",
-        "userinfo": "", "end_session": "",
-    }
+    for k, v in (("oidc_issuer", ISSUER), ("oidc_client_id", CLIENT),
+                 ("oidc_authorization_url", ISSUER + "/authorize"),
+                 ("oidc_token_url", ISSUER + "/token"),
+                 ("oidc_jwks_url", ISSUER + "/jwks")):
+        config.set_setting(k, v)
     # ⚠ KENG Netzverbindung -- mä och kee virgefëllte Cache. De Cache ze fëllen
     #   heescht, datt de Wee, deen d'Schlësselen HËLT, ni leeft: an dat ass genee
     #   dee Wee, wou e falsche Schlëssel eran kéim. Dofir gëtt d'HTTP-Schicht
@@ -217,14 +209,14 @@ def main():
     #   e `guy`, deen näischt gesäit.
     check("Numm bleift wéi de Ubidder en schreift", who["username"], "Guy")
     check("Gruppen", who["groups"], ["Group-Admin"])
-    config.OIDC_GROUPS_CLAIM = "roles"
+    config.set_setting("oidc_groups_claim", "roles")
     check("en anere Grupp-Anspréch", oidc.identity(token(roles="a b"))["groups"], ["a", "b"])
-    config.OIDC_GROUPS_CLAIM = "groups"
+    config.set_setting("oidc_groups_claim", "groups")
 
     print("\n-- wien an enger frieme Grupp ass, kënnt net eran --")
-    config.ADMIN_GROUPS = {"Group-Admin"}
-    config.VIEWER_GROUPS = {"Group-Family"}
-    config.CONTRIBUTOR_GROUPS = {"Group-Family"}
+    config.set_setting("admin_groups", "Group-Admin")
+    config.set_setting("viewer_groups", "Group-Family")
+    config.set_setting("contributor_groups", "Group-Family")
     refused("keng bekannte Grupp", oidc.sign_in, token(groups=["irgendeppes"]))
     cookie = oidc.sign_in(token())
     from app import auth, security
@@ -256,14 +248,14 @@ def main():
     #   iwwerschreift him dobäi seng Gruppen, sou datt keen Admin méi do ass.
     from app import auth as _auth
     _auth.create_user("notfall", "eng-laang-Noutfall-Sach",
-                      groups=[sorted(config.ADMIN_GROUPS)[0]])
+                      groups=[sorted(config.admin_groups())[0]])
     refused("op e Kont mat Passwuert", oidc.sign_in, token(preferred_username="notfall"))
     row = db.connect().execute(
         "SELECT is_local, password_hash IS NOT NULL AS pw, groups_json "
         "FROM members WHERE username='notfall'").fetchone()
     check("de Kont ass onberéiert", (row["is_local"], row["pw"]), (1, 1))
     check("... an huet seng Gruppen nach", json.loads(row["groups_json"]),
-          [sorted(config.ADMIN_GROUPS)[0]])
+          [sorted(config.admin_groups())[0]])
     check("... an et gëtt nach en Admin mat Passwuert", _auth.has_local_admin(), True)
 
     print("\n-- an d'Adressen, op déi een de Site weise kann --")
@@ -272,8 +264,13 @@ def main():
                         ("http://192.168.1.5:9000/x", False),   # kloertext iwwer d'Netz
                         ("ftp://id.example.com", False),
                         ("https://id.example.com/x?a=b", False)):  # wielt de Pfad vun der Entdeckung
-        check(f"issuer {wert}", config.oidc_issuer_ok(wert), gëllt)
-    config.OIDC_ISSUER = ISSUER
+        try:
+            config.set_setting("oidc_issuer", wert)
+            ok = True
+        except ValueError:
+            ok = False
+        check(f"issuer {wert}", ok, gëllt)
+    config.set_setting("oidc_issuer", ISSUER)
 
     print(f"\n{'ALLES GRÉNG' if not bad else str(bad) + ' FEELER'}")
     return 1 if bad else 0

@@ -15,26 +15,167 @@
   <div class="step"><span class="step__n">01</span><h2>Sign-in</h2>
     <span class="step__note">the site never sees a password</span></div>
   <table class="tbl">
-    <tr><th>How</th><td>Authentik forward-auth, in front of everything.
-        nginx asks Authentik on every request and passes the answer on in headers.</td></tr>
+    <tr><th>How</th><td>
+        {% if auth.local and auth.proxy %}Both roads:
+          a name and a password kept here, <em>and</em> an identity proxy in front.
+        {% elif auth.proxy %}An identity proxy in front of everything.
+          It asks your provider on every request and passes the answer on in headers.
+        {% else %}A name and a password, kept in this site&rsquo;s database.
+          Passwords are argon2id — the site stores no password it could read.
+        {% endif %}</td></tr>
     <tr><th>You, right now</th><td><b>{{ seen.user }}</b>
         {% if seen.email %}&middot; {{ seen.email }}{% endif %}
         &middot; {{ 'administrator' if seen.admin else 'viewer' }}</td></tr>
     <tr><th>Your groups</th><td>{% for g in seen.groups %}<span class="pill">{{ g }}</span> {% else %}—{% endfor %}</td></tr>
-    <tr><th>Admin groups</th><td>{% for g in roles.admin %}<span class="pill">{{ g }}</span> {% endfor %}
-        <span class="meta">— may upload, edit and share</span></td></tr>
-    <tr><th>Viewer groups</th><td>{% for g in roles.viewer %}<span class="pill">{{ g }}</span> {% endfor %}
-        <span class="meta">— may look</span></td></tr>
   </table>
+
+  {# ⚠ The group names your provider hands over, and who those people are here.
+     Set on this page since 08.09.2026 -- they were FAMILY_ADMIN_GROUPS and
+     friends in the YAML, which meant that matching the site to an existing
+     Authentik was an edit-and-restart on the machine. #}
+  <div class="cfgbox" id="rolecfg">
+    <h3>Which group means what</h3>
+    <p class="meta">The names come from your identity provider. Somebody in an
+       admin group sees and manages everything; a viewer may look; a contributor
+       may add photographs. Several names per line, separated by commas.</p>
+    <p><label>Administrators
+      <input id="cfg-admin" type="text" size="34" value="{{ auth.groups.admin|join(', ') }}"></label></p>
+    <p><label>Viewers
+      <input id="cfg-viewer" type="text" size="34" value="{{ auth.groups.viewer|join(', ') }}"></label></p>
+    <p><label>Contributors
+      <input id="cfg-contrib" type="text" size="34" value="{{ auth.groups.contributor|join(', ') }}"></label></p>
+    <p><label>Trusted peers
+      <input id="cfg-peers" type="text" size="34" value="{{ auth.peers|join(', ') }}"></label>
+      <span class="meta">the addresses your proxy talks to this site from —
+        normally just <code>127.0.0.1</code></span></p>
+    <p class="meta">⚠ You cannot take away your own way back in: a change that
+       would leave you not an administrator, or that drops the address this
+       request came from, is refused and nothing is written.</p>
+    <p class="syncbar">
+      <button class="btn btn--go" id="role-save" type="button">save</button>
+      <span class="meta" id="role-say" aria-live="polite"></span>
+    </p>
+  </div>
   <p class="meta">A session carries the groups it had at sign-in. Change someone's
-     groups in Authentik and they must sign out and back in — that is why both
-     lines above are <em>lists</em> and not single names.</p>
+     groups {% if auth.proxy %}in your provider{% else %}here{% endif %} and they
+     must sign out and back in — that is why both lines above are <em>lists</em>
+     and not single names.</p>
+
+  {# ⚠ Arm, then confirm THROUGH the proxy. Never a checkbox that takes effect
+     on save: everything has to be right at once for forward-auth to work, and
+     one wrong line in nginx would otherwise shut the whole family out of a
+     site most of them have no shell on. #}
+  {# ⚠ On or off, and no arm-and-confirm. That dance existed to prove a shared
+     secret really travelled from the reverse proxy to the app; the app talks to
+     the provider itself now, so there is nothing to prove by round trip. A
+     wrong issuer is a failed sign-in and a line in the log -- not a locked
+     door, because `local` comes from the configuration and nothing here can
+     take it away. #}
+  <div class="ssobox" id="ssobox" data-on="{{ 'yes' if auth.oidc else 'no' }}">
+    <h3>Single sign-on</h3>
+
+    {% if auth.locked %}
+      <p class="meta">Pinned by the configuration
+        (<code>FAMILY_AUTH_LOCK=1</code>, <code>FAMILY_AUTH={{ auth.env|join('+') }}</code>).
+        Nothing on this page can change it.</p>
+    {% else %}
+    <p class="syncbar">
+      <label class="tick"><input type="checkbox" id="oidc-on"
+             {{ 'checked' if auth.oidc }}
+             {{ 'disabled' if not (auth.may_switch_on or auth.oidc) }}>
+        <span><b>{{ 'On' if auth.oidc else 'Off' }}</b> — people sign in through
+          your identity provider</span></label>
+      <span class="meta" id="oidc-say" aria-live="polite"></span>
+    </p>
+    {% if auth.oidc and not auth.may_switch_off %}
+      <p class="meta">⚠ It cannot be switched off from here: there is no
+        administrator with a password on this site, so nobody could get back in.
+        Make one below first.</p>
+    {% endif %}
+    {% endif %}
+
+    <p class="meta">The site is an OpenID Connect client — it talks to your
+       provider itself. Give the provider this address to send people back to:
+       <code>{{ auth.oidc_redirect_real }}</code></p>
+
+    <table class="tbl">
+      <tr><th>Issuer</th><td>
+        <input id="oi-issuer" type="url" size="40" value="{{ auth.oidc_cfg.oidc_issuer }}"
+               placeholder="https://id.example.com/application/o/roamlight/">
+        <br><span class="meta">the provider's base address. Everything else is read
+          from <code>/.well-known/openid-configuration</code> underneath it</span></td></tr>
+      <tr><th>Client ID</th><td>
+        <input id="oi-client" type="text" size="40" value="{{ auth.oidc_cfg.oidc_client_id }}"></td></tr>
+      <tr><th>Client secret</th><td>
+        <input id="oi-secret" type="password" size="40" autocomplete="off"
+               placeholder="{{ 'set — type a new one to replace it' if auth.oidc_secret_ok else 'not set' }}">
+        <br><span class="meta">written to a file, never to the database — the
+          database is copied into every backup</span></td></tr>
+      <tr><th>Scopes</th><td>
+        <input id="oi-scopes" type="text" size="40" value="{{ auth.oidc_cfg.oidc_scopes }}"></td></tr>
+      <tr><th>Name claim</th><td>
+        <input id="oi-userclaim" type="text" size="24" value="{{ auth.oidc_cfg.oidc_username_claim }}">
+        <span class="meta">which claim is the user name</span></td></tr>
+      <tr><th>Groups claim</th><td>
+        <input id="oi-groupclaim" type="text" size="24" value="{{ auth.oidc_cfg.oidc_groups_claim }}">
+        <span class="meta">the groups are then matched by name against the lists above</span></td></tr>
+    </table>
+    <p class="syncbar">
+      <button class="btn btn--go" id="oidc-save" type="button">save</button>
+      <button class="btn" id="oidc-test" type="button">ask the provider</button>
+      <span class="meta" id="oidc-test-say" aria-live="polite"></span>
+    </p>
+    <pre class="meta" id="oidc-test-out" hidden></pre>
+  </div>
+
+  {# ⚠ The way back in when the provider is down. A site that signs everybody
+     in through OIDC has no password account at all -- and the day the provider
+     is unreachable, that is a house nobody can open. #}
+  <div class="cfgbox" id="pwbox">
+    <h3>An account with a password</h3>
+    <p class="meta">One of these is what you still have when the provider is
+       unreachable. It is not a second identity for the same person — it is the
+       key under the mat, and it should belong to whoever administers this site.</p>
+    <p><label>Name <input id="pw-user" type="text" size="20" autocomplete="off"></label>
+       <label>New password <input id="pw-new" type="password" size="24" autocomplete="new-password"></label>
+       <label class="tick"><input type="checkbox" id="pw-admin" checked><span>administrator</span></label></p>
+    <p class="meta">An existing name gets the new password; a new one is created.
+       Either way every session of that person ends.</p>
+    <p class="syncbar">
+      <button class="btn btn--go" id="pw-save" type="button">set the password</button>
+      <span class="meta" id="pw-say" aria-live="polite"></span>
+    </p>
+  </div>
 
   <div class="step"><span class="step__n">02</span><h2>The directory</h2>
-    <span class="step__note">read-only — the site cannot change anything in Authentik</span></div>
+    <span class="step__note">read-only — the site cannot change anything in your provider</span></div>
+
+  {# ⚠ Set here, not in the YAML. Pointing the site at an Authentik or an
+     Authelia used to be an edit-and-restart job on the machine; the
+     environment is still the default, and this overrides it. #}
+  <div class="cfgbox" id="dircfg">
+    <p><label>Endpoint
+      <input id="cfg-url" type="url" size="42" value="{{ auth.authentik_url }}"
+             placeholder="http://10.0.0.3:9000/api/v3"></label>
+      <span class="meta">⚠ the INTERNAL http address, not the public https one:
+        a container usually has no CA certificates, and the request stays on
+        your own network</span></p>
+    <p><label>API token
+      <input id="cfg-token" type="password" size="42" autocomplete="off"
+             placeholder="{{ 'set — type a new one to replace it' if auth.token_ok else 'not set' }}">
+      </label>
+      <span class="meta">Written to <code>{{ auth.token_file }}</code>, never to the
+        database — the database is copied into every backup.
+        {% if not auth.token_mine %}⚠ That file is not the site's to write; put
+        it there by hand.{% endif %}</span></p>
+    <p class="syncbar">
+      <button class="btn btn--go" id="cfg-save" type="button">save</button>
+      <span class="meta" id="cfg-say" aria-live="polite"></span>
+    </p>
+  </div>
+
   <table class="tbl">
-    <tr><th>Endpoint</th><td><code>{{ authentik.url }}</code></td></tr>
-    <tr><th>Token</th><td><code>{{ authentik.token_file }}</code>
+    <tr><th>Token</th><td><code>{{ auth.token_file }}</code>
         &middot; {{ 'present' if authentik.configured else 'MISSING' }}</td></tr>
     <tr><th>Rights</th><td><code>view_user</code>, <code>view_group</code> — nothing else.
         Creating, changing, flows, providers: all refused.</td></tr>
@@ -120,57 +261,6 @@
         <a class="link-u" href="/admin/tag">tagging page</a> — a tag from there
         turns up here as soon as it sits on a photograph.</p>
     </div>
-  </div>
-
-  <div class="step"><span class="step__n">05</span><h2>Who sees which album</h2>
-    <span class="step__note">no ticks = nobody but you</span></div>
-  <p class="meta">Tick the people who may see an album. Everyone else stops seeing it —
-     the album, its photographs, the map pin, the search results, and the direct
-     image address. <b>An album with nothing ticked is seen by nobody but you.</b>
-     Administrators are not in the list: they see every album anyway.</p>
-
-  <div class="alb" id="acl">
-    {% for a in alb_rows %}
-    {% set key = a.year ~ '/' ~ a.country ~ '/' ~ a.event %}
-    {% set liste = acls.get(key, []) %}
-    <form class="alb__row aclrow" data-year="{{ a.year }}" data-country="{{ a.country }}"
-          data-event="{{ a.event }}">
-      <div class="alb__pic">
-        {% if a.cover %}<img src="/photos/{{ a.cover }}/400.webp" alt="" loading="lazy" decoding="async">
-        {% else %}<span class="alb__nopic">no plate</span>{% endif %}
-      </div>
-      <div class="aclrow__who">
-        <code class="alb__path">{{ key }}</code>
-        <span class="meta">{{ a.n }} photograph{{ '' if a.n == 1 else 's' }}
-          &middot; <span class="aclrow__state">{{ 'only you' if not liste else liste|length ~ ' allowed' }}</span></span>
-        <div class="ticks">
-          {% set gewosst = pickable|map(attribute='username')|list %}
-          {% for p in pickable %}
-          <label class="tick"><input type="checkbox" value="user:{{ p.username }}"
-                 {{ 'checked' if 'user:' ~ p.username in liste }}>
-            <span>{{ p.display_name }}</span></label>
-          {% endfor %}
-          {% for pr in liste if pr.startswith('user:') and pr[5:] not in gewosst
-                       and pr[5:] not in admins %}
-          <label class="tick tick--gone"><input type="checkbox" value="{{ pr }}" checked>
-            <span>{{ pr[5:] }} <em>not in a site group</em></span></label>
-          {% endfor %}
-        </div>
-        <div class="ticks ticks--groups">
-          {% for g in groups %}
-          <label class="tick tick--group"><input type="checkbox" value="group:{{ g }}"
-                 {{ 'checked' if 'group:' ~ g in liste }}>
-            <span>{{ g }}</span></label>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="alb__act">
-        <button class="btn btn--go" type="submit">save</button>
-        <button class="btn" type="button" data-open>only me</button>
-        <span class="alb__say" aria-live="polite"></span>
-      </div>
-    </form>
-    {% endfor %}
   </div>
 </section>
 {{ m.back("/admin", "Workbench") }}

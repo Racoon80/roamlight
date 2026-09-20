@@ -23,6 +23,9 @@ be forged is worse than none. So what is counted is **how often** it was
 opened, not by how many.
 """
 import hashlib
+import threading
+
+_key_lock = threading.Lock()
 import hmac
 import logging
 import re
@@ -214,12 +217,43 @@ def check_password(token: str, pw_text: str) -> dict:
 #  for every single image
 # ---------------------------------------------------------------------------
 def _secret() -> bytes:
-    """Derived from the shared secret, with a separate purpose string.
+    """The key the share cookies are signed with.
 
-    ⚠ The purpose string matters: it is what stops a cookie from ever passing
-    as the shared secret, or the other way round."""
-    basis = (config.proxy_secret() or "").encode()
-    return hmac.new(basis, b"family-share-cookie-v1", hashlib.sha256).digest()
+    ⚠ This used to be derived from the forward-auth shared secret. That secret
+      went away on 08.09.2026 together with forward-auth -- and the basis here
+      quietly became the empty string, so the key was
+      `HMAC("", "family-share-cookie-v1")`: a constant anybody could compute
+      from this file. Found the same day, on the live site, by a review.
+
+      Nothing failed. That is the part worth remembering: a signing key that
+      turns into a known constant looks exactly like one that works.
+
+    ⚠ Its own key now, in its own file, and no fallback. A key that CANNOT be
+      read is an outage; a key that is silently empty is a forgery.
+    """
+    key = config.read_secret("share-cookie")
+    if not key:
+        key = _make_share_key()
+    return hmac.new(key.encode(), b"family-share-cookie-v1", hashlib.sha256).digest()
+
+
+def _make_share_key() -> str:
+    """Make the key on first use, and never again.
+
+    ⚠ Under a lock and re-read inside it: two requests arriving together must
+      not each write a key, or the one that loses invalidates every cookie the
+      winner just signed.
+    """
+    import secrets
+    with _key_lock:
+        key = config.read_secret("share-cookie")
+        if not key:
+            key = secrets.token_urlsafe(48)
+            config.write_secret("share-cookie", key)
+            logging.getLogger("family").info(
+                "share cookies: a signing key was made at %s",
+                config.secret_path("share-cookie"))
+        return key
 
 
 def cookie_name(token: str) -> str:

@@ -170,13 +170,11 @@ def headers(user=None, groups=None):
     from app import config
     if user:
         _invented.add(str(user))
-    if config.AUTH_PROXY:
-        secret = open(config.PROXY_SECRET_FILE).read().strip()
-        h = {"X-Family-Proxy": secret}
-        if user:
-            h["X-authentik-username"] = user
-            h["X-authentik-groups"] = groups or sorted(config.ADMIN_GROUPS)[0]
-        return h
+    # ⚠ There was a branch here that invented the identity-proxy headers. The
+    #   forward-auth road was taken out of the site on 08.09.2026 and this was
+    #   left behind pointing at `config.auth_proxy()`, which does not exist --
+    #   so every test that asked for headers died with an AttributeError
+    #   before it reached its subject. The road in is the device token below.
     if not user:
         return {}
     # ⚠ Local accounts are kept in lower case (`auth.create_user` folds them),

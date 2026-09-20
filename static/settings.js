@@ -67,37 +67,138 @@
       });
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll(".aclrow"), function (form) {
-    var say = form.querySelector(".alb__say");
-    var state = form.querySelector(".aclrow__state");
+  /* ---- Single sign-on, and the key under the mat ------------------------
 
-    function send(liste) {
-      say.textContent = "…";
-      return window.famPost("/api/albums/audience", {
-        year: form.dataset.year, country: form.dataset.country,
-        event: form.dataset.event, audience: liste
-      }).then(function (d) {
-        say.textContent = d.admin_only ? "only you" : "saved";
-        state.textContent = d.admin_only ? "only you" : d.audience.length + " allowed";
-      }).catch(function (e) { say.textContent = "✗ " + e.message; });
-    }
+     ⚠ Nothing here decides anything. The switch, the guard that refuses to turn
+     it off when there is no password account, the refusal to turn it on without
+     an issuer -- all of that is in the routes. A page script can be read and
+     re-run by anybody; it is a convenience, never a lock. */
+  function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ""; }
 
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var liste = Array.prototype.filter.call(
-        form.querySelectorAll('input[type="checkbox"]'), function (c) { return c.checked; })
-        .map(function (c) { return c.value; });
-      /* An empty list opens the album to everybody -- that is a change somebody
-         should notice, so it asks first. */
-      if (!liste.length && !window.confirm(
-          "Nothing is ticked.\n\nThis album will then be seen by nobody but you.")) return;
-      send(liste);
+  /* ⚠ Every button goes through here, and the reason is a bug that shipped:
+     `val()` was deleted in a rewrite while three handlers still called it, so a
+     click threw a ReferenceError before the first line of work and the page did
+     NOTHING -- no error, no spinner, no clue. A button that fails silently is
+     worse than one that says why. This catches the synchronous throw as well as
+     the rejected promise, and always puts something in the status line. */
+  function on(id, sayId, build) {
+    var b = document.getElementById(id);
+    if (!b) { return; }
+    b.addEventListener("click", function () {
+      var work;
+      try {
+        work = build();
+      } catch (e) {
+        say(sayId, "the page is broken here: " + e.message, true);
+        return;
+      }
+      if (!work) { return; }
+      b.disabled = true; say(sayId, "\u2026");
+      work.then(function () {
+        say(sayId, "saved");
+        setTimeout(function () { location.reload(); }, 700);
+      }).catch(function (e) { say(sayId, e.message, true); b.disabled = false; });
     });
+  }
 
-    form.querySelector("[data-open]").addEventListener("click", function () {
-      Array.prototype.forEach.call(form.querySelectorAll('input[type="checkbox"]'),
-        function (c) { c.checked = false; });
-      send([]);
+  function say(id, msg, bad) {
+    var e = document.getElementById(id);
+    if (e) { e.textContent = (bad ? "\u2717 " : "") + msg; }
+  }
+
+  var onbox = document.getElementById("oidc-on");
+  if (onbox) {
+    onbox.addEventListener("change", function () {
+      var want = onbox.checked;
+      onbox.disabled = true; say("oidc-say", "…");
+      window.famPost("/api/auth/mode", { on: want }).then(function () {
+        location.reload();
+      }).catch(function (e) {
+        say("oidc-say", e.message, true);
+        onbox.checked = !want; onbox.disabled = false;
+      });
+    });
+  }
+
+  var osave = document.getElementById("oidc-save");
+  if (osave) {
+    osave.addEventListener("click", function () {
+      var sec = val("oi-secret");
+      osave.disabled = true; say("oidc-test-say", "…");
+      /* ⚠ The secret first. If the issuer saved and the secret then failed, the
+         page would come back showing a provider that cannot be talked to. */
+      var first = sec
+        ? window.famPost("/api/auth/secret", { which: "oidc", value: sec })
+        : Promise.resolve();
+      first.then(function () {
+        return window.famPost("/api/auth/config", {
+          oidc_issuer: val("oi-issuer"), oidc_client_id: val("oi-client"),
+          oidc_scopes: val("oi-scopes"),
+          oidc_username_claim: val("oi-userclaim"),
+          oidc_groups_claim: val("oi-groupclaim")
+        });
+      }).then(function () {
+        say("oidc-test-say", "saved");
+        setTimeout(function () { location.reload(); }, 700);
+      }).catch(function (e) {
+        say("oidc-test-say", e.message, true); osave.disabled = false;
+      });
+    });
+  }
+
+  var otest = document.getElementById("oidc-test");
+  if (otest) {
+    otest.addEventListener("click", function () {
+      var out = document.getElementById("oidc-test-out");
+      otest.disabled = true; say("oidc-test-say", "asking…");
+      window.famPost("/api/auth/oidc/test", {}).then(function (d) {
+        say("oidc-test-say", "the provider answered");
+        out.textContent = JSON.stringify(d, null, 2);
+        out.hidden = false;
+        otest.disabled = false;
+      }).catch(function (e) {
+        say("oidc-test-say", e.message, true);
+        out.hidden = true;
+        otest.disabled = false;
+      });
+    });
+  }
+
+  /* D'Gruppennimm an d'vertraut Peeren. */
+  on("role-save", "role-say", function () {
+    return window.famPost("/api/auth/config", {
+      admin_groups: val("cfg-admin"), viewer_groups: val("cfg-viewer"),
+      contributor_groups: val("cfg-contrib"), trusted_peers: val("cfg-peers")
     });
   });
+
+  /* D'Verzeechnes: Adress an Token. ⚠ Den Token GEET ZEESCHT -- géing d'Adress
+     duerchgoen an den Token duerno net, stéing op der Säit eng Adress, déi keen
+     erreecht. */
+  on("cfg-save", "cfg-say", function () {
+    var tok = val("cfg-token"), url = val("cfg-url");
+    var first = tok
+      ? window.famPost("/api/auth/secret", { which: "authentik", value: tok })
+      : Promise.resolve();
+    return first.then(function () {
+      return window.famPost("/api/auth/config", { authentik_url: url });
+    });
+  });
+
+  var pwsave = document.getElementById("pw-save");
+  if (pwsave) {
+    pwsave.addEventListener("click", function () {
+      var u = val("pw-user"), pw = val("pw-new");
+      if (!u || !pw) { say("pw-say", "a name and a password", true); return; }
+      pwsave.disabled = true; say("pw-say", "…");
+      window.famPost("/api/members/make-admin", {
+        username: u, password: pw,
+        admin: document.getElementById("pw-admin").checked
+      }).then(function (d) {
+        say("pw-say", d.user + " \u2014 " + d.groups.join(", "));
+        document.getElementById("pw-new").value = "";
+        setTimeout(function () { location.reload(); }, 1200);
+      }).catch(function (e) { say("pw-say", e.message, true); pwsave.disabled = false; });
+    });
+  }
 })();

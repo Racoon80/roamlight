@@ -145,6 +145,15 @@ FAMILY_OIDC_CLIENT_ID=…
 FAMILY_OIDC_SECRET_FILE=/etc/roamlight/oidc-secret
 ```
 
+…or set none of that and fill it in on **Settings → Sign-in**, which is the
+same thing from the other end: what the page stores wins, and the environment
+is what it falls back to. An installation deployed from a file never has to
+open the page; one set up by hand never has to touch a file.
+
+⚠ `local` can never be taken away from that page — only from the environment.
+A click must not be able to shut the last door, and the password account is
+what you still have when the provider is misconfigured.
+
 The exchange uses PKCE, a one-use `state` tied to the browser by a cookie, and
 a `nonce`; the `id_token`'s signature, `iss`, `aud` and `exp` are all checked
 against the provider's published keys **before a single claim is read**. The
@@ -158,17 +167,14 @@ somebody renaming themselves to your emergency administrator's name would
 otherwise be handed that account. A name that already belongs to a password
 account is refused, loudly, and the two stay separate.
 
-**`proxy`** — an identity provider in front (Authentik, Authelia,
-oauth2-proxy…) authenticates, and passes the user and their groups as headers.
-The older arrangement: `oidc` does the same job inside the program, with
-nothing to configure in the proxy.
-
-⚠ **Do not switch `proxy` on unless a proxy really is in front and really does
-overwrite those headers.** Otherwise anyone can send
-`X-authentik-username: you` and be you. When `proxy` is on, the site also
-demands a shared secret in `X-Family-Proxy` that only your proxy knows — that
-is what makes the header trustworthy. See [`deploy/nginx.conf`](deploy/nginx.conf)
-for a worked example.
+⚠ **`proxy` is gone.** There used to be a third road: an identity proxy in
+front (Authentik's outpost, Authelia, oauth2-proxy) authenticated and passed
+the user and their groups as headers, and the site believed them because a
+shared secret came with them. `oidc` does the same job inside the program and
+has none of that arrangement — no outpost, no secret that has to match in two
+files, and nothing that stops being true when somebody edits the proxy. It was
+taken out on 08.09.2026; if you were running `FAMILY_AUTH=proxy`, set the
+issuer and client id above and use `oidc` instead.
 
 **Phones** get in their own way: a device token. On `/app` the site shows a QR
 code that is good for five minutes and one device; the app scans it and trades
@@ -187,7 +193,8 @@ Everything is environment variables. The ones that matter:
 
 | Variable | Default | What it is |
 |---|---|---|
-| `FAMILY_AUTH` | `local` | `local`, `oidc`, `proxy` — or any of them together |
+| `FAMILY_AUTH` | `local` | `local`, `oidc`, or `local+oidc` |
+| `FAMILY_AUTH_LOCK` | `0` | `1` stops the settings page changing the road in — the file is the only authority |
 | `FAMILY_OIDC_ISSUER` | — | Your provider, for `oidc`. https, no query string |
 | `FAMILY_OIDC_CLIENT_ID` | — | The client this site is registered as |
 | `FAMILY_OIDC_SECRET_FILE` | `/etc/roamlight/oidc-secret` | The client secret. Leave it out for a public client |

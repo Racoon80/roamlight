@@ -37,21 +37,6 @@ Every step below exists because leaving it out is a known way in:
   the verification below builds the provider's public key out of the JWKS by
   hand. A JWT library would be one more thing to keep patched for the sake of
   sixty lines.
-
-⚠ **Where the settings come from here.** This module was written for an
-  installation that keeps its settings in a page and a database. In this
-  repository every setting is an environment variable, like `FAMILY_AUTH` and
-  the proxy secret, so the reads were changed to match and nothing else was:
-
-      FAMILY_AUTH=local+oidc
-      FAMILY_OIDC_ISSUER=https://auth.example.com/application/o/roamlight/
-      FAMILY_OIDC_CLIENT_ID=...
-      /etc/roamlight/oidc-secret          (the client secret, or leave it out)
-
-  The checks below -- PKCE, state, the state cookie, nonce, signature, `iss`,
-  `aud`, `exp` -- are exactly as they were, and so is the refusal to merge a
-  provider account onto a password account, which is the sharpest thing in the
-  file.
 """
 import base64
 import hashlib
@@ -83,7 +68,7 @@ class OidcError(Exception):
 # --- the settings -------------------------------------------------------------
 
 def enabled() -> bool:
-    return bool(config.AUTH_OIDC and config.OIDC_ISSUER and config.OIDC_CLIENT_ID)
+    return bool(config.auth_oidc() and config.setting("oidc_issuer"))
 
 
 def _b64url(raw: bytes) -> str:
@@ -107,7 +92,7 @@ def discovery() -> dict:
       somebody typed. The three manual overrides exist for a provider without
       discovery, and they are an exception, not the road.
     """
-    issuer = config.OIDC_ISSUER
+    issuer = config.setting("oidc_issuer").rstrip("/")
     if not issuer:
         raise OidcError("no issuer is configured")
     hit = _cache.get("disc")
@@ -132,7 +117,7 @@ def discovery() -> dict:
 
 def endpoint(name: str) -> str:
     """`authorization`, `token`, `userinfo`, `jwks_uri`, `end_session`."""
-    manual = config.OIDC_ENDPOINT_OVERRIDES.get(name, "")
+    manual = config.setting("oidc_" + name + "_url")
     if manual:
         return manual
     doc = discovery()
@@ -150,7 +135,7 @@ def redirect_uri() -> str:
       registered with the provider anyway -- so if it does not match what the
       site really is, the mistake should be loud, not silent.
     """
-    return config.OIDC_REDIRECT_URI or (config.SITE_URL.rstrip("/") + "/auth/oidc/callback")
+    return config.setting("oidc_redirect_uri") or (config.SITE_URL + "/auth/oidc/callback")
 
 
 # --- one sign-in in flight ----------------------------------------------------
@@ -190,13 +175,13 @@ def begin(next_url: str = "/"):
         c.execute("INSERT INTO oidc_pending (state, verifier, nonce, next) VALUES (?,?,?,?)",
                   (state, verifier, nonce, next_url))
     from urllib.parse import urlencode
-    scopes = config.OIDC_SCOPES or "openid email profile"
+    scopes = config.setting("oidc_scopes") or "openid email profile"
     url = endpoint("authorization")
     if not url:
         raise OidcError("the provider names no authorization endpoint")
     return url + ("&" if "?" in url else "?") + urlencode({
         "response_type": "code",
-        "client_id": config.OIDC_CLIENT_ID,
+        "client_id": config.setting("oidc_client_id"),
         "redirect_uri": redirect_uri(),
         "scope": scopes,
         "state": state,
@@ -323,12 +308,12 @@ def verify_id_token(token: str, nonce: str) -> dict:
     except Exception as exc:                                     # noqa: BLE001
         raise OidcError(f"the id_token could not be checked: {exc}")
 
-    issuer = config.OIDC_ISSUER
+    issuer = config.setting("oidc_issuer").rstrip("/")
     if str(claims.get("iss", "")).rstrip("/") != issuer:
         raise OidcError(f"the token says it comes from {claims.get('iss')!r}, not {issuer!r}")
     aud = claims.get("aud")
     aud = aud if isinstance(aud, list) else [aud]
-    if config.OIDC_CLIENT_ID not in aud:
+    if config.setting("oidc_client_id") not in aud:
         raise OidcError("the token was not issued for this site")
     now = time.time()
     # ⚠ `float()` on a claim the provider chose. `"exp": "soon"` or `"exp": null`
@@ -365,10 +350,10 @@ def finish(code: str, state: str) -> tuple:
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri(),
-        "client_id": config.OIDC_CLIENT_ID,
+        "client_id": config.setting("oidc_client_id"),
         "code_verifier": row["verifier"],
     }
-    secret = config.oidc_secret()
+    secret = config.read_secret("oidc")
     if secret:
         data["client_secret"] = secret
     url = endpoint("token")
@@ -404,11 +389,11 @@ def identity(claims: dict) -> dict:
       vocabulary, and an installation moving off forward-auth keeps the group
       names it already had.
     """
-    field = config.OIDC_USERNAME_CLAIM or "preferred_username"
+    field = config.setting("oidc_username_claim") or "preferred_username"
     name = str(claims.get(field) or claims.get("email") or claims.get("sub") or "").strip()
     if not name:
         raise OidcError(f"the token carries no {field!r} to use as a name")
-    gclaim = config.OIDC_GROUPS_CLAIM or "groups"
+    gclaim = config.setting("oidc_groups_claim") or "groups"
     raw = claims.get(gclaim) or []
     if isinstance(raw, str):
         raw = [g.strip() for g in raw.replace(",", " ").split() if g.strip()]
@@ -442,8 +427,7 @@ def sign_in(claims: dict) -> str:
     """
     from . import auth
     who = identity(claims)
-    known = (set(config.ADMIN_GROUPS) | set(config.VIEWER_GROUPS)
-             | set(config.CONTRIBUTOR_GROUPS))
+    known = set(config.admin_groups()) | set(config.viewer_groups()) | set(config.contributor_groups())
     if not known.intersection(who["groups"]):
         raise OidcError(
             f"{who['username']} is in {who['groups'] or 'no groups'}, and none of "

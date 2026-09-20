@@ -43,12 +43,13 @@ _NO_USER_PREFIXES = ("/s/", "/static/")
 # ⚠ `/api/app/login` is here for the same reason as `/api/app/pair`: it is
 #   the door itself. It checks the password on its own and is throttled by
 #   the same counter as the website's form.
-# ⚠ `/auth/oidc/login` and `/auth/oidc/callback` are the door itself when the
-#   site signs people in through a provider (app/oidc.py). Behind the gate they
-#   would need the identity they exist to establish, and single sign-on would
-#   be a locked door with the key inside. They carry no rights of their own:
-#   the callback checks the state cookie, the PKCE verifier, the signature,
-#   `iss`, `aud`, `exp` and the nonce before anybody is anybody.
+# ⚠ The paths that answer to somebody who is not signed in yet -- because they
+#   are HOW you sign in. Leaving the two OIDC ones out of this list makes the
+#   gate refuse the sign-in itself, and the symptom is a redirect loop between
+#   this site and the provider that looks like the provider's fault.
+#   They carry no rights of their own: the callback checks the state cookie,
+#   the PKCE verifier, the signature, `iss`, `aud`, `exp` and the nonce before
+#   anybody is anybody.
 _NO_USER_EXACT = ("/api/health", "/robots.txt", "/api/app/authz", "/api/app/pair",
                   "/api/app/login",
                   "/auth/oidc/login", "/auth/oidc/callback",
@@ -63,7 +64,10 @@ class Identity:
     is_admin: bool        # sees and manages everything
     is_contributor: bool  # may upload and manage THEIR OWN photographs
     is_viewer: bool       # may look (admins and contributors may too)
-    local: bool           # the request came from the machine itself
+    # ⚠ `local` gouf hei ewechgeholl (08.09.2026). Et gouf NËMMEN um
+    #   Forward-Auth-Wee gesat, an deen ass ewech -- also war et duerno ëmmer
+    #   falsch, an e Feld, dat ëmmer falsch ass, ass eng Fal fir deen nächsten.
+    #   "Vun dëser Maschinn" gëtt do gefrot, wou et gebraucht gëtt (`health()`).
 
 
 def _no_access(request: Request):
@@ -73,11 +77,11 @@ def _no_access(request: Request):
     a dead end. A **request** (API, image) gets the 403: an app needs an error,
     not a sign-in page it will then try to read as JSON.
     """
-    # ⚠ `or config.AUTH_OIDC`: with the provider road alone there is still a
+    # ⚠ `or auth_oidc()`: with the provider road alone there is still a
     #   sign-in page to send somebody to -- it carries the button instead of a
-    #   password box. Without this an `oidc`-only installation answered a
-    #   browser with a bare 403 and no way onward.
-    if ((config.AUTH_LOCAL or config.AUTH_OIDC)
+    #   password box. Asking only `auth_local()` answered an `oidc`-only
+    #   installation with a bare 403 and no way onward.
+    if ((config.auth_local() or config.auth_oidc())
             and "text/html" in (request.headers.get("accept") or "")):
         from urllib.parse import quote
         from fastapi.responses import RedirectResponse
@@ -178,15 +182,15 @@ def _from_member(username: str) -> Identity:
         groups = tuple(str(g) for g in json.loads(row["groups_json"] or "[]"))
     except (ValueError, TypeError):
         groups = ()
-    return _built(row["username"], row["email"] or "", groups, local=False)
+    return _built(row["username"], row["email"] or "", groups)
 
 
 def _empty() -> Identity:
     return Identity(user="", email="", groups=(), is_admin=False,
-                    is_contributor=False, is_viewer=False, local=False)
+                    is_contributor=False, is_viewer=False)
 
 
-def _built(user: str, email: str, groups: tuple, local: bool) -> Identity:
+def _built(user: str, email: str, groups: tuple) -> Identity:
     return Identity(
         user=user, email=email, groups=groups,
         is_admin=bool(config.ADMIN_GROUPS.intersection(groups)),
@@ -194,17 +198,17 @@ def _built(user: str, email: str, groups: tuple, local: bool) -> Identity:
                             or config.CONTRIBUTOR_GROUPS.intersection(groups)),
         is_viewer=bool(config.ADMIN_GROUPS.intersection(groups)
                        or config.VIEWER_GROUPS.intersection(groups)),
-        local=local)
+    )
 
 
 def _identify(request: Request) -> Identity:
-    # ⚠ `or config.AUTH_OIDC`. The provider road ENDS in an ordinary session
+    # ⚠ `or auth_oidc()`. The provider road ENDS in an ordinary session
     #   cookie -- `oidc.sign_in()` calls the same `auth.new_session()` a
-    #   password sign-in does. With this reading the cookie only in `local`
-    #   mode, a site set to `FAMILY_AUTH=oidc` alone would hand out a session
-    #   at the end of the sign-in and then never look at it again: signed in,
-    #   and locked out, on the same request.
-    if config.AUTH_LOCAL or config.AUTH_OIDC:
+    #   password sign-in does. Reading the cookie only in `local` mode means a
+    #   site set to `FAMILY_AUTH=oidc` alone hands out a session at the end of
+    #   the sign-in and then never looks at it again: signed in, and locked
+    #   out, on the same request. `local+oidc` hides it; `oidc` does not.
+    if config.auth_local() or config.auth_oidc():
         cookie = request.cookies.get(config.SESSION_COOKIE)
         if cookie:
             from . import auth
@@ -233,25 +237,19 @@ def _identify(request: Request) -> Identity:
         if user:
             return _from_member(user)
 
-    if not config.AUTH_PROXY:
-        return _empty()
-
-    user = (request.headers.get(config.HDR_USER) or "").strip()
-    raw = (request.headers.get(config.HDR_GROUPS) or "").strip()
-    groups = tuple(g.strip() for g in raw.replace(",", "|").split("|") if g.strip())
-    return Identity(
-        user=user,
-        email=(request.headers.get(config.HDR_EMAIL) or "").strip(),
-        groups=groups,
-        is_admin=bool(config.ADMIN_GROUPS.intersection(groups)),
-        is_contributor=bool(config.ADMIN_GROUPS.intersection(groups)
-                            or config.CONTRIBUTOR_GROUPS.intersection(groups)),
-        is_viewer=bool(config.ADMIN_GROUPS.intersection(groups)
-                       or config.VIEWER_GROUPS.intersection(groups)),
-        # "local" means: the request came from the machine itself (monitoring,
-        # an ssh tunnel) — not "came through the proxy".
-        local=client_ip(request) in config.TRUSTED_PEERS,
-    )
+    # ⚠ And that is every road. There used to be a fourth here: identity
+    #   headers set by a forward-auth proxy, believed because a shared secret
+    #   came with them. It was replaced on 08.09.2026 by the site being an
+    #   OpenID Connect client itself (app/oidc.py) -- and the end of THAT road
+    #   is a session cookie, which is road 1. So signing in through a provider
+    #   did not add a road here; it added a second way of arriving on one that
+    #   already existed.
+    #
+    #   What went with it: `proxy_ok()`, the shared secret, the blunt gate that
+    #   refused anything not carrying it, and the `X-authentik-*` headers. None
+    #   of it has to be trusted any more, because nothing outside this process
+    #   claims an identity to it.
+    return _empty()
 
 
 _HEADERS = {
@@ -282,26 +280,6 @@ _HEADERS = {
 async def gate(request: Request, call_next):
     """Middleware. Runs before anything else."""
     path = request.url.path
-
-    # ⚠ This lock belongs to the proxy road: there a program outside claims an
-    #   identity, and the secret is the proof that it really was the proxy.
-    #   With a local sign-in nobody claims anything — the proof is in the
-    #   cookie, and there is no secret to check.
-    if config.REQUIRE_AUTH and config.AUTH_PROXY:
-        peer = request.client.host if request.client else ""
-        if peer not in config.TRUSTED_PEERS:
-            return _deny("peer")
-
-        want = config.proxy_secret()
-        got = request.headers.get(config.PROXY_HEADER, "")
-        # compare_digest, because otherwise how long the comparison takes says
-        # how many characters were right.
-        # ⚠ .encode(): a header value that is not ASCII raises a TypeError in
-        #   compare_digest — a 500 instead of a 403. Not reachable through the
-        #   proxy (which overwrites the value), but a loopback call could do it.
-        if not want or not hmac.compare_digest(
-                got.encode("latin-1", "replace"), want.encode("latin-1", "replace")):
-            return _deny("proxy")
 
     if config.REQUIRE_AUTH:
         if not (path in _NO_USER_EXACT or path.startswith(_NO_USER_PREFIXES)):

@@ -8,6 +8,8 @@ struct AlbumsView: View {
     @State private var albums: [Album] = []
     @State private var loading = true
     @State private var failed: String?
+    @State private var doomed: Album?
+    @State private var problem: String?
 
     // ⚠ The gap lives INSIDE the cell, and the grid is told nothing about it.
     //
@@ -33,6 +35,13 @@ struct AlbumsView: View {
                     ForEach(albums) { a in
                         NavigationLink(value: a) { AlbumCard(album: a) }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                if state.mayRemove {
+                                    Button(role: .destructive) { doomed = a } label: {
+                                        Label("Delete album", systemImage: "trash")
+                                    }
+                                }
+                            }
                             .padding(gap)
                     }
                 }
@@ -44,6 +53,23 @@ struct AlbumsView: View {
         .navigationDestination(for: Album.self) { PhotosView(album: $0) }
         .refreshable { await load() }
         .task { await load() }
+        .confirmAlbumRemoval($doomed) { a in await remove(a) }
+        .alert("Not deleted", isPresented: Binding(get: { problem != nil },
+                                                   set: { if !$0 { problem = nil } })) {
+            Button("OK") {}
+        } message: { Text(problem ?? "") }
+    }
+
+    private func remove(_ a: Album) async {
+        do {
+            let r = try await state.api.removeAlbum(a)
+            if !r.failed.isEmpty {
+                problem = "\(r.failed.count) of \(a.n) could not be deleted."
+            }
+        } catch {
+            problem = error.localizedDescription
+        }
+        await load()
     }
 
     private func load() async {
@@ -54,6 +80,50 @@ struct AlbumsView: View {
             failed = error.localizedDescription
         }
         loading = false
+    }
+}
+
+// MARK: - Ewechhuelen
+
+/// Said BEFORE anything is deleted, not after.
+///
+/// ⚠ "Delete" means something different depending on where a photograph came
+///   from, and the person pressing the button cannot see which it is. A
+///   photograph uploaded from a phone exists ONLY on the site -- its source is
+///   thrown away after conversion -- so it is gone for good. One from the
+///   family library stays in the library; the site only forgets it (and does
+///   not pick it up again on the next scan).
+let removalWarning = "Photographs uploaded from a phone exist only on the site and are gone for good. Photographs from the family library stay in the library; only the site forgets them."
+
+extension View {
+    /// The one question asked before an album goes.
+    func confirmAlbumRemoval(_ doomed: Binding<Album?>,
+                             _ go: @escaping (Album) async -> Void) -> some View {
+        confirmationDialog(
+            "Delete “\(doomed.wrappedValue?.title ?? "")”?",
+            isPresented: Binding(get: { doomed.wrappedValue != nil },
+                                 set: { if !$0 { doomed.wrappedValue = nil } }),
+            titleVisibility: .visible,
+            presenting: doomed.wrappedValue
+        ) { a in
+            Button("Delete \(a.n) photograph\(a.n == 1 ? "" : "s")", role: .destructive) {
+                Task { await go(a) }
+            }
+        } message: { _ in Text(removalWarning) }
+    }
+
+    /// The one question asked before a photograph goes.
+    func confirmPhotoRemoval(_ doomed: Binding<Photo?>,
+                             _ go: @escaping (Photo) async -> Void) -> some View {
+        confirmationDialog(
+            "Delete this \(doomed.wrappedValue?.isVideo == true ? "video" : "photograph")?",
+            isPresented: Binding(get: { doomed.wrappedValue != nil },
+                                 set: { if !$0 { doomed.wrappedValue = nil } }),
+            titleVisibility: .visible,
+            presenting: doomed.wrappedValue
+        ) { p in
+            Button("Delete", role: .destructive) { Task { await go(p) } }
+        } message: { _ in Text(removalWarning) }
     }
 }
 
@@ -155,6 +225,9 @@ struct PhotosView: View {
     @State private var sharing = false
     @State private var link: ShareResult?
     @State private var failed: String?
+    @State private var doomedPhoto: Photo?
+    @State private var doomedAlbum: Album?
+    @Environment(\.dismiss) private var dismiss
 
     // Adding photographs to THIS album. ⚠ Open to everyone who may look at it,
     // not only to a contributor -- that is what the web page does, and it is
@@ -190,6 +263,14 @@ struct PhotosView: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        if state.mayRemove {
+                            Button(role: .destructive) { doomedPhoto = p } label: {
+                                Label(p.isVideo ? "Delete video" : "Delete photograph",
+                                      systemImage: "trash")
+                            }
+                        }
+                    }
                     .padding(gap)
                     .onAppear {
                         // ⚠ The next page is loaded when its LAST image
@@ -226,7 +307,10 @@ struct PhotosView: View {
                          ?? "Search")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Photo.self) { p in
-            PhotoView(photos: photos, start: p)
+            PhotoView(photos: photos, start: p) { gone in
+                photos.removeAll { $0.id == gone.id }
+                total = max(0, total - 1)
+            }
         }
         .overlay {
             if let journey {
@@ -248,6 +332,15 @@ struct PhotosView: View {
         // conversion took longer than the twenty tries above.
         .refreshable { await load(page: 1) }
         .toolbar {
+            if let album, state.mayRemove {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) { doomedAlbum = album } label: {
+                            Label("Delete album", systemImage: "trash")
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
+            }
             if album != nil, state.me?.may.share == true {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { Task { await makeLink() } } label: {
@@ -280,6 +373,38 @@ struct PhotosView: View {
         }
         .sheet(item: $link) { l in ShareSheetView(link: l) }
         .task { if photos.isEmpty { await load(page: 1) } }
+        .confirmPhotoRemoval($doomedPhoto) { p in await remove(p) }
+        .confirmAlbumRemoval($doomedAlbum) { a in await remove(a) }
+    }
+
+    private func remove(_ p: Photo) async {
+        do {
+            let r = try await state.api.removePhotos([p.id])
+            if r.removed > 0 {
+                photos.removeAll { $0.id == p.id }
+                total = max(0, total - 1)
+            } else {
+                failed = r.failed.first?.error ?? "Not deleted."
+            }
+        } catch {
+            failed = error.localizedDescription
+        }
+    }
+
+    private func remove(_ a: Album) async {
+        do {
+            let r = try await state.api.removeAlbum(a)
+            if r.failed.isEmpty {
+                // ⚠ Back to the list: the album this screen shows is gone. The
+                //   list loads itself again when it comes back into view.
+                dismiss()
+            } else {
+                failed = "\(r.failed.count) could not be deleted."
+                await load(page: 1)
+            }
+        } catch {
+            failed = error.localizedDescription
+        }
     }
 
     private func load(page wanted: Int) async {

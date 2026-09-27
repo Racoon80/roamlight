@@ -31,7 +31,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             RoamlightTheme {
                 val state: AppState = viewModel()
-                CompositionLocalProvider(LocalApi provides state.api) {
+                CompositionLocalProvider(
+                    LocalApi provides state.api,
+                    LocalMayRemove provides (state.me?.may?.upload == true),
+                ) {
                     Surface(color = Ink.ground) { Root(state) }
                 }
             }

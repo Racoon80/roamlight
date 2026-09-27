@@ -43,6 +43,9 @@ final class AppState: ObservableObject {
 
     var api: API { API(token: token) }
     var connected: Bool { token != nil }
+    /// May take photographs and albums off the site. ⚠ Only whether to SHOW
+    ///   the button: the server still refuses what is not this person's own.
+    var mayRemove: Bool { me?.may.upload == true }
 
     /// After pairing, and at every start: who am I and what may I.
     /// ⚠ A 401 means the device was revoked on the site -- then do NOT keep

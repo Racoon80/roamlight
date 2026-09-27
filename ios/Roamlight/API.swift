@@ -298,6 +298,26 @@ struct API {
                        as: ShareResult.self)
     }
 
+    // MARK: - Ewechhuelen
+    //
+    // ⚠ The same routes the web page uses, and the same rule: an admin may take
+    //   anything off the site, anybody else only what they uploaded themselves.
+    //   The server decides that, not the app -- a refusal comes back as a 403
+    //   with a sentence, and that sentence is what the person gets to read.
+
+    /// Take a whole album off the site.
+    func removeAlbum(_ album: Album) async throws -> Removed {
+        try await post("/api/albums/remove",
+                       ["year": album.year, "country": album.country, "event": album.event],
+                       as: Removed.self)
+    }
+
+    /// Take single photographs off the site.
+    func removePhotos(_ ids: [Int]) async throws -> Removed {
+        try await post("/api/photos/bulk", ["action": "remove", "ids": ids],
+                       as: Removed.self)
+    }
+
     // MARK: - Eroplueden
     //
     // ⚠ In chunks, and not in one piece: a photograph off an iPhone is 5 MB

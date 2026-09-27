@@ -243,6 +243,24 @@ class Api(private val store: Store) {
             .put("event", album.event).put("days", days)
             .put("allow_download", true)))
 
+    // MARK: - Ewechhuelen
+    //
+    // ⚠ The same routes the web page uses, and the same rule: an admin may take
+    //   anything off the site, anybody else only what they uploaded themselves.
+    //   The server decides that, not the app -- a refusal comes back as a 403
+    //   with a sentence, and that sentence is what the person gets to read.
+
+    /** Take a whole album off the site. */
+    suspend fun removeAlbum(album: Album): Removed =
+        Removed.of(postJson("/api/albums/remove", JSONObject()
+            .put("year", album.year).put("country", album.country)
+            .put("event", album.event)))
+
+    /** Take single photographs off the site. */
+    suspend fun removePhotos(ids: List<Int>): Removed =
+        Removed.of(postJson("/api/photos/bulk", JSONObject()
+            .put("action", "remove").put("ids", org.json.JSONArray(ids))))
+
     // MARK: - Eng Foto an en Album deen et scho gëtt
 
     /**

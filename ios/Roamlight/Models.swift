@@ -86,6 +86,17 @@ struct Photo: Decodable, Identifiable, Hashable {
     }
 }
 
+/// The answer to taking something off the site.
+struct Removed: Decodable {
+    let removed: Int
+    let failed: [Failure]
+
+    struct Failure: Decodable {
+        let id: Int
+        let error: String
+    }
+}
+
 /// ⚠ NET `ShareLink` genannt: esou heescht e SwiftUI-Typ, an de Kompiler
 /// would have taken one or the other in the same file.
 struct ShareResult: Decodable, Identifiable {

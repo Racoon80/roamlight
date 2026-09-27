@@ -4,10 +4,23 @@ import AVKit
 import SwiftUI
 
 struct PhotoView: View {
-    let photos: [Photo]
+    // ⚠ A copy, not the album's list: a photograph deleted here has to leave
+    //   this pager at once, and `onRemove` tells the grid behind it.
+    @State private var photos: [Photo]
     let start: Photo
+    var onRemove: ((Photo) -> Void)? = nil
+
+    init(photos: [Photo], start: Photo, onRemove: ((Photo) -> Void)? = nil) {
+        _photos = State(initialValue: photos)
+        self.start = start
+        self.onRemove = onRemove
+    }
 
     @EnvironmentObject var state: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var doomed: Photo?
+    @State private var problem: String?
+    @State private var started = false
 
     @State private var index = 0
     /// How far the pager has been dragged, before it settles on a page.
@@ -128,7 +141,48 @@ struct PhotoView: View {
             if photos.indices.contains(index) { caption(photos[index]) }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { index = photos.firstIndex(of: start) ?? 0 }
+        .toolbar {
+            if state.mayRemove, photos.indices.contains(index) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { doomed = photos[index] } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+        }
+        .confirmPhotoRemoval($doomed) { p in await remove(p) }
+        .alert("Not deleted", isPresented: Binding(get: { problem != nil },
+                                                   set: { if !$0 { problem = nil } })) {
+            Button("OK") {}
+        } message: { Text(problem ?? "") }
+        // ⚠ Once. `onAppear` fires again when a sheet or a dialog closes, and
+        //   would throw the reader back to the photograph they started on.
+        .onAppear {
+            guard !started else { return }
+            started = true
+            index = photos.firstIndex(of: start) ?? 0
+        }
+    }
+
+    private func remove(_ p: Photo) async {
+        do {
+            let r = try await state.api.removePhotos([p.id])
+            guard r.removed > 0 else {
+                problem = r.failed.first?.error ?? "The site did not delete it."
+                return
+            }
+            onRemove?(p)
+            reset()
+            photos.removeAll { $0.id == p.id }
+            if photos.isEmpty {
+                dismiss()
+            } else {
+                // The next one slides in; after the last, the one before.
+                index = min(index, photos.count - 1)
+            }
+        } catch {
+            problem = error.localizedDescription
+        }
     }
 
     // MARK: - Rechnen

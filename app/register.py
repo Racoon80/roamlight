@@ -136,6 +136,11 @@ def remove(ids) -> dict:
                 c.execute("DELETE FROM photos WHERE id=?", (row["id"],))
             if row["web_name"]:
                 (config.WEB_DIR / row["web_name"]).unlink(missing_ok=True)
+                # ⚠ A video's web master is its POSTER; the playable copy sits
+                #   next to it as .mp4 and was left behind, orphaned, for ever.
+                if row["kind"] == "video":
+                    (config.WEB_DIR / row["web_name"]).with_suffix(".mp4").unlink(
+                        missing_ok=True)
             shutil.rmtree(convert.derivative_dir(row["id"]), ignore_errors=True)
             gone += 1
         except Exception as exc:                                # noqa: BLE001

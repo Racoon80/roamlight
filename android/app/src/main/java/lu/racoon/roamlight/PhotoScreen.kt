@@ -28,10 +28,21 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import kotlinx.coroutines.launch
 
 @Composable
 fun PhotoScreen(nav: NavHostController, id: Int) {
-    val photos = remember { Viewing.photos }
+    // ⚠ A list of our own, not the grid's: a photograph deleted here has to
+    //   leave this pager at once. The grid behind it loads afresh on the way
+    //   back anyway.
+    val photos = remember { Viewing.photos.toMutableStateList() }
+    val api = LocalApi.current
+    val mayRemove = LocalMayRemove.current
+    val scope = rememberCoroutineScope()
+    var doomed by remember { mutableStateOf<Photo?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
     if (photos.isEmpty()) {
         // The process was killed while this was open -- go back to the grid
         // rather than show an empty black page.
@@ -134,7 +145,53 @@ fun PhotoScreen(nav: NavHostController, id: Int) {
                 )
             }
         }
-        Caption(photos[pager.currentPage], Modifier.align(Alignment.BottomCenter))
+        photos.getOrNull(pager.currentPage)?.let {
+            Caption(it, Modifier.align(Alignment.BottomCenter))
+        }
+        if (mayRemove) {
+            IconButton(
+                onClick = { doomed = photos.getOrNull(pager.currentPage) },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            ) {
+                Icon(Icons.Outlined.Delete, contentDescription = "Delete",
+                     tint = Color.White.copy(alpha = 0.85f))
+            }
+        }
+    }
+
+    doomed?.let { p ->
+        ConfirmRemoval(
+            title = "Delete this ${if (p.isVideo) "video" else "photograph"}?",
+            action = "Delete",
+            onDismiss = { doomed = null },
+        ) {
+            doomed = null
+            scope.launch {
+                try {
+                    val r = api.removePhotos(listOf(p.id))
+                    if (r.removed == 0) {
+                        problem = r.failed.firstOrNull()?.ifEmpty { null }
+                            ?: "The site did not delete it."
+                        return@launch
+                    }
+                    scale = 1f; dx = 0f; dy = 0f
+                    photos.removeAll { it.id == p.id }
+                    Viewing.photos = photos.toList()
+                    // The next one slides in; after the last, the one before.
+                    if (photos.isEmpty()) nav.popBackStack()
+                } catch (e: Exception) {
+                    problem = (e as? ApiError)?.message ?: e.message
+                }
+            }
+        }
+    }
+    problem?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { problem = null },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+            title = { Text("Not deleted") },
+            text = { Text(msg) },
+        )
     }
 }
 

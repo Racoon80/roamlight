@@ -24,6 +24,21 @@ data class Pairing(val token: String, val user: String) {
     }
 }
 
+/** The answer to taking something off the site. */
+data class Removed(val removed: Int, val failed: List<String>) {
+    companion object {
+        fun of(o: JSONObject): Removed {
+            val f = o.optJSONArray("failed")
+            return Removed(
+                removed = o.optInt("removed", 0),
+                failed = (0 until (f?.length() ?: 0)).map {
+                    f!!.optJSONObject(it)?.optString("error", "") ?: ""
+                },
+            )
+        }
+    }
+}
+
 data class Rights(val view: Boolean, val upload: Boolean,
                   val share: Boolean, val admin: Boolean)
 

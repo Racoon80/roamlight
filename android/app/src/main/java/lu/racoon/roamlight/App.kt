@@ -15,6 +15,12 @@ class RoamlightApp : Application()
 /** The one API instance the whole tree uses, so nothing has to pass it down. */
 val LocalApi = staticCompositionLocalOf<Api> { error("no Api in the tree") }
 
+/**
+ * May take photographs and albums off the site. ⚠ Only whether to SHOW the
+ * button: the server still refuses what is not this person's own.
+ */
+val LocalMayRemove = compositionLocalOf { false }
+
 class AppState(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
     val api = Api(store)

@@ -62,10 +62,18 @@ def poster(src: Path, dst: Path, at: float = 1.0) -> None:
 
 
 def web_master(src: Path, dst: Path) -> None:
-    """H.264/AAC MP4, faststart, scaled down to MAX_HEIGHT.
+    """H.264/AAC MP4, faststart, the SHORT side scaled down to MAX_HEIGHT.
 
-    The scale filter keeps both dimensions even, because H.264 requires it."""
-    vf = f"scale='trunc(iw/2)*2':'min({MAX_HEIGHT},trunc(ih/2)*2)'"
+    ⚠ Both sides scale together. An earlier filter capped only the height and
+    left the width alone: 4K came out 3840x1080, a portrait phone clip
+    1080x1080. ffmpeg papered over it with a non-square pixel aspect ratio,
+    which many players (Android's VideoView among them) ignore -- so the
+    video played squashed. -2 = "keep the ratio, round to even" (H.264
+    requires even sides); setsar=1 makes the pixels square. iw/ih are
+    already after the rotation, so portrait stays portrait."""
+    m = MAX_HEIGHT
+    vf = (f"scale='if(gte(iw,ih),-2,min({m},trunc(iw/2)*2))'"
+          f":'if(gte(iw,ih),min({m},trunc(ih/2)*2),-2)',setsar=1")
     subprocess.run(
         ["ffmpeg", "-nostdin", "-y", "-i", str(src),
          "-vf", vf,

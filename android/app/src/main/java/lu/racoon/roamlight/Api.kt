@@ -124,7 +124,8 @@ class Api(private val store: Store) {
      *      stranger's address behind with a valid token still in the keychain
      *      is the same leak one request later.
      */
-    suspend fun pair(code: String, name: String, siteUrl: String): Pairing {
+    suspend fun pair(code: String, name: String, siteUrl: String,
+                     verifier: String? = null): Pairing {
         requireSafeAddress(siteUrl)
         val hadSite = store.site
         val hadToken = store.token
@@ -132,7 +133,8 @@ class Api(private val store: Store) {
         store.token = null
         return try {
             Pairing.of(postJson("/api/app/pair",
-                JSONObject().put("code", code).put("name", name)))
+                JSONObject().put("code", code).put("name", name)
+                    .apply { if (verifier != null) put("verifier", verifier) }))
         } catch (e: Exception) {
             store.site = hadSite
             store.token = hadToken
@@ -163,6 +165,32 @@ class Api(private val store: Store) {
             store.site = hadSite
             store.token = hadToken
             throw e
+        }
+    }
+
+    /**
+     * Which ways in a site has, asked before there is an account.
+     * ⚠ The site's own address, NOT the stored one, and no token along: this
+     *   may be a site the app has never been connected to.
+     */
+    suspend fun ways(siteUrl: String): Ways = withContext(Dispatchers.IO) {
+        requireSafeAddress(siteUrl)
+        val c = URL(URL(siteUrl.trimEnd('/') + "/"), "api/app/ways")
+            .openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = 15_000
+            c.readTimeout = 15_000
+            c.instanceFollowRedirects = false
+            if (c.responseCode != 200) throw ApiError(c.responseCode,
+                "That site did not answer like a Roamlight site.")
+            val o = parse(c.inputStream.use { it.readBytes() })
+            Ways(o.optBoolean("password"), o.optBoolean("sso"))
+        } catch (e: ApiError) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiError(0, e.message ?: "")
+        } finally {
+            c.disconnect()
         }
     }
 

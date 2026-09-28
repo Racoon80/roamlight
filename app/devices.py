@@ -27,6 +27,7 @@ The `ref` is stored in clear, so the row can be found without walking every
 device. What is compared afterwards is the sha256 of the secret, with
 `compare_digest`.
 """
+import base64
 import hashlib
 import hmac
 import secrets
@@ -47,14 +48,27 @@ _CACHE: dict = {}
 _CACHE_TTL = 30.0
 
 
+def s256(verifier: str) -> str:
+    """The PKCE S256 transform: base64url(sha256(verifier)), no padding."""
+    return base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+
+
 def _sha(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()
 
 
 # --- pairing (browser -> QR) -------------------------------------------------
 
-def new_pairing(username: str) -> dict:
-    """A pairing code for this person. Returns {code, expires_in}."""
+def new_pairing(username: str, challenge: str | None = None) -> dict:
+    """A pairing code for this person. Returns {code, expires_in}.
+
+    ⚠ `challenge` is for the app's single sign-on (`/app/sso`). That code does
+      not travel through a QR on a screen but through a `roamlight://` address
+      -- and on Android any app can claim a scheme. So the code is tied to the
+      hash of a secret the asking app made and kept: whoever catches the
+      address without the secret holds nothing. Same idea as PKCE, same S256.
+    """
     # ⚠ 24 bytes -> 32 characters, 192 bits. The first version used 12
     #   characters, which is plenty against guessing but leaves no room at all
     #   if a code is ever seen and typed later. A QR carries 32 without effort.
@@ -63,25 +77,32 @@ def new_pairing(username: str) -> dict:
         c.execute("DELETE FROM app_pairings WHERE username=? AND used_at IS NULL",
                   (username,))               # only ever one open code
         c.execute(
-            "INSERT INTO app_pairings (code, username, expires_at) "
-            "VALUES (?,?,datetime('now',?))",
-            (code, username, f"+{PAIR_MINUTES} minutes"))
+            "INSERT INTO app_pairings (code, username, expires_at, challenge) "
+            "VALUES (?,?,datetime('now',?),?)",
+            (code, username, f"+{PAIR_MINUTES} minutes", challenge))
     return {"code": code, "expires_in": PAIR_MINUTES * 60}
 
 
-def redeem(code: str, name: str, ip: str = "") -> dict | None:
+def redeem(code: str, name: str, ip: str = "", verifier: str = "") -> dict | None:
     """Trade a code for a token. `None` = invalid, expired or already used --
-    which of the three is deliberately not said."""
+    which of the three is deliberately not said.
+
+    ⚠ A code that carries a challenge needs the matching `verifier`. A wrong
+      one BURNS the code: whoever sends it caught the address without the
+      secret, and the rightful app starts again anyway."""
     code = (code or "").strip()
     if not code:
         return None
     with db.tx() as c:
         row = c.execute(
-            "SELECT username FROM app_pairings WHERE code=? AND used_at IS NULL "
+            "SELECT username, challenge FROM app_pairings WHERE code=? AND used_at IS NULL "
             "AND expires_at > datetime('now')", (code,)).fetchone()
         if row is None:
             return None
         c.execute("UPDATE app_pairings SET used_at=datetime('now') WHERE code=?", (code,))
+        if row["challenge"] and not hmac.compare_digest(
+                row["challenge"], s256(verifier or "")):
+            return None
         # ⚠ `token_hex` and NOT `token_urlsafe`: the urlsafe alphabet
         #   contains `_`, and the ref sits BETWEEN two underscores in the
         #   token. A ref with a `_` in it would make the token unsplittable,

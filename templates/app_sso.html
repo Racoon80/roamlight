@@ -1,0 +1,16 @@
+{% extends "base_bare.html" %}
+{% block title %}Connect the app — {{ site_title }}{% endblock %}
+{% block content %}
+{# ⚠ A question, not a code. The code is only made when the button is pressed
+   -- see `page_app_sso` in app/main.py for why a GET must not make one. #}
+<div class="signin" id="sso" data-challenge="{{ challenge }}">
+  <h1>{{ site_title }}</h1>
+  <p>Connect the Roamlight app on this phone to <b>{{ user }}</b>?</p>
+  <p class="meta">It will see exactly what you see on this site. You can take
+     it off again under <em>Phone &amp; tablet</em>.</p>
+  <button class="btn btn--go" type="button" id="go">Connect</button>
+  <p class="meta" id="say"></p>
+  <a class="btn" id="open" href="#" hidden>Open Roamlight</a>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/app-sso.js?v={{ static_ver }}" defer></script>{% endblock %}

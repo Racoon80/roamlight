@@ -35,11 +35,27 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Roamlight">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!--
+              The way back from single sign-on: the site's /app/sso page sends
+              the browser to roamlight://sso?c=<code>.
+              ⚠ Any app can claim a scheme on Android. That is why the code is
+                bound to a secret only THIS app holds (see AppState.startSso):
+                an app that catches the address has a code it cannot redeem.
+              ⚠ singleTask: the browser hands the address back to the Roamlight
+                that is already running, instead of stacking a second one on top.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="roamlight" android:host="sso" />
             </intent-filter>
         </activity>
     </application>

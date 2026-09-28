@@ -12,6 +12,16 @@ import kotlinx.coroutines.launch
 
 class RoamlightApp : Application()
 
+/** A typed address, made into one: `family.example.org` -> `https://family.example.org`. */
+fun siteUrl(typed: String): String {
+    val s = typed.trim().trimEnd('/')
+    return if (s.isEmpty() || s.contains("://")) s else "https://$s"
+}
+
+private fun b64url(b: ByteArray): String =
+    android.util.Base64.encodeToString(b,
+        android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+
 /** The one API instance the whole tree uses, so nothing has to pass it down. */
 val LocalApi = staticCompositionLocalOf<Api> { error("no Api in the tree") }
 
@@ -92,6 +102,76 @@ class AppState(app: Application) : AndroidViewModel(app) {
                 error = (e as? ApiError)?.message ?: e.message
                 checking = false
                 done(false)
+            }
+        }
+    }
+
+    /**
+     * Single sign-on, first half: open the site's own sign-in in the browser.
+     *
+     * ⚠ The app is NOT a second client at the provider. The browser goes to
+     *   `/auth/oidc/login` like the website does, the provider sends it back to
+     *   the site like it always does, and the site ends on `/app/sso`: "connect
+     *   this phone?". Its answer comes back as roamlight://sso?c=<code>, see
+     *   [finishSso]. Nothing had to change at the provider.
+     *
+     * ⚠ The code is bound to [verifier]'s hash (PKCE, S256). The secret never
+     *   leaves this app until it trades the code -- whoever catches the address
+     *   holds nothing.
+     */
+    fun startSso(context: android.content.Context, typed: String) {
+        val site = siteUrl(typed)
+        viewModelScope.launch {
+            checking = true
+            try {
+                if (!api.ways(site).sso) {
+                    error = "This site has no single sign-on. Use the code or a password."
+                    return@launch
+                }
+                val raw = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+                val verifier = b64url(raw)
+                val challenge = b64url(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(verifier.toByteArray()))
+                store.ssoSite = site
+                store.ssoVerifier = verifier
+                val next = java.net.URLEncoder.encode("/app/sso?challenge=$challenge", "UTF-8")
+                val url = android.net.Uri.parse("$site/auth/oidc/login?next=$next")
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                error = null
+            } catch (e: Exception) {
+                error = (e as? ApiError)?.message ?: e.message
+            } finally {
+                checking = false
+            }
+        }
+    }
+
+    /** Single sign-on, second half: the browser came back with a code. */
+    fun finishSso(uri: android.net.Uri, name: String) {
+        val code = uri.getQueryParameter("c").orEmpty()
+        val site = store.ssoSite
+        val verifier = store.ssoVerifier
+        // ⚠ Used once, whatever happens next: a second address arriving later
+        //   must not find a secret still waiting for it.
+        store.ssoSite = null
+        store.ssoVerifier = null
+        if (code.isEmpty() || site == null || verifier == null) {
+            error = "That sign-in did not start in this app. Try again."
+            return
+        }
+        viewModelScope.launch {
+            checking = true
+            try {
+                val p = api.pair(code, name, site, verifier)
+                store.token = p.token
+                token = p.token
+                error = null
+                checking = false
+                refresh()
+            } catch (e: Exception) {
+                error = (e as? ApiError)?.message ?: e.message
+                checking = false
             }
         }
     }

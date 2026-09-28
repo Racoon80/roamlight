@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import shutil
 
 from datetime import datetime, timedelta
@@ -1729,10 +1730,73 @@ def api_app_pair(request: Request, body: dict = Body(...)):
     app that works without a token -- it is locked by the code itself (five
     minutes, one use, and a rate limit in nginx)."""
     out = devices.redeem(str(body.get("code", "")), str(body.get("name", "")),
-                         security.client_ip(request))
+                         security.client_ip(request), str(body.get("verifier", "")))
     if out is None:
         raise HTTPException(status_code=401, detail="that code is not valid any more")
     return out
+
+
+@app.get("/api/app/ways")
+def api_app_ways():
+    """Which ways in this site has -- asked by the app before it has an account.
+
+    Nothing here the sign-in page does not already show to anybody: a password
+    box or not, a single-sign-on button or not."""
+    return {"password": config.auth_local(), "sso": oidc.enabled()}
+
+
+# ⚠ 32 random bytes, base64url, no padding: exactly 43 characters. Anything
+#   else is not a challenge an app of ours made.
+_CHALLENGE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+
+@app.get("/app/sso", response_class=HTMLResponse)
+def page_app_sso(request: Request, challenge: str = ""):
+    """The app's single sign-on ends here: "connect this phone?".
+
+    The app opens `/auth/oidc/login?next=/app/sso?challenge=…` in the system's
+    browser sheet. The provider signs the person in exactly as it does for the
+    website -- same client, same registered callback, NOTHING to change at the
+    provider -- and the callback lands here with an ordinary session.
+
+    ⚠ A question and a button, not a code at once. A GET that hands out a code
+      is a GET any page can send a signed-in browser to. The code is made only
+      by the POST that the button sends, and that POST has to come from this
+      page (the same cross-site check as `_admin`).
+    """
+    ident = security.identify(request)
+    if not ident.is_viewer:
+        raise HTTPException(status_code=403, detail="no")
+    if not _CHALLENGE.match(challenge or ""):
+        raise HTTPException(status_code=400, detail="that is not a request from the app")
+    return templates.TemplateResponse(request, "app_sso.html", {
+        "site_title": config.SITE_TITLE, "static_ver": _static_ver(),
+        "user": ident.user, "challenge": challenge})
+
+
+@app.post("/api/app/sso")
+def api_app_sso(request: Request, body: dict = Body(...)):
+    """The button on `/app/sso`: a pairing code bound to the app's challenge,
+    and the `roamlight://` address that carries it back into the app.
+
+    ⚠ The answer is JSON and the PAGE goes to the address. A form POST that
+      redirected to `roamlight://` is what anybody would write first -- and the
+      site's `form-action 'self'` (set by nginx AND by the app) would block the
+      redirect in every browser. A script navigating is not a form."""
+    site = request.headers.get("sec-fetch-site")
+    origin = request.headers.get("origin") or ""
+    if not (site in ("same-origin", "none")
+            or (not site and (not origin or origin.rstrip("/") == config.SITE_URL))):
+        raise HTTPException(status_code=403, detail="cross-site request refused")
+    ident = security.identify(request)
+    if not ident.is_viewer:
+        raise HTTPException(status_code=403, detail="no")
+    challenge = str(body.get("challenge", ""))
+    if not _CHALLENGE.match(challenge):
+        raise HTTPException(status_code=400, detail="that is not a request from the app")
+    out = devices.new_pairing(ident.user, challenge=challenge)
+    from urllib.parse import quote
+    return {"url": f"roamlight://sso?c={quote(out['code'])}"}
 
 
 @app.post("/api/app/login")

@@ -99,6 +99,33 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Sign in through the family's identity provider -- see `SSO.swift`.
+    func signInWithSSO(site: String, name: String) async {
+        let had = Site.url
+        checking = true
+        defer { checking = false }
+        do {
+            let (code, verifier) = try await SSO.shared.run(site: site)
+            let p = try await API.pair(code: code, name: name, site: site, verifier: verifier)
+            Keychain.save(p.token)
+            token = p.token
+            error = nil
+            await refresh()
+        } catch {
+            // Put the old address back, as `signIn` does.
+            Site.set(had.absoluteString == "https://localhost" ? "" : had.absoluteString)
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// A typed address, made into one: `family.example.org` -> `https://family.example.org`.
+    static func siteURL(_ typed: String) -> String {
+        var s = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.hasSuffix("/") { s.removeLast() }
+        if !s.isEmpty, !s.contains("://") { s = "https://" + s }
+        return s
+    }
+
     func signOut() {
         // ⚠ Before the token goes: tell the site to stop sending here.
         //   Afterwards there is nothing left to say it with.

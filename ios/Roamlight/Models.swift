@@ -86,6 +86,12 @@ struct Photo: Decodable, Identifiable, Hashable {
     }
 }
 
+/// Which ways in a site has (`/api/app/ways`).
+struct Ways: Decodable {
+    let password: Bool
+    let sso: Bool
+}
+
 /// The answer to taking something off the site.
 struct Removed: Decodable {
     let removed: Int

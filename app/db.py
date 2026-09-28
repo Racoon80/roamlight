@@ -528,6 +528,9 @@ MIGRATIONS = [
     # `password_hash` is argon2id; `is_local` tells an account of this site
     # apart from one that came out of a directory.
     ("members", "password_hash", "TEXT"),
+    # Single sign-on from the app: the hash of a secret only the app that
+    # asked holds (PKCE-style). A code with one is worthless without it.
+    ("app_pairings", "challenge", "TEXT"),
     ("members", "is_local", "INTEGER NOT NULL DEFAULT 0"),
     # The filing of a batch happens in the queue, not in the request that asks
     # for it (see upload.begin / upload.file_away). So what the person

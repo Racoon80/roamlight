@@ -104,11 +104,19 @@ struct API {
 
     /// Trade the pairing code for a token. This is the only request that
     /// ouni Token geet.
-    static func pair(code: String, name: String, site: String) async throws -> Pairing {
+    static func pair(code: String, name: String, site: String,
+                     verifier: String? = nil) async throws -> Pairing {
         Site.set(site)
         let api = API(token: nil)
-        return try await api.post("/api/app/pair", ["code": code, "name": name],
-                                  as: Pairing.self)
+        var body: [String: Any] = ["code": code, "name": name]
+        if let verifier { body["verifier"] = verifier }
+        return try await api.post("/api/app/pair", body, as: Pairing.self)
+    }
+
+    /// Which ways in a site has, asked before there is an account.
+    static func ways(site: String) async throws -> Ways {
+        Site.set(site)
+        return try await API(token: nil).get("/api/app/ways", as: Ways.self)
     }
 
     /// Sign in with a name and a password.

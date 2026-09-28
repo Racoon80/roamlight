@@ -50,8 +50,10 @@ _NO_USER_PREFIXES = ("/s/", "/static/")
 #   They carry no rights of their own: the callback checks the state cookie,
 #   the PKCE verifier, the signature, `iss`, `aud`, `exp` and the nonce before
 #   anybody is anybody.
+# ⚠ `/api/app/ways` tells the app which of the doors this site has, before it
+#   has an account -- the same two facts the sign-in page shows anybody.
 _NO_USER_EXACT = ("/api/health", "/robots.txt", "/api/app/authz", "/api/app/pair",
-                  "/api/app/login",
+                  "/api/app/login", "/api/app/ways",
                   "/auth/oidc/login", "/auth/oidc/callback",
                   "/login", "/logout", "/setup")
 

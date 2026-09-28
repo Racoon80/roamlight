@@ -28,4 +28,17 @@ class Store(context: Context) {
     var site: String
         get() = p.getString("site", "") ?: ""
         set(v) = p.edit().putString("site", v.trimEnd('/')).apply()
+
+    /**
+     * A single sign-on in flight: the site it went to and the secret the code
+     * will be bound to. ⚠ Kept on disk and not in memory: while the browser is
+     * in front, Android may throw this app's process away, and the answer then
+     * arrives at a fresh one.
+     */
+    var ssoSite: String?
+        get() = p.getString("sso_site", null)
+        set(v) = p.edit().apply { if (v == null) remove("sso_site") else putString("sso_site", v) }.apply()
+    var ssoVerifier: String?
+        get() = p.getString("sso_verifier", null)
+        set(v) = p.edit().apply { if (v == null) remove("sso_verifier") else putString("sso_verifier", v) }.apply()
 }

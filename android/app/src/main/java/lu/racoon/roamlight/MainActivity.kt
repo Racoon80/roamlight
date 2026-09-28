@@ -2,7 +2,9 @@
 
 package lu.racoon.roamlight
 
+import android.content.Intent
 import android.os.Bundle
+import androidx.lifecycle.ViewModelProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -28,6 +30,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // A fresh process (Android threw the old one away while the browser
+        // was in front) gets the sign-in's answer here, not in onNewIntent.
+        if (savedInstanceState == null) takeSso(intent)
         setContent {
             RoamlightTheme {
                 val state: AppState = viewModel()
@@ -39,6 +44,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeSso(intent)
+    }
+
+    /** roamlight://sso?c=<code> -- the way back from single sign-on. */
+    private fun takeSso(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "roamlight" || uri.host != "sso") return
+        ViewModelProvider(this)[AppState::class.java].finishSso(uri, deviceName())
+        // ⚠ Consumed. A rotation re-delivers nothing, but an intent left on
+        //   the activity would be read again by anybody asking later.
+        setIntent(Intent())
     }
 }
 

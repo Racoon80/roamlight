@@ -33,6 +33,7 @@ fun PairScreen(state: AppState) {
     var code by remember { mutableStateOf("") }
     var typing by remember { mutableStateOf(false) }
     var withPassword by remember { mutableStateOf(false) }
+    var withSso by remember { mutableStateOf(false) }
     var user by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -76,6 +77,31 @@ fun PairScreen(state: AppState) {
             Text("Scan the code", modifier = Modifier.padding(vertical = 6.dp))
         }
 
+        // ⚠ The way in for a family that signs in through a provider, with
+        //   nothing but the phone: the provider's page opens in the browser
+        //   (saved passwords and an existing session there all work), and the
+        //   site hands the app a code only it can redeem.
+        val context = androidx.compose.ui.platform.LocalContext.current
+        TextButton(onClick = { withSso = !withSso }) {
+            Text(if (withSso) "Hide" else "Sign in with single sign-on", color = Ink.inkSoft)
+        }
+        if (withSso) {
+            OutlinedTextField(
+                value = site, onValueChange = { site = it },
+                label = { Text("Site") },
+                singleLine = true,
+                placeholder = { Text("photos.example.com") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri,
+                    capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { state.startSso(context, site) },
+                enabled = site.isNotBlank() && !state.checking,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Sign in with single sign-on") }
+        }
+
         // ⚠ The other way in, and it is not a fallback. A pairing code needs a
         //   second machine: the site open on a computer, and five minutes.
         //   Somebody holding only a phone had no way in at all.
@@ -90,7 +116,7 @@ fun PairScreen(state: AppState) {
             //   so BEFORE somebody types their work password into an app that
             //   cannot use it is the whole point of this line.
             Text("Only if the site has its own accounts. With single sign-on " +
-                 "there is no password here — use the code above.",
+                 "there is no password here — use single sign-on or the code above.",
                  color = Ink.inkMute, fontSize = 12.sp)
             OutlinedTextField(
                 value = site, onValueChange = { site = it },
@@ -166,7 +192,7 @@ fun PairScreen(state: AppState) {
     }
 }
 
-private fun deviceName(): String =
+internal fun deviceName(): String =
     listOf(Build.MANUFACTURER.replaceFirstChar { it.uppercase() }, Build.MODEL)
         .filter { it.isNotBlank() }.distinct().joinToString(" ")
         .ifEmpty { "Android" }

@@ -18,6 +18,7 @@ struct PairView: View {
     @State private var user = ""
     @State private var password = ""
     @State private var busy = false
+    @State private var ssoOpen = false
 
     private var deviceName: String { UIDevice.current.name }
 
@@ -46,6 +47,36 @@ struct PairView: View {
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 32)
 
+                // ⚠ The way in for a family that signs in through a provider,
+                //   with nothing but the phone. The provider's page opens in
+                //   the system's sheet (Face ID, saved passwords, an existing
+                //   session at the provider -- all of it works there), and
+                //   the site hands the app a code it alone can redeem.
+                DisclosureGroup("Sign in with single sign-on", isExpanded: $ssoOpen) {
+                    VStack(spacing: 10) {
+                        TextField("Site, e.g. photos.example.org", text: $site)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                        Button {
+                            Task {
+                                await state.signInWithSSO(site: AppState.siteURL(site),
+                                                          name: deviceName)
+                            }
+                        } label: {
+                            Label("Sign in with single sign-on", systemImage: "person.badge.key")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(site.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || state.checking)
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.top, 8)
+                }
+                .foregroundStyle(Theme.inkSoft)
+                .padding(.horizontal, 32)
+
                 // ⚠ The other way in, and it is not a fallback. A pairing code
                 //   needs a second machine: the site open on a computer, and
                 //   five minutes. Somebody holding only a phone had no way in
@@ -60,10 +91,12 @@ struct PairView: View {
                 DisclosureGroup("Sign in with a password") {
                     VStack(spacing: 10) {
                         Text("Only if the site has its own accounts. With single "
-                             + "sign-on there is no password here — use the code above.")
+                             + "sign-on there is no password here — use single sign-on "
+                             + "or the code above.")
                             .font(.footnote)
                             .foregroundStyle(Theme.inkMute)
                             .frame(maxWidth: .infinity, alignment: .leading)
+
                         TextField("Site", text: $site)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -102,7 +135,7 @@ struct PairView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .padding(.horizontal, 32)
 
-                if busy { ProgressView().tint(Theme.safelight) }
+                if busy || state.checking { ProgressView().tint(Theme.safelight) }
                 if let e = state.error {
                     Text(e).font(.footnote).foregroundStyle(.red)
                         .multilineTextAlignment(.center).padding(.horizontal, 32)

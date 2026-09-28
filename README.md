@@ -1,112 +1,121 @@
 # Roamlight
 
-A photo library for one family, on your own machine.
+**Your family's photo album — on your own machine, for your own people.**
 
-Point it at the folder where your photographs already live. It builds a web
-copy of each one, reads the date, the camera and the place out of the file,
-groups everything into albums, and puts the albums on a map. Then it decides,
-per album, who in the family may see it. Nothing leaves the house unless you
-hand someone a link.
+[![Licence: AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-6aa9e0)](LICENSE)
+[![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fracoon80%2Froamlight-6aa9e0)](https://github.com/Racoon80/roamlight/pkgs/container/roamlight)
+[![iPhone & iPad](https://img.shields.io/badge/App%20Store-Roamlight-6aa9e0)](https://apps.apple.com/app/id6809221900)
+[![Android](https://img.shields.io/badge/Android-from%20your%20own%20site-6aa9e0)](#the-apps)
+
+<a href="https://www.buymeacoffee.com/dv7g" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-orange.png" alt="Buy me a coffee" height="41" width="174"></a>
+
+Point Roamlight at the folder where your photographs already live. It makes a
+web copy of each one, reads the date, the camera and the place out of the file,
+sorts everything into albums and puts the albums on a map. You decide, album by
+album, who in the family may see it — and nothing leaves the house unless you
+hand somebody a link.
+
+No cloud, no subscription, no company in between. Just your pictures, looking
+their best, for the people they belong to.
 
 > **roamlight** — *to roam*, and *the light*. Which is what a family album is
-> made of: the going somewhere, and what the light left on the film.
+> made of: the going somewhere, and what the light left behind.
 
 ---
 
-## What it does
-
-| | |
-|---|---|
-| **Keeps your originals** | The library folder is read. Masters and web sizes are written somewhere else, so the file off the camera is never touched. |
-| **Understands cameras** | JPEG, HEIC, PNG, TIFF — and RAW (CR3, CR2, ARW, NEF, RAF, DNG…) through LibRaw. Video through ffmpeg, with a poster frame, and it plays in the browser and in both apps. |
-| **Serves the right size** | AVIF and WebP at 400 / 800 / 1200 / 2000 / 2800 px, plus a blurred placeholder so a page never jumps while it loads. |
-| **Albums, people, tags** | Year → country → album. Tag who is on a photograph and find them again. |
-| **A map** | Every album with coordinates, and an optional journey (“car to the airport, plane to Málaga, bus to the coast”) drawn on it — as an opening animation when you walk into the album, on the website and in both apps. ⚠ The tiles come through this site, so a browser never talks to OpenStreetMap. |
-| **Who may see what** | Per album, per person. Nothing is visible by default. |
-| **Share links** | One collection, one link, a password, an end date, an optional view limit — for people without an account. |
-| **Phone and tablet** | Add the site to the home screen (it is a PWA), or use the apps: [`ios/`](ios/) for iPhone and iPad, [`android/`](android/) for Android. Both do the whole thing — look, search, make an album, add to one, share, play a video. |
-| **A word when something arrives** | Optional, off until you set it up. One line when photographs land in an album you can see, or when you are let into one. ⚠ A hundred photographs are **one** message, not a hundred — see below. |
-
-## Screenshots
+## A look inside
 
 |  |  |
 |---|---|
 | ![The albums](docs/screenshots/albums.jpg) | ![One album](docs/screenshots/album.jpg) |
-| **Everything at once** — years down the side, the albums underneath. | **One album** — the photographs lie on the table, not in a grid. |
+| **Everything at once** — the years down the side, the albums underneath. | **One album** — the photographs lie on the table like prints, not in a grid. |
 | ![A photograph](docs/screenshots/photograph.jpg) | ![The map](docs/screenshots/map.jpg) |
 | **A photograph** — where and when, and the original to download. | **The journey** — car, plane, bus, drawn between the places. |
 
 ![The workbench](docs/screenshots/workbench.jpg)
 
 **The workbench** — scanning, tagging, collections, share links, who sees which
-album, and the mirror of the originals. Only an administrator sees this page.
+album. Only an administrator sees this page.
 
-<sub>Photographs in the screenshots are the author's own, from a demo library —
-not from anybody's family album.</sub>
+<sub>The photographs in the screenshots are the author's own, from a demo
+library — not from anybody's family album.</sub>
 
 ---
 
-## Install
+## What it does
 
-### Docker (recommended)
+- 📁 **Leaves your originals alone.** Your photo folder is only ever read. Web
+  copies go somewhere else, so the file off the camera is never touched.
+- 📷 **Understands your cameras.** JPEG, HEIC, PNG, TIFF, RAW (CR3, CR2, ARW, NEF,
+  RAF, DNG…) and video — with a poster frame, playing in the browser and in the
+  apps, the right way up.
+- ⚡ **Fast pages.** AVIF and WebP in five sizes, plus a blurred placeholder so
+  nothing jumps while it loads.
+- 🗺️ **Albums on a map**, and an optional journey (“car to the airport, plane to
+  Málaga, bus to the coast”) that plays as a little opening animation.
+- 👨‍👩‍👧 **Who sees what** — per album, per person or group. Nothing is visible by
+  default.
+- 🏷️ **People and tags** — mark who is on a photograph and find them again.
+- 🔗 **Share links** for people without an account: a password, an end date, an
+  optional view limit.
+- 🖼️ **Slideshows** — five seconds a photograph, a soft crossfade, a slow drift.
+- 🔔 **A word when something arrives** — one line when photographs land in an
+  album you can see. A hundred photographs are *one* message, not a hundred.
+- 🔐 **Sign in your way** — passwords, or your own single sign-on (Authentik,
+  Keycloak, Entra…), in the browser and in the apps.
+
+## The apps
+
+| | |
+|---|---|
+| **iPhone & iPad** | [**Roamlight on the App Store**](https://apps.apple.com/app/id6809221900) — free. |
+| **Android** | Straight from your own Roamlight site: open it in the phone's browser, go to **Phone & tablet** and tap **Download for Android**. No Play Store needed, and the app offers its own updates from then on. |
+
+Both do the whole thing: look, search, slideshow, make an album, add to one,
+edit and delete what is yours, share, and play videos. You connect a phone by
+scanning a code from the site, with your password, or with single sign-on.
+
+---
+
+## Get started
+
+### Docker
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/Racoon80/roamlight/main/compose.yaml
-# open compose.yaml and point `originals` and `library` at real folders
+# open compose.yaml and point `originals` and `library` at your folders
 docker compose up -d
 ```
 
-Then open `http://<your-machine>:8080`. The first screen asks you to create the
-administrator account — until you do, nobody can sign in.
+Open `http://<your-machine>:8080`. The first screen asks you to create the
+administrator account — that's it, you're in.
 
-If Docker cannot pull the image, build it yourself — it is the same thing, and
-it takes about three minutes:
+<details>
+<summary>Can't pull the image? Build it yourself (about three minutes).</summary>
 
 ```bash
 git clone https://github.com/Racoon80/roamlight && cd roamlight
 docker compose up -d --build
 ```
+</details>
 
-⚠ **Until you create that account, anybody who reaches the address can create
-it** — that is what "first screen" means. On a network with other people on it,
-set `FAMILY_SETUP_TOKEN` to a word of your own first; `/setup` then only answers
-to `?t=<that word>`, and you can drop the setting once the account exists. The
-service also says so in its log while no account is there.
+### Unraid
 
-⚠ **The folders you mount have to be writable by the user the container runs
-as** (`PUID`/`PGID`, 1000 by default). An empty folder is taken over on the
-first start; one that already holds files is left alone, and the container
-refuses to start and tells you which folder and which uid. That refusal is on
-purpose: without it, uploads are accepted and then quietly never converted.
-
-⚠ **Set `FAMILY_SITE_URL` to the address people actually type.** It goes into
-share links, and a link built from `localhost` is useless to a guest.
-
-⚠ **The volumes matter more than anything else in that file.** The defaults are
-named Docker volumes — fine to try it out, wrong for the only copy of your
-family's photographs. Use real paths:
-
-```yaml
-    volumes:
-      - /srv/photos/originals:/originals   # read; your photographs
-      - /srv/photos/library:/library       # written; what the site serves
-      - data:/data                         # database and derivatives
-```
+Roamlight is on its way into **Community Applications**. Until it shows up
+there, the Docker instructions above work on Unraid as they are.
 
 ### Proxmox LXC (one command)
 
-Run this **on a Proxmox host**, as root:
+On a Proxmox host, as root:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Racoon80/roamlight/main/deploy/proxmox-lxc.sh)"
 ```
 
-It asks for the container id, size and network, and **whether to install the
-virus scanner** — then builds the container, installs everything, and prints the
-address. About five minutes, most of it `apt`.
-
-⚠ You are piping a script from the internet into a root shell. Read it first:
-`curl -fsSL <url> | less`. It is 200 lines and it does nothing clever.
+It asks for the container id, size and network, and whether you'd like the
+virus scanner — then builds everything and tells you the address. About five
+minutes. (It's a good habit to read a script before you run it as root:
+`curl -fsSL <url> | less` — it's 200 plain lines.)
 
 ### From a checkout
 
@@ -116,27 +125,38 @@ Debian/Ubuntu, Python 3.11+:
 sudo apt install python3-venv libvips42 libimage-exiftool-perl ffmpeg sqlite3
 git clone https://github.com/Racoon80/roamlight && cd roamlight
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp deploy/roamlight.env.example .env && $EDITOR .env      # paths, title, auth
+cp deploy/roamlight.env.example .env && $EDITOR .env      # paths, title, sign-in
 set -a && . ./.env && set +a
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --no-proxy-headers
 ```
+
+### Five things worth knowing before you start
+
+1. **Use real folders, not Docker volumes, for your photographs.** The defaults
+   are fine for trying it out — your family's only copy deserves a real path:
+   ```yaml
+       volumes:
+         - /srv/photos/originals:/originals   # read; your photographs
+         - /srv/photos/library:/library       # written; what the site serves
+         - data:/data                         # database and web sizes
+   ```
+2. **The folders must be writable by the container's user** (`PUID`/`PGID`,
+   1000 by default). If they aren't, Roamlight refuses to start and tells you
+   which folder — better than accepting uploads it can't convert.
+3. **Create the admin account straight away.** Until you do, whoever reaches the
+   address can create it. On a shared network, set `FAMILY_SETUP_TOKEN` first;
+   `/setup` then only answers to `?t=<your word>`.
+4. **Set `FAMILY_SITE_URL`** to the address people actually type — it goes into
+   share links.
+5. **Back up two things:** the SQLite file in `/data` and your library folder.
+   That's everything. See [docs/backup.md](docs/backup.md).
 
 ---
 
 ## Signing in
 
-Three ways, and they work side by side. `local+oidc` is the usual pair:
-everybody through the provider, and one password account for the day the
-provider is down.
-
-**`local`** — accounts with a password, kept in this site's database. Passwords
-are argon2id. The first account you create is the administrator. This is the
-default, and for most people it is the whole story.
-
-**`oidc`** — the site is an OpenID Connect client **itself** and talks to your
-provider (Authentik, Keycloak, Entra…). Set the issuer and the client id, put
-the client secret in a file, and register
-`https://<your site>/auth/oidc/callback` with the provider:
+Three ways, side by side. Most families use `local` (passwords) — and that's the
+whole story for them. If you already run an identity provider, add `oidc`:
 
 ```
 FAMILY_AUTH=local+oidc
@@ -145,209 +165,168 @@ FAMILY_OIDC_CLIENT_ID=…
 FAMILY_OIDC_SECRET_FILE=/etc/roamlight/oidc-secret
 ```
 
-…or set none of that and fill it in on **Settings → Sign-in**, which is the
-same thing from the other end: what the page stores wins, and the environment
-is what it falls back to. An installation deployed from a file never has to
-open the page; one set up by hand never has to touch a file.
+Register `https://<your site>/auth/oidc/callback` with the provider — or skip the
+file and fill it all in on **Settings → Sign-in**. Keeping one password account
+next to single sign-on is a good idea: it's your way in on the day the provider
+is down.
 
-⚠ `local` can never be taken away from that page — only from the environment.
-A click must not be able to shut the last door, and the password account is
-what you still have when the provider is misconfigured.
+The details, for the curious: PKCE, a one-use `state` tied to the browser, a
+`nonce`, and the token's signature, `iss`, `aud` and `exp` checked against the
+provider's keys before anything in it is read. A provider account is never
+merged onto a password account with the same name. The older `proxy` mode
+(headers from an identity proxy) was removed on 08.09.2026 — use `oidc` instead.
 
-The exchange uses PKCE, a one-use `state` tied to the browser by a cookie, and
-a `nonce`; the `id_token`'s signature, `iss`, `aud` and `exp` are all checked
-against the provider's published keys **before a single claim is read**. The
-groups in the token are matched by name against `FAMILY_ADMIN_GROUPS` and
-friends, so nothing else in the site learns a second vocabulary, and what comes
-out at the end is the same session cookie a password sign-in gives.
-
-⚠ **A provider account is never merged onto a password account.** The name in a
-token is often one the person can change themselves at the provider — so
-somebody renaming themselves to your emergency administrator's name would
-otherwise be handed that account. A name that already belongs to a password
-account is refused, loudly, and the two stay separate.
-
-⚠ **`proxy` is gone.** There used to be a third road: an identity proxy in
-front (Authentik's outpost, Authelia, oauth2-proxy) authenticated and passed
-the user and their groups as headers, and the site believed them because a
-shared secret came with them. `oidc` does the same job inside the program and
-has none of that arrangement — no outpost, no secret that has to match in two
-files, and nothing that stops being true when somebody edits the proxy. It was
-taken out on 08.09.2026; if you were running `FAMILY_AUTH=proxy`, set the
-issuer and client id above and use `oidc` instead.
-
-**Phones** get in their own way: a device token. On `/app` the site shows a QR
-code that is good for five minutes and one device; the app scans it and trades
-it for a long-lived token. Tokens are listed on that page and can be taken off
-in one click — which works even when the phone itself is gone.
-
-⚠ With single sign-on this QR code is **the** way a phone gets in: the app has
-no password to send, because the provider holds it. The app says so on its
-sign-in screen rather than letting somebody type a password that cannot work.
+**Phones** get their own device token. They connect by scanning a code from
+**Phone & tablet** (good for five minutes and one device), with a password, or
+with single sign-on — where the site hands the app a one-time code that only
+that app can redeem. Every connected phone is listed on that page and can be
+taken off in one click, even when the phone itself is lost.
 
 ---
 
 ## Configuration
 
-Everything is environment variables. The ones that matter:
+Everything is an environment variable. The ones you're most likely to touch:
 
 | Variable | Default | What it is |
 |---|---|---|
-| `FAMILY_AUTH` | `local` | `local`, `oidc`, or `local+oidc` |
-| `FAMILY_AUTH_LOCK` | `0` | `1` stops the settings page changing the road in — the file is the only authority |
-| `FAMILY_OIDC_ISSUER` | — | Your provider, for `oidc`. https, no query string |
-| `FAMILY_OIDC_CLIENT_ID` | — | The client this site is registered as |
-| `FAMILY_OIDC_SECRET_FILE` | `/etc/roamlight/oidc-secret` | The client secret. Leave it out for a public client |
 | `FAMILY_SITE_TITLE` | `Roamlight` | The name in the masthead and on the home screen |
 | `FAMILY_SITE_URL` | `http://localhost:8080` | The address share links are built from |
-| `FAMILY_ORIGINS` | `/originals` | Your photographs. Read, not written |
-| `FAMILY_WEB` | `/library` | What the site serves. Written |
-| `FAMILY_DATA` | `/data` | Database, derivatives, uploads in progress |
-| `FAMILY_ADMIN_GROUPS` | `admin` | Group names that mean "sees and manages everything" |
-| `FAMILY_VIEWER_GROUPS` | `family` | Group names that mean "may look" |
+| `FAMILY_ORIGINS` | `/originals` | Your photographs — read, never written |
+| `FAMILY_WEB` | `/library` | What the site serves — written |
+| `FAMILY_DATA` | `/data` | Database, web sizes, uploads in progress |
+| `FAMILY_AUTH` | `local` | `local`, `oidc`, or `local+oidc` |
+| `FAMILY_AUTH_LOCK` | `0` | `1` = the settings page can't change how people sign in |
+| `FAMILY_OIDC_ISSUER` | — | Your provider, for `oidc` (https, no query string) |
+| `FAMILY_OIDC_CLIENT_ID` | — | The client this site is registered as |
+| `FAMILY_OIDC_SECRET_FILE` | `/etc/roamlight/oidc-secret` | The client secret (leave out for a public client) |
+| `FAMILY_ADMIN_GROUPS` | `admin` | Groups that see and manage everything |
+| `FAMILY_VIEWER_GROUPS` | `family` | Groups that may look |
+| `FAMILY_OWNER_ALIASES` | — | `adminaccount=person`: what that admin account uploads belongs to that person |
 | `FAMILY_SHARES` | `1` | Share links on or off |
-| `FAMILY_CLAMAV` | `0` | Scan every uploaded file (see below) |
-| `FAMILY_CLAMAV_HOST` | — | Set it when the scanner is a neighbouring container |
-| `FAMILY_WORKERS` | `2` | Conversions at the same time. One takes about ¾ of a core |
-| `FAMILY_MAX_MEGAPIXELS` | `50` | A file bigger than this is refused before it is decoded |
-| `FAMILY_REQUIRE_MOUNT` | `1` | Refuse to run if the photo folders are not mounted |
-| `FAMILY_TRUSTED_PROXIES` | — | Addresses whose `X-Forwarded-For` is believed. See below |
-| `FAMILY_CLIENT_IP_HEADER` | `X-Forwarded-For` | Which header carries the visitor's address |
-| `FAMILY_TILE_OFFLINE` | `0` | Map tiles from the cache only — no request ever leaves |
-| `FAMILY_NOTIFY_WINDOW` | `90` | Seconds a notice gathers before it goes out (see below) |
-| `FAMILY_APNS_KEY_FILE` | — | The `.p8` from Apple. Empty = nothing is sent to iPhones |
-| `FAMILY_APNS_KEY_ID` | — | The ten characters in the key's name |
-| `FAMILY_APNS_TEAM_ID` | — | Your Apple team |
-| `FAMILY_APNS_TOPIC` | — | The app's bundle id, exactly |
+| `FAMILY_WORKERS` | `2` | Conversions at the same time (each takes about ¾ of a core) |
+| `FAMILY_MAX_MEGAPIXELS` | `50` | Bigger files are refused before they're decoded |
+| `FAMILY_REQUIRE_MOUNT` | `1` | Refuse to run if the photo folders aren't mounted |
+| `FAMILY_CLAMAV` | `0` | Scan every upload for viruses (see below) |
+| `FAMILY_CLAMAV_HOST` | — | Set when the scanner is a neighbouring container |
+| `FAMILY_TRUSTED_PROXIES` | — | Addresses whose `X-Forwarded-For` is believed (see Security) |
+| `FAMILY_CLIENT_IP_HEADER` | `X-Forwarded-For` | Behind Cloudflare: `CF-Connecting-IP` |
+| `FAMILY_TILE_OFFLINE` | `0` | Map tiles from the cache only |
+| `FAMILY_NOTIFY_WINDOW` | `90` | Seconds a notice gathers before it goes out |
+| `FAMILY_APNS_KEY_FILE` | — | The `.p8` from Apple — for iPhone notices |
+| `FAMILY_APNS_KEY_ID` / `_TEAM_ID` / `_TOPIC` | — | The key's id, your team, the app's bundle id |
 | `FAMILY_APNS_SANDBOX` | `0` | `1` only for a build straight out of Xcode |
-| `FAMILY_FCM_CREDENTIALS` | — | A Firebase service account file, for Android |
+| `FAMILY_FCM_CREDENTIALS` | — | A Firebase service account file — for Android notices |
+| `FAMILY_ANDROID_DIR` | `<data>/android` | Where the site keeps the Android app it hands out |
 
-The full list is in [`app/config.py`](app/config.py), where each one says why it
+Every setting is in [`app/config.py`](app/config.py), each with a note on why it
 exists.
 
 ### The virus scanner
 
-Off by default, because it costs about a gigabyte of memory. Switch it on if
-photographs reach you on other people's sticks and phones:
+Off by default (it wants about a gigabyte of memory). Worth it if photographs
+reach you on other people's sticks and phones:
 
 ```yaml
   roamlight:
     environment:
       FAMILY_CLAMAV: "1"
-      FAMILY_CLAMAV_HOST: clamav      # the service below
+      FAMILY_CLAMAV_HOST: clamav
   clamav:
     image: clamav/clamav:stable
     volumes: [clamav:/var/lib/clamav]
 ```
 
-⚠ When the scanner is switched on and cannot be reached, uploads **stop**. A
-file that was never looked at is not "clean" — that is the whole point of
-switching it on.
+When it's on and can't be reached, uploads wait — a file nobody looked at is
+not "clean".
 
-### A word when something arrives
+### Notices on the phone
 
-Two things are worth being told about: photographs landing in an album you can
-see, and being let into an album. Nothing else.
+Two things are worth hearing about: photographs arriving in an album you can
+see, and being let into an album. Events are gathered for a minute and a half
+and then sent as one line — *“2026 Ostende — 500 new photographs”* — so an
+evening's import is one message on the lock screen. Nobody hears about their
+own uploads, and nothing is announced before the photographs are ready to look
+at.
 
-**The whole design is the counting, not the sending.** An event never goes out
-when it happens — it goes into a queue, one row per person, per kind, per
-album, and a counter goes up. A minute and a half later that row leaves as one
-sentence: *“2026 Ostende — 500 new photographs.”* Importing an evening's
-worth of photographs is one line on a lock screen, not five hundred.
+A message that reaches a closed app has to pass through Apple or Google, so
+notices are off until you set them up:
 
-- ⚠ Nobody hears about their own upload.
-- ⚠ Nothing is announced until the site has actually **converted** the
-  photograph. Before that it is a row nobody can open, and the notice would
-  send people to an empty album.
-- ⚠ The window is set when the row is made and never moved. Pushing it forward
-  on every new photograph looks tidier and is wrong: during a long import the
-  moment would keep running away and nothing would ever be announced.
+- **iPhone & iPad** — an APNs key (`.p8`) from the Apple developer portal, made
+  for *Sandbox & Production*.
+- **Android** — a Firebase project and its service account file.
 
-Setting it up is the part that is not up to this software. A message that
-arrives while the app is closed has to pass through Apple or Google — there is
-no third way — so both are **off** until you say otherwise:
+Only the album's title and a count travel that way. Never a name, never a
+photograph.
 
-* **iPhone and iPad**: an APNs key (`.p8`) from the Apple developer portal.
-  ⚠ Make it for **Sandbox & Production**. A Sandbox-only key answers
-  `BadEnvironmentKeyInToken` against the live service, which is the one
-  TestFlight and the App Store use.
-* **Android**: a Firebase project and its service account file.
+### Handing out the Android app
 
-⚠ What travels through them is the album's own title and a count. Never a name,
-never a place beyond that title, never a photograph.
+Build the app, sign it with your own key, and put it on your site:
+
+```bash
+python3 tools/publish_android.py Roamlight.apk --code 111 --name 1.1.1
+```
+
+The **Phone & tablet** page then offers the download, and phones that already
+have the app are offered the update.
 
 ---
 
-## How it is built
+## How it's built
 
-Python 3.11+, FastAPI, SQLite. No build step, no bundler, no framework in the
-browser: the pages are server-rendered HTML with a few small scripts. The heavy
-lifting is done by three programs — **libvips** resizes, **exiftool** reads and
-writes metadata, **ffmpeg** handles video.
+Python 3.11+, FastAPI and SQLite. No build step and no framework in the browser —
+server-rendered pages and a few small scripts. The heavy lifting is done by
+**libvips** (resizing), **exiftool** (metadata) and **ffmpeg** (video).
 
 ```
-app/          the site        (37 modules; config.py is a good place to start)
-templates/    the pages       (Jinja2)
-static/       CSS, JS, fonts  (self-hosted; nothing in a browser talks to
-                               anybody but you — map tiles included)
+app/          the site          (config.py is a good place to start)
+templates/    the pages         (Jinja2)
+static/       CSS, JS, fonts    (all self-hosted — map tiles included)
 deploy/       systemd unit, nginx example, the Proxmox installer
 ios/          the iPhone and iPad app (SwiftUI)
 android/      the Android app (Kotlin, Jetpack Compose)
-tests/        15 checks that run against a real instance
+tests/        checks that run against a real test instance
+tools/        small helpers (publishing the Android app, repairs)
 ```
 
-⚠ The tests refuse to run unless the instance says `FAMILY_TEST=1`, and refuse
-to run as a user who does not own the photographs. Both guards exist because
-the suite was once pointed at the family's real library.
-
-The database is one SQLite file. Back that up together with the library folder
-and you have backed up everything.
+The tests only run against an instance marked `FAMILY_TEST=1`, and never as a
+user who owns the photographs — so they can't touch a real family library.
 
 ## Security
 
-- Nothing is public. Every page and every image needs an account, except a
-  share link — and that is a random token with an optional password and end
-  date.
-- Uploads are checked by content, not by file name, before anything else
-  happens to them.
-- Photographs carry GPS. A share link can strip it; family members see it.
-- A video is played by the phone's own player, and that player will not carry
-  an authorisation header. So the address carries its own proof instead: a
-  signature over **that one address**, good for a few hours, naming the person
-  who asked. It opens nothing they could not already open, and it is worthless
-  on any other address (see [`app/tickets.py`](app/tickets.py)).
-- The site sets its own CSP, `X-Frame-Options` and `noindex` on every answer,
-  even when a proxy in front forgets to.
-- Failed sign-ins are throttled per address, not per account — locking an
-  account would let a stranger lock you out of your own site.
-- ⚠ **That throttle needs `FAMILY_TRUSTED_PROXIES` to count anybody apart.**
-  `X-Forwarded-For` is a header and anyone can type one, so it is believed
-  only from the addresses you name there — behind the nginx example that is
-  `127.0.0.1`, behind another reverse proxy its address, and ranges like
-  `192.168.1.0/24` work. Name nothing and every visitor counts as the proxy:
-  one shared counter, which is a nuisance but still a throttle. Behind
-  Cloudflare also set `FAMILY_CLIENT_IP_HEADER=CF-Connecting-IP`: that is
-  the header Cloudflare sets itself, so it is the one worth reading.
-  Whether `X-Forwarded-For` keeps anything the visitor put there depends
-  on the account's transform rules — do not build the throttle on a header
-  whose handling is a setting somewhere else.
+- **Nothing is public.** Every page and image needs an account — except a share
+  link, which is a random token with an optional password and end date.
+- Uploads are checked by their content, not their name, before anything else.
+- Photographs carry GPS. Share links can strip it; family members see it.
+- Videos get a short-lived signed address for that one video, because a phone's
+  video player can't send a sign-in header ([`app/tickets.py`](app/tickets.py)).
+- The site sets its own CSP, `X-Frame-Options` and `noindex` on every answer.
+- Failed sign-ins are slowed down per address, not per account — so a stranger
+  can't lock you out of your own site. For that to count visitors apart behind
+  a reverse proxy, name the proxy in `FAMILY_TRUSTED_PROXIES` (behind the nginx
+  example: `127.0.0.1`; ranges like `192.168.1.0/24` work too).
 
-Found something? Open an issue, or write to the address in the repository
-profile. Please do not post a working exploit before it is fixed.
+Found something? Please open an issue, or write to the address on the
+repository profile — and give us a chance to fix it before posting a working
+exploit. Thank you!
 
 ## Privacy
 
-[PRIVACY.md](PRIVACY.md) — what the apps keep, what leaves a phone, and to
-whom. Short, because there is not much: your site, and Apple only if you switch
-notifications on.
+[PRIVACY.md](PRIVACY.md) — what the apps keep, what leaves a phone, and to whom.
+It's short, because there isn't much.
 
 ## Licence
 
 [AGPL-3.0](LICENSE). Use it, change it, run it for your family. If you run a
-changed version as a service for other people, publish your changes.
+changed version as a service for other people, share your changes.
 
 ---
 
-If this is useful to you:
+## Say thanks
+
+Roamlight was made for one family — and now it's there for yours too. If it
+brings you joy, a coffee is a lovely way to say so ☕
 
 <a href="https://www.buymeacoffee.com/dv7g" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-orange.png" alt="Buy me a coffee" height="41" width="174"></a>
+
+Stars, issues and ideas are just as welcome.

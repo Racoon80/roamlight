@@ -9,7 +9,10 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.roamlight"
+        // ⚠ Final. Firebase (push) is registered under this name, and Google
+        //   Play knows an app by it for ever -- changing it later makes a
+        //   different app. The same as the iPhone's bundle ID.
+        applicationId = "lu.racoon.roamlight"
         // ⚠ 26 and not lower: the app needs adaptive icons and the modern
         //   TLS stack. Below that, a self-hosted site with a Let's Encrypt
         //   certificate is not reliably trusted.

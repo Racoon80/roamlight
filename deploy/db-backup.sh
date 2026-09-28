@@ -15,7 +15,9 @@
 set -euo pipefail
 
 DB="${FAMILY_DB:-/opt/family/data/family.db}"
-LOCAL_DIR="${FAMILY_DB_BACKUP_DIR:-/opt/family/data/backups}"
+# Next to the database by default -- /opt/family/data on the LXC, /data in the
+# Docker image. (A fixed /opt/family path broke it in a container.)
+LOCAL_DIR="${FAMILY_DB_BACKUP_DIR:-${FAMILY_DATA:-/opt/family/data}/backups}"
 SHARE_DIR="${FAMILY_WEB:-/srv/library}/_db-backups"
 KEEP="${FAMILY_DB_BACKUP_KEEP:-14}"
 HEARTBEAT="${FAMILY_BACKUP_HEARTBEAT_URL:-}"

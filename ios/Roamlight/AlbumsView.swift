@@ -12,17 +12,6 @@ struct AlbumsView: View {
     @State private var problem: String?
     @State private var editing: Album?
 
-    // ⚠ The gap lives INSIDE the cell, and the grid is told nothing about it.
-    //
-    //   `GridItem(.adaptive(minimum:), spacing:)` looked right and was not: on a
-    //   phone the cards had their 12 pt between them, on an iPad they touched.
-    //   An adaptive grid decides for itself how to hand out the width it has
-    //   left over, and a cell whose content is `maxWidth: .infinity` eats the
-    //   spacing on a wide screen. Padding inside the card cannot be handed out
-    //   to anybody -- it is the same on every screen there is.
-    private let cols = [GridItem(.adaptive(minimum: 150), spacing: 0)]
-    private let gap: CGFloat = 6
-
     var body: some View {
         ScrollView {
             if loading {
@@ -32,35 +21,49 @@ struct AlbumsView: View {
             } else if albums.isEmpty {
                 Text("Nothing here yet.").foregroundStyle(Theme.inkMute).padding(.top, 60)
             } else {
-                LazyVGrid(columns: cols, spacing: 0) {
-                    ForEach(albums) { a in
-                        NavigationLink(value: a) { AlbumCard(album: a) }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                // ⚠ "Edit" for anybody who may upload -- the
-                                //   screen itself says when the album is not
-                                //   theirs. "Delete" straight from the list
-                                //   only for an admin: for anybody else it
-                                //   would nearly always be a refusal.
-                                if state.mayRemove {
-                                    Button { editing = a } label: {
-                                        Label("Edit album", systemImage: "pencil")
+                // The site's home page: "The albums", then one numbered row per
+                // album -- plate, name, country, count, and the cover as a print.
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("The albums").font(Theme.display(30)).foregroundStyle(Theme.ink)
+                        Spacer()
+                        Text("\(albums.count) ALBUM\(albums.count == 1 ? "" : "S")")
+                            .font(Theme.mono(10)).tracking(1.6).foregroundStyle(Theme.inkMute)
+                    }
+                    .padding(.bottom, 14)
+                    Theme.rule.frame(height: 1)
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(albums.enumerated()), id: \.element.id) { i, a in
+                            NavigationLink(value: a) { AlbumRow(album: a, number: i + 1) }
+                                .buttonStyle(RowPress())
+                                .contextMenu {
+                                    // ⚠ "Edit" for anybody who may upload -- the
+                                    //   screen itself says when the album is not
+                                    //   theirs. "Delete" straight from the list
+                                    //   only for an admin: for anybody else it
+                                    //   would nearly always be a refusal.
+                                    if state.mayRemove {
+                                        Button { editing = a } label: {
+                                            Label("Edit album", systemImage: "pencil")
+                                        }
+                                    }
+                                    if state.me?.may.admin == true {
+                                        Button(role: .destructive) { doomed = a } label: {
+                                            Label("Delete album", systemImage: "trash")
+                                        }
                                     }
                                 }
-                                if state.me?.may.admin == true {
-                                    Button(role: .destructive) { doomed = a } label: {
-                                        Label("Delete album", systemImage: "trash")
-                                    }
-                                }
-                            }
-                            .padding(gap)
+                        }
                     }
                 }
-                .padding(gap)
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
             }
         }
         .background(Theme.ground)
-        .navigationTitle("Albums")
+        // "The albums" stands in the page, in Bodoni -- the bar stays empty.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Album.self) { PhotosView(album: $0) }
         .refreshable { await load() }
         .task { await load() }
@@ -141,50 +144,63 @@ extension View {
     }
 }
 
-struct AlbumCard: View {
+/// One album, the way the site's home page lists it (`.index__row`).
+struct AlbumRow: View {
     let album: Album
+    let number: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ZStack {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // ⚠ Above the name and not in a column beside it, as the
+                    //   site has it on a wide screen: on a phone that column
+                    //   cut the plate down to "PL. 0…".
+                    Text("PL.\u{00A0}\(String(format: "%03d", number))")
+                        .font(Theme.mono(10)).tracking(1.8)
+                        .foregroundStyle(Theme.safelight)
+                    Text(album.title.isEmpty ? album.event : album.title)
+                        .font(Theme.display(25))
+                        .foregroundStyle(Theme.ink)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // ⚠ `\(album.n)` straight into a Text is formatted for the
+                    //   reader's language (1025 -> "1.025"). As a String it stays
+                    //   a count.
+                    // The year is already in the title the site sends.
+                    Text("\(album.country.uppercased()) · \(String(album.n)) PLATE\(album.n == 1 ? "" : "S")")
+                        .font(Theme.mono(9.5)).tracking(1.4)
+                        .foregroundStyle(Theme.inkMute)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
                 if let cover = album.cover {
+                    // The cover as a print, turned a little -- the site shows it
+                    // like that when the pointer passes over the row.
                     RemoteImage(id: cover, width: 400, rev: album.coverRev ?? 0)
-                } else {
-                    Theme.groundWarm
+                        .frame(width: 78, height: 54)
+                        .clipped()
+                        .padding(3)
+                        .background(Theme.paper)
+                        .rotationEffect(.degrees(-1.5))
+                        .shadow(color: .black.opacity(0.55), radius: 8, y: 5)
                 }
             }
-            // ⚠ The WIDTH has to be pinned too, not only the height.
-            //   `RemoteImage` fills, so for a landscape photograph it hands back
-            //   a view wider than its column -- the card then covers the one
-            //   beside it and the grid looks as if it had no spacing at all,
-            //   titles running into each other. `maxWidth: .infinity` makes the
-            //   frame take exactly the column width; `.clipped()` cuts the rest.
-            .frame(maxWidth: .infinity, minHeight: 118, maxHeight: 118)
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-
-            // ⚠ TWO lines, always -- also when the title needs only one.
-            //   Without `reservesSpace` a short title makes the card shorter,
-            //   the line underneath climbs up, and the row goes ragged: the
-            //   counts in one row then sit at three different heights.
-            Text(album.title)
-                .font(.system(.callout, design: .serif))
-                .foregroundStyle(Theme.ink)
-                .lineLimit(2, reservesSpace: true)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-            // ⚠ `\(album.n)` inside a Text is a LocalizedStringKey, and that
-            //   formats a number for the reader's language -- 1025 comes out as
-            //   "1.025" here. Fine for a count, but it must not be mistaken for
-            //   a decimal, so the word follows right after it.
-            Text("\(album.year) · \(album.n) photograph\(album.n == 1 ? "" : "s")")
-                .font(.caption2.monospaced())
-                .foregroundStyle(Theme.inkMute)
-                .lineLimit(1)
+            .padding(.vertical, 18)
+            .contentShape(Rectangle())
+            Theme.rule.frame(height: 1)
         }
-        // The card fills its cell from the top, so a row of cards lines up
-        // whatever the titles do.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// A row that answers a touch the way the site answers the pointer.
+struct RowPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.leading, configuration.isPressed ? 10 : 0)
+            .background(configuration.isPressed ? Theme.groundWarm : .clear)
+            .animation(.easeOut(duration: 0.25), value: configuration.isPressed)
     }
 }
 
@@ -257,50 +273,42 @@ struct PhotosView: View {
     @State private var journey: Journey?
     @State private var played = false
 
-    // Selwecht Grond wéi bei den Albumen: den Ofstand steet an der Zell.
-    private let cols = [GridItem(.adaptive(minimum: 110), spacing: 0)]
-    private let gap: CGFloat = 1.5
+    @State private var width: CGFloat = 0
+    @State private var slideshow = false
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: cols, spacing: 0) {
-                ForEach(photos) { p in
-                    NavigationLink(value: p) {
-                        RemoteImage(id: p.id, width: 400, rev: p.rev ?? 0)
-                            // Width pinned to the column -- see `AlbumCard`.
-                            .frame(maxWidth: .infinity, minHeight: 110, maxHeight: 110)
-                            .clipped()
-                            // ⚠ A video has to look like a video. Without this
-                            //   it is a photograph that does nothing when you
-                            //   open it -- the poster frame and no way to tell.
-                            .overlay(alignment: .bottomTrailing) {
-                                if p.isVideo { videoMark(p) }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        if state.mayRemove, p.mayRemove ?? true {
-                            Button(role: .destructive) { doomedPhoto = p } label: {
-                                Label(p.isVideo ? "Delete video" : "Delete photograph",
-                                      systemImage: "trash")
+            if let album { header(album) }
+            // ⚠ The collage is laid out from the width, so it waits for it.
+            //   A first pass with width 0 would make one enormous row.
+            if width > 0 {
+                Collage(photos: photos, width: max(0, width - 28)) { p in
+                    NavigationLink(value: p) { Print(photo: p) }
+                        .buttonStyle(PrintPress())
+                        .contextMenu {
+                            if state.mayRemove, p.mayRemove ?? true {
+                                Button(role: .destructive) { doomedPhoto = p } label: {
+                                    Label(p.isVideo ? "Delete video" : "Delete photograph",
+                                          systemImage: "trash")
+                                }
                             }
                         }
-                    }
-                    .padding(gap)
-                    .onAppear {
-                        // ⚠ The next page is loaded when its LAST image
-                        //   appears -- not at a scroll offset. That way a fast
-                        //   swipe does not fire the same request twice.
-                        guard p.id == photos.last?.id, page < pages else { return }
-                        let next = page + 1
-                        // The claim is made HERE, synchronously, and not inside
-                        // the Task -- see `claimed` above.
-                        guard claimed.insert(next).inserted else { return }
-                        Task { await load(page: next) }
-                    }
+                } onLastRow: {
+                    // ⚠ The next page is loaded when the LAST row appears --
+                    //   not at a scroll offset. That way a fast swipe does not
+                    //   fire the same request twice.
+                    guard page < pages else { return }
+                    let next = page + 1
+                    // The claim is made HERE, synchronously, and not inside
+                    // the Task -- see `claimed` above.
+                    guard claimed.insert(next).inserted else { return }
+                    Task { await load(page: next) }
                 }
+                // Room for the corners of a turned print at the screen's edge.
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
-            .padding(gap)
             if sending {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -314,12 +322,14 @@ struct PhotosView: View {
             if loading { ProgressView().tint(Theme.safelight).padding() }
             if let failed { Text(failed).foregroundStyle(.red).padding() }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(Theme.ground)
         // ⚠ An album opened from a notice carries only its key -- there was no
         //   list to take a title from. Then the name of the event is the title,
         //   which is what it is made of anyway.
-        .navigationTitle(album.map { $0.title.isEmpty ? "\($0.year) \($0.event)" : $0.title }
-                         ?? "Search")
+        // The album's title stands in the page itself, in Bodoni, as on the
+        // site -- a second copy in the bar would only repeat it.
+        .navigationTitle(album == nil ? "Search" : "")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Photo.self) { p in
             PhotoView(photos: photos, start: p) { gone in
@@ -347,6 +357,12 @@ struct PhotosView: View {
         // conversion took longer than the twenty tries above.
         .refreshable { await load(page: 1) }
         .toolbar {
+            if !photos.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { slideshow = true } label: { Image(systemName: "play.rectangle") }
+                        .accessibilityLabel("Slideshow")
+                }
+            }
             if album != nil, state.mayRemove {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { editing = true } label: { Image(systemName: "slider.horizontal.3") }
@@ -384,8 +400,16 @@ struct PhotosView: View {
             Task { await send(items) }
         }
         .sheet(item: $link) { l in ShareSheetView(link: l) }
-        .task { if photos.isEmpty { await load(page: 1) } }
+        .task {
+            if photos.isEmpty { await load(page: 1) }
+            #if DEBUG
+            if Demo.env("ROAMLIGHT_DEMO_SLIDESHOW") != nil, album != nil { slideshow = true }
+            #endif
+        }
         .confirmPhotoRemoval($doomedPhoto) { p in await remove(p) }
+        .fullScreenCover(isPresented: $slideshow) {
+            SlideshowView(album: album, query: query, start: photos, total: total)
+        }
         .sheet(isPresented: $editing) {
             if let album {
                 EditAlbumView(album: album) { left in
@@ -416,6 +440,27 @@ struct PhotosView: View {
         } catch {
             problem = error.localizedDescription
         }
+    }
+
+    /// The site's album head: a plate with year and country, the title in
+    /// Bodoni, and how many plates.
+    private func header(_ a: Album) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(a.year) · \(a.country.uppercased())")
+                .font(Theme.mono(10)).tracking(1.8).foregroundStyle(Theme.safelight)
+            Text(a.title.isEmpty ? a.event : a.title)
+                .font(Theme.display(34, relativeTo: .largeTitle))
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if total > 0 {
+                Text("\(String(total)) PLATE\(total == 1 ? "" : "S")")
+                    .font(Theme.mono(10)).tracking(1.6).foregroundStyle(Theme.inkMute)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
     }
 
     private func load(page wanted: Int) async {

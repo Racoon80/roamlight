@@ -28,6 +28,11 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed as listItemsIndexed
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
@@ -59,32 +64,69 @@ fun AlbumsScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize().background(Ink.ground)) {
-        Title("Albums")
         when {
             loading -> Center { CircularProgressIndicator(color = Ink.safelight) }
             failed != null -> Center {
                 Text(failed!!, color = MaterialTheme.colorScheme.error)
             }
             albums.isEmpty() -> Center { Text("Nothing here yet.", color = Ink.inkMute) }
-            // ⚠ The gap lives INSIDE the cell, and the grid is told nothing
-            //   about it. On iOS the same grid gave a phone its 12 pt between
-            //   the cards and let them touch on an iPad: an adaptive grid
-            //   decides for itself how to hand out the width it has left over,
-            //   and a cell that fills its width eats the spacing on a wide
-            //   screen. Padding inside the card cannot be handed out.
-            else -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(150.dp),
-                contentPadding = PaddingValues(6.dp),
-            ) {
-                items(albums, key = { it.id }) { a ->
-                    Box(Modifier.padding(6.dp)) {
-                        AlbumCard(a, onLongClick = if (LocalMayRemove.current) {
-                            { editing = a }
-                        } else null) { nav.navigate("photos/${AlbumKey.of(a)}") }
+            // The site's home page: "The albums", then one numbered row per
+            // album -- plate, name, country, count, and the cover as a print.
+            else -> LazyColumn(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)) {
+                item {
+                    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.Bottom) {
+                        Text("The albums", color = Ink.ink, fontFamily = Type.display,
+                             fontSize = 30.sp, modifier = Modifier.weight(1f))
+                        Text("${albums.size} ALBUM${if (albums.size == 1) "" else "S"}",
+                             color = Ink.inkMute, fontFamily = Type.mono, fontSize = 10.sp,
+                             letterSpacing = 1.6.sp)
                     }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule))
+                }
+                listItemsIndexed(albums, key = { _, a -> a.id }) { i, a ->
+                    AlbumRow(a, i + 1, onLongClick = if (LocalMayRemove.current) {
+                        { editing = a }
+                    } else null) { nav.navigate("photos/${AlbumKey.of(a)}") }
                 }
             }
         }
+    }
+}
+
+/** One album, the way the site's home page lists it (`.index__row`). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumRow(album: Album, number: Int, onLongClick: (() -> Unit)?, onClick: () -> Unit) {
+    Column(Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("PL.\u00A0%03d".format(number), color = Ink.safelight,
+                     fontFamily = Type.mono, fontSize = 10.sp, letterSpacing = 1.8.sp)
+                Text(album.title.ifEmpty { album.event }, color = Ink.ink,
+                     fontFamily = Type.display, fontSize = 25.sp, lineHeight = 29.sp,
+                     maxLines = 3, overflow = TextOverflow.Ellipsis)
+                // The year is already in the title the site sends.
+                Text("${album.country.uppercase()} · ${album.n} PLATE${if (album.n == 1) "" else "S"}",
+                     color = Ink.inkMute, fontFamily = Type.mono, fontSize = 9.5.sp,
+                     letterSpacing = 1.4.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (album.cover != null) {
+                // The cover as a print, turned a little -- the site shows it
+                // like that when the pointer passes over the row.
+                Box(Modifier
+                    .rotate(-1.5f)
+                    .shadow(8.dp, RoundedCornerShape(2.dp))
+                    .background(Ink.paper)
+                    .padding(3.dp)
+                    .size(78.dp, 54.dp)) {
+                    RemoteImage(album.cover, 400, Modifier.fillMaxSize(), rev = album.coverRev ?: 0)
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule))
     }
 }
 
@@ -240,6 +282,10 @@ fun PhotoGrid(
     val mayRemove = LocalMayRemove.current
     var doomedPhoto by remember(album?.id) { mutableStateOf<Photo?>(null) }
     var editing by remember(album?.id) { mutableStateOf(false) }
+    var slideshow by remember(album?.id, query) { mutableStateOf(false) }
+    if (slideshow) {
+        SlideshowDialog(album, query, photos, total) { slideshow = false }
+    }
     // ⚠ A dialog, not a line of text: on 28.09.2026 the site refused two
     //   deletions, the refusal was a small line nobody saw, and the photographs
     //   simply seemed not to go.
@@ -353,7 +399,15 @@ fun PhotoGrid(
 
     Column(Modifier.fillMaxSize().background(Ink.ground)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Title(title) }
+            // An album carries its title in the page, in Bodoni (see AlbumHead);
+            // the search keeps its plain one.
+            Box(Modifier.weight(1f)) { if (album == null) Title(title) }
+            if (photos.isNotEmpty()) {
+                IconButton(onClick = { slideshow = true }) {
+                    Icon(Icons.Filled.Slideshow, contentDescription = "Slideshow",
+                         tint = Ink.safelight)
+                }
+            }
             if (album != null) {
                 if (sending) {
                     CircularProgressIndicator(Modifier.padding(16.dp).size(20.dp),
@@ -384,63 +438,27 @@ fun PhotoGrid(
             Center { Text(failed!!, color = MaterialTheme.colorScheme.error) }
             return@Column
         }
-        // Selwechte Grond wéi bei den Albumen: den Ofstand steet an der Zell.
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(110.dp),
-            contentPadding = PaddingValues(1.5.dp),
+        Collage(
+            photos = photos,
             modifier = Modifier.weight(1f),
-        ) {
-            itemsIndexed(photos, key = { _, p -> p.id }) { i, p ->
-                Box(
-                    Modifier
-                        .padding(1.5.dp)
-                        .fillMaxWidth()          // pinned to the column -- see AlbumCard
-                        .height(110.dp)
-                        .combinedClickable(
-                            onClick = {
-                                Viewing.open(photos, i)
-                                nav.navigate("photo/${p.id}")
-                            },
-                            onLongClick = if (mayRemove && p.mayRemove != false) {
-                                { doomedPhoto = p }
-                            } else null,
-                        )
-                ) {
-                    RemoteImage(p.id, 400, Modifier.fillMaxSize(), rev = p.rev ?: 0)
-                    // ⚠ A video has to look like a video, and say how long it
-                    //   runs -- the same mark as the iOS app carries.
-                    if (p.isVideo) {
-                        Row(
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(4.dp)
-                                .background(Color.Black.copy(alpha = 0.55f),
-                                            RoundedCornerShape(50))
-                                .padding(horizontal = 5.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("▶", color = Color.White, fontSize = 9.sp)
-                            p.durationS?.takeIf { it > 0 }?.let { s ->
-                                Text("%d:%02d".format(s / 60, s % 60),
-                                     color = Color.White, fontSize = 9.sp,
-                                     fontFamily = FontFamily.Monospace)
-                            }
-                        }
-                    }
-                }
-                // The next page is asked for when the LAST picture appears --
-                // not at a scroll offset, so a fast swipe does not fire twice.
-                //
-                // ⚠ In a LaunchedEffect and not in the composable body: writing
-                //   state while composing schedules another composition, which
-                //   writes again -- the grid would never settle.
-                LaunchedEffect(i, photos.size) {
-                    if (i == photos.lastIndex && page < pages && claimed.add(page + 1)) {
-                        want = page + 1
-                    }
-                }
-            }
+            head = {
+                if (album != null) AlbumHead(album, total)
+            },
+            onLastRow = {
+                // The next page is asked for when the LAST row appears -- not
+                // at a scroll offset, so a fast swipe does not fire twice.
+                if (page < pages && claimed.add(page + 1)) want = page + 1
+            },
+        ) { i, p ->
+            Print(p, Modifier.fillMaxSize().combinedClickable(
+                onClick = {
+                    Viewing.open(photos, i)
+                    nav.navigate("photo/${p.id}")
+                },
+                onLongClick = if (mayRemove && p.mayRemove != false) {
+                    { doomedPhoto = p }
+                } else null,
+            ))
         }
         if (loading) {
             LinearProgressIndicator(
@@ -448,6 +466,23 @@ fun PhotoGrid(
                 color = Ink.safelight,
                 trackColor = Ink.groundWarm,
             )
+        }
+    }
+}
+
+/** The site's album head: a plate with year and country, the title in Bodoni,
+ *  and how many plates. */
+@Composable
+private fun AlbumHead(a: Album, total: Int) {
+    Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
+           verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("${a.year} · ${a.country.uppercase()}", color = Ink.safelight,
+             fontFamily = Type.mono, fontSize = 10.sp, letterSpacing = 1.8.sp)
+        Text(a.title.ifEmpty { a.event }, color = Ink.ink, fontFamily = Type.display,
+             fontSize = 34.sp, lineHeight = 38.sp)
+        if (total > 0) {
+            Text("$total PLATE${if (total == 1) "" else "S"}", color = Ink.inkMute,
+                 fontFamily = Type.mono, fontSize = 10.sp, letterSpacing = 1.6.sp)
         }
     }
 }

@@ -195,7 +195,9 @@ struct API {
 
     func photos(album: Album?, page: Int = 1, query: String? = nil) async throws -> PhotoPage {
         var q = URLComponents()
-        q.queryItems = [URLQueryItem(name: "page", value: String(page))]
+        // ⚠ `pair=0`: strictly by date, as the website's collage has them.
+        q.queryItems = [URLQueryItem(name: "page", value: String(page)),
+                        URLQueryItem(name: "pair", value: "0")]
         if let a = album {
             q.queryItems! += [URLQueryItem(name: "year", value: a.year),
                               URLQueryItem(name: "country", value: a.country),

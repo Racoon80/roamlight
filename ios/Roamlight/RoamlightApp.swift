@@ -2,6 +2,7 @@
 //  upload. Everything else is the server's work -- the app computes nothing, it
 //  shows and it passes on.
 
+import CoreText
 import SwiftUI
 
 @main
@@ -10,6 +11,8 @@ struct RoamlightApp: App {
     // ⚠ The delegate exists for one reason: only UIKit is handed the address
     //   Apple mints for this phone. SwiftUI has no way to receive it.
     @UIApplicationDelegateAdaptor(Notices.self) private var notices
+
+    init() { Theme.registerFonts() }
 
     var body: some Scene {
         WindowGroup {
@@ -30,6 +33,36 @@ enum Theme {
     static let inkSoft    = Color(red: 0.773, green: 0.737, blue: 0.682)   // #c5bcae
     static let inkMute    = Color(red: 0.553, green: 0.514, blue: 0.459)   // #8d8375
     static let safelight  = Color(red: 0.416, green: 0.663, blue: 0.878)   // #6aa9e0
+    static let rule       = Color(red: 0.949, green: 0.929, blue: 0.894).opacity(0.14)
+    /// The white border of a print in the collage (`.snap` in site.css).
+    static let paper      = Color(red: 0.957, green: 0.937, blue: 0.902)   // #f4efe6
+
+    // MARK: The site's three typefaces (static/fonts, converted to TTF)
+    //
+    // ⚠ Registered by hand at start-up rather than through `UIAppFonts` in the
+    //   Info.plist: this project GENERATES its Info.plist, and an array key
+    //   cannot be put there through a build setting.
+
+    /// Bodoni Moda -- headings and album titles (`--display`).
+    static func display(_ size: CGFloat, relativeTo style: Font.TextStyle = .title) -> Font {
+        .custom("BodoniModa-Regular", size: size, relativeTo: style)
+    }
+    /// Spectral -- running text (`--body`).
+    static func body(_ size: CGFloat, relativeTo style: Font.TextStyle = .body) -> Font {
+        .custom("Spectral-Regular", size: size, relativeTo: style)
+    }
+    /// IBM Plex Mono -- plates, counts, dates (`--mono`).
+    static func mono(_ size: CGFloat, medium: Bool = false,
+                     relativeTo style: Font.TextStyle = .caption) -> Font {
+        .custom(medium ? "IBMPlexMono-Medium" : "IBMPlexMono-Regular", size: size, relativeTo: style)
+    }
+
+    static func registerFonts() {
+        let urls = Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? []
+        for url in urls {
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+    }
 }
 
 @MainActor
@@ -149,6 +182,9 @@ struct RootView: View {
             }
         }
         .task {
+            #if DEBUG
+            await Demo.pairIfAsked(state)
+            #endif
             await state.refresh()
             // ⚠ Only once there IS a connection. Asking before that means
             //   asking somebody who has not yet seen a single photograph.
@@ -195,6 +231,9 @@ struct MainView: View {
         // ⚠ A tapped notice lands here. The album is named by its key
         //   (`<year>/<country>/<event>`), which is all the list needs; the
         //   title and the count come from the album page itself.
+        #if DEBUG
+        .task { await Demo.openIfAsked(state) }
+        #endif
         .onChange(of: state.openAlbum) { _, key in
             guard let key, !key.isEmpty else { return }
             let parts = key.split(separator: "/", maxSplits: 2).map(String.init)

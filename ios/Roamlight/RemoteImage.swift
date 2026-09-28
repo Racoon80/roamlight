@@ -49,6 +49,20 @@ struct RemoteImage: View {
     @EnvironmentObject private var state: AppState
     @State private var image: UIImage?
 
+    /// ⚠ A photograph already in the cache is there on the FIRST frame, not
+    ///   one task later. The slideshow fetches the next photograph ahead; read
+    ///   in `.task`, it still came in as a dark placeholder for a frame, and
+    ///   the crossfade dipped into black on the way.
+    init(id: Int, width: Int, rev: Int = 0, contentMode: ContentMode = .fill) {
+        self.id = id
+        self.width = width
+        self.rev = rev
+        self.contentMode = contentMode
+        _image = State(initialValue: MainActor.assumeIsolated {
+            ImageStore.shared.cached("\(id)-\(width)-\(rev)")
+        })
+    }
+
     var body: some View {
         ZStack {
             if let image {

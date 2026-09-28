@@ -2344,11 +2344,14 @@ def api_albums(request: Request):
 @app.get("/api/photos")
 def api_photos(request: Request, page: int = 1, year: str = None, country: str = None,
                event: str = None, place: str = None, camera: str = None,
-               kind: str = None, q: str = None):
+               kind: str = None, q: str = None, pair: int = 1):
+    """`pair=0`: strictly by date, the way the website's collage has them. The
+    default puts two photographs of the same shape side by side, for the plain
+    two-column grid the apps used first -- an older app keeps getting that."""
     ident = security.identify(request)
     res = gallery.list_photos(
         {"year": year, "country": country, "event": event, "place": place,
-         "camera": camera, "kind": kind, "q": q}, page, viewer=ident)
+         "camera": camera, "kind": kind, "q": q}, page, viewer=ident, pair=bool(pair))
     # ⚠ Per photograph: may THIS person take it off the site? The same rule as
     #   `_owns` (an admin anything, anybody else only their own uploads), said
     #   in advance -- so the app shows a bin only where pressing it works. On

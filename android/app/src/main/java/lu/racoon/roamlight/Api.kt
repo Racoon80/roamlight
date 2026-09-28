@@ -201,7 +201,8 @@ class Api(private val store: Store) {
     suspend fun albums(): List<Album> = Album.list(getJson("/api/albums"))
 
     suspend fun photos(album: Album?, page: Int = 1, query: String? = null): PhotoPage {
-        val q = StringBuilder("?page=$page")
+        // ⚠ `pair=0`: strictly by date, as the website's collage has them.
+        val q = StringBuilder("?page=$page&pair=0")
         if (album != null) {
             q.append("&year=").append(esc(album.year))
             q.append("&country=").append(esc(album.country))

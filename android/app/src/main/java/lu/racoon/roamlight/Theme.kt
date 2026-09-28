@@ -7,6 +7,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 
 object Ink {
     val ground     = Color(0xFF1A1815)
@@ -15,6 +19,21 @@ object Ink {
     val inkSoft    = Color(0xFFC5BCAE)
     val inkMute    = Color(0xFF8D8375)
     val safelight  = Color(0xFF6AA9E0)
+    val rule       = Color(0x24F2EDE4)
+    /** The white border of a print in the collage (`.snap` in site.css). */
+    val paper      = Color(0xFFF4EFE6)
+}
+
+/** The site's three typefaces (static/fonts, converted to TTF). */
+object Type {
+    /** Bodoni Moda -- headings and album titles (`--display`). */
+    val display = FontFamily(Font(R.font.bodoni_moda))
+    /** Spectral -- running text (`--body`). */
+    val body = FontFamily(Font(R.font.spectral),
+                          Font(R.font.spectral_light_italic, FontWeight.Light, FontStyle.Italic))
+    /** IBM Plex Mono -- plates, counts, dates (`--mono`). */
+    val mono = FontFamily(Font(R.font.ibm_plex_mono),
+                          Font(R.font.ibm_plex_mono_medium, FontWeight.Medium))
 }
 
 /**

@@ -27,3 +27,10 @@ build/
 *.p8
 *.mobileprovision
 *.p12
+
+# Signing keys and Firebase config never go into this public repository.
+*.jks
+*.keystore
+*release.properties
+google-services.json
+*firebase-adminsdk*.json

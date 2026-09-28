@@ -30,6 +30,21 @@
     </div>
   </div>
 
+  {% if android %}
+  {# ⚠ The Android app comes from THIS site, not from a store. The fingerprint
+     is there so a careful person can check the file they got is the one the
+     site meant to give them. #}
+  <div class="step"><span class="step__n">↓</span><h2>The Android app</h2>
+    <span class="step__note">for the iPhone: the App Store, "Roamlight"</span></div>
+  <div class="dev__pair">
+    <a class="btn btn--go" href="{{ android.url }}" download>Download Roamlight {{ android.version_name }} for Android</a>
+    <p class="meta">{{ (android.size / 1048576) | round(1) }} MB. Android asks once whether it may
+       install apps from your browser -- say yes, for this one. Later versions the app
+       offers by itself.</p>
+    <p class="meta" style="word-break:break-all">SHA-256 {{ android.sha256 }}</p>
+  </div>
+  {% endif %}
+
   <div class="step"><span class="step__n">02</span><h2>Connected</h2>
     <span class="step__note" id="devnote">—</span></div>
 

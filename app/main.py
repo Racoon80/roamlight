@@ -1321,7 +1321,7 @@ def page_devices(request: Request):
     reaches the server -- the page shows it so it can be typed into the app.
     """
     ident = security.identify(request)
-    return _page(request, "app.html", user=ident.user)
+    return _page(request, "app.html", user=ident.user, android=_android())
 
 
 # ---------------------------------------------------------------------------
@@ -1743,6 +1743,52 @@ def api_app_pair(request: Request, body: dict = Body(...)):
     if out is None:
         raise HTTPException(status_code=401, detail="that code is not valid any more")
     return out
+
+
+def _android() -> dict | None:
+    """The published Android app, or None. Read from the file next to the APK
+    -- written by tools/publish_android.py, never guessed from the APK."""
+    meta = config.ANDROID_DIR / "roamlight.json"
+    apk = config.ANDROID_DIR / "roamlight.apk"
+    if not (meta.is_file() and apk.is_file()):
+        return None
+    try:
+        d = json.loads(meta.read_text())
+        return {"version_code": int(d["version_code"]), "version_name": str(d["version_name"]),
+                "sha256": str(d.get("sha256", "")), "size": apk.stat().st_size,
+                "url": "/app/android.apk"}
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+@app.get("/api/app/android")
+def api_app_android(request: Request):
+    """Which Android version this site hands out -- the app compares it with
+    its own and offers the update. Signed in, like everything else here."""
+    ident = security.identify(request)
+    if not ident.is_viewer:
+        raise HTTPException(status_code=403, detail="no")
+    return _android() or {"version_code": 0}
+
+
+@app.get("/app/android.apk")
+def app_android_apk(request: Request):
+    """The Android app itself.
+
+    ⚠ Behind the sign-in like the photographs, although the APK holds nothing
+      secret: a family site has no business handing software to strangers,
+      and whoever has an account can get it from the browser or from the app
+      (which sends its token)."""
+    ident = security.identify(request)
+    if not ident.is_viewer:
+        raise HTTPException(status_code=403, detail="no")
+    a = _android()
+    if a is None:
+        raise HTTPException(status_code=404, detail="no Android app on this site")
+    return FileResponse(config.ANDROID_DIR / "roamlight.apk",
+                        media_type="application/vnd.android.package-archive",
+                        filename=f"Roamlight-{a['version_name']}.apk",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/app/ways")

@@ -825,6 +825,10 @@ JOURNEY_PLANE_KM = float(os.environ.get("FAMILY_JOURNEY_PLANE_KM", "1100"))
 #   family member's browser never talks to OpenStreetMap — and the site's own
 #   content policy can stay at `img-src 'self'`.
 TILE_CACHE = _path("FAMILY_TILE_CACHE", DATA_DIR / "tiles")
+# The Android app, handed out by this site itself (no Play Store): the signed
+# APK and, next to it, what version it is. `tools/publish_android.py` puts
+# both here.
+ANDROID_DIR = _path("FAMILY_ANDROID_DIR", DATA_DIR / "android")
 TILE_URL = os.environ.get("FAMILY_TILE_URL",
                           "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
 TILE_MAX_AGE_DAYS = int(os.environ.get("FAMILY_TILE_MAX_AGE_DAYS", "60"))

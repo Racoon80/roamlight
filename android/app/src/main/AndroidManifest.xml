@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: asked for once, after the device is connected. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Updates come from the family's site, not a store: the app hands the
+         downloaded file to Android's installer, which asks the person. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Only for the pairing code on the site's /app page. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -60,6 +63,16 @@
                 <data android:scheme="roamlight" android:host="sso" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/updates" />
+        </provider>
+
         <!-- The notices. Not exported: only Firebase inside this app talks to it. -->
         <service
             android:name=".RoamlightMessaging"

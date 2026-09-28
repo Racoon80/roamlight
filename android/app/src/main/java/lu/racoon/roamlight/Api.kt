@@ -196,6 +196,18 @@ class Api(private val store: Store) {
 
     suspend fun me(): Me = Me.of(getJson("/api/app/me"))
 
+    // MARK: - Updates
+
+    /** Which version the site hands out; null when it has none. */
+    suspend fun androidRelease(): Release? {
+        val o = getJson("/api/app/android")
+        val code = o.optLong("version_code", 0)
+        return if (code > 0) Release(code, o.optString("version_name", "")) else null
+    }
+
+    /** The APK itself, with the device token. A few MB -- a longer wait. */
+    suspend fun androidApk(): ByteArray = run("/app/android.apk", readTimeoutMs = 180_000)
+
     // MARK: - Notices
 
     suspend fun registerNotices(token: String, name: String) {

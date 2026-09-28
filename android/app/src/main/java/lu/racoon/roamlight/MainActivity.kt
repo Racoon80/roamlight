@@ -120,6 +120,8 @@ private fun MainScreen(state: AppState) {
         add(Tab("device", "Device", Icons.Filled.PhoneAndroid))
     }
 
+    UpdateOffer()
+
     Scaffold(
         containerColor = Ink.ground,
         bottomBar = { BottomBar(nav, tabs) },

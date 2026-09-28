@@ -25,6 +25,8 @@ os.environ.update(
     FAMILY_DERIVATIVES=str(TMP / "data" / "d"), FAMILY_INCOMING=str(TMP / "data" / "i"),
     FAMILY_WORK=str(TMP / "data" / "work"), FAMILY_REQUIRE_MOUNT="0",
     FAMILY_AUTH="local", FAMILY_SITE_URL="https://photos.example.com",
+    # The admin account "boss" stands in for the person "aunt".
+    FAMILY_OWNER_ALIASES="boss=aunt",
 )
 for d in ("data", "o", "w", "data/d", "data/i", "data/work"):
     (TMP / d).mkdir(parents=True, exist_ok=True)
@@ -100,6 +102,12 @@ try:
     check("settings: audience", s.get("audience"), ["group:" + contrib_g])
     check("settings: journey form", sorted(s.get("journey", {})), ["departure", "legs", "multi", "transport"])
     check("settings: admins are not offered", any(p["principal"] == "user:boss" for p in s["people"]), False)
+
+    # An admin that stands in for a person: what it creates is that person's.
+    r = boss.post("/api/collections", json={"action": "new", "title": "From boss", "ids": [1]},
+                  headers={"sec-fetch-site": "same-origin"})
+    row = db.connect().execute("SELECT owner FROM albums WHERE title='From boss'").fetchone()
+    check("admin alias: a collection boss makes belongs to aunt", row["owner"] if row else None, "aunt")
 
     with db.tx() as c:
         c.execute("INSERT INTO album_journey (album_key, departure, transport) VALUES (?,?,?)",

@@ -291,6 +291,15 @@ def _contributor(request: Request):
     return ident
 
 
+def _owner(ident):
+    """Who owns what this person creates: themselves -- except an admin, whose
+    uploads belong to nobody (the family's library), unless the admin account
+    stands in for a person (`FAMILY_OWNER_ALIASES`, e.g. familyadmin -> anna)."""
+    if ident.is_admin:
+        return config.OWNER_ALIASES.get(ident.user)
+    return ident.user
+
+
 def _owns(ident, photo_ids) -> list:
     """Of the photographs asked for, the ones this person REALLY may manage.
 
@@ -416,7 +425,7 @@ def api_commit(batch: str, request: Request, body: dict = Body(...)):
             event=str(body.get("event", "")),
             place=str(body.get("place", "")),
             include_duplicates=bool(body.get("include_duplicates", False)),
-            owner=None if ident.is_admin else ident.user,
+            owner=_owner(ident),
             keep_original=ident.is_admin,
         )
     except ValueError as exc:
@@ -983,7 +992,7 @@ def api_collections(request: Request, body: dict = Body(...)):
     try:
         if action == "new":
             return collections.create(str(body.get("title", "")), _originals(ids),
-                                      owner=None if ident.is_admin else ident.user)
+                                      owner=_owner(ident))
         if action == "rename":
             _mine(body["id"])
             return collections.rename(int(body["id"]), str(body.get("title", "")))
@@ -1989,11 +1998,11 @@ def api_album_share(request: Request, body: dict = Body(...)):
     max_views = (body.get("max_views") if ident.is_admin else 1)
     try:
         coll = collections.create(gallery.album_title(year, event), ids,
-                                  owner=None if ident.is_admin else ident.user)
+                                  owner=_owner(ident))
         d = shares.create(coll["id"], days=int(body.get("days", shares.DEFAULT_DAYS)),
                           allow_download=bool(body.get("allow_download", True)),
                           keep_gps=bool(body.get("keep_gps", False)),
-                          owner=None if ident.is_admin else ident.user,
+                          owner=_owner(ident),
                           max_views=max_views)
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))

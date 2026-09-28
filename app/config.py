@@ -678,6 +678,21 @@ def fcm_ready() -> bool:
     return bool(FCM_CREDENTIALS and _P(FCM_CREDENTIALS).is_file())
 
 
+# An admin account that stands in for a person. What `familyadmin` uploads, or a
+# collection it makes, belongs to `anna` -- the photographs are hers; the admin
+# account is only the key she used. `FAMILY_OWNER_ALIASES=familyadmin=anna` (more
+# pairs with commas).
+#
+# ⚠ Only for what that account CREATES from now on. It does not make anybody an
+#   admin, and it hands nobody's photographs over: other admins, and the
+#   library scan (photographs with no uploader), stay without an owner.
+OWNER_ALIASES = {
+    k.strip(): v.strip()
+    for k, _, v in (p.partition("=") for p in
+                    os.environ.get("FAMILY_OWNER_ALIASES", "").split(","))
+    if k.strip() and v.strip()
+}
+
 TRUSTED_PROXIES = tuple(
     p.strip() for p in os.environ.get("FAMILY_TRUSTED_PROXIES", "").split(",") if p.strip())
 

@@ -92,6 +92,12 @@ try:
                   headers={"sec-fetch-site": "same-origin"})
     check("... and the server agrees (403)", r.status_code, 403)
 
+    r = aunt.get("/api/photos?year=2017&country=Lux&event=Mine").json()
+    check("album page says may_edit (her own)", r.get("may_edit"), True)
+    r = aunt.get("/api/photos?year=2017&country=Lux&event=Mixed").json()
+    check("album page says may_edit (mixed)", r.get("may_edit"), False)
+    check("a search page says nothing", "may_edit" in aunt.get("/api/photos?q=x").json(), False)
+
     q = "year=2017&country=Lux&event="
     check("settings: contributor, library album", aunt.get(f"/api/albums/settings?{q}Library").status_code, 403)
     check("settings: contributor, mixed album", aunt.get(f"/api/albums/settings?{q}Mixed").status_code, 403)

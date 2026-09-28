@@ -236,6 +236,8 @@ fun PhotoGrid(
     var page by remember(album?.id, query) { mutableIntStateOf(0) }
     var pages by remember(album?.id, query) { mutableIntStateOf(1) }
     var total by remember(album?.id, query) { mutableIntStateOf(0) }
+    // The server's word on editing the whole album (see mayEdit below).
+    var serverSaysEdit by remember(album?.id, query) { mutableStateOf<Boolean?>(null) }
     var loading by remember(album?.id, query) { mutableStateOf(false) }
     var failed by remember(album?.id, query) { mutableStateOf<String?>(null) }
     // ⚠ Which pages have been asked for, claimed the moment the last picture
@@ -257,6 +259,7 @@ fun PhotoGrid(
             pages = p.pages
             page = p.page
             total = p.total
+            p.mayEdit?.let { serverSaysEdit = it }
             if (asked == 1) {
                 photos = p.photos
                 claimed.clear()
@@ -429,8 +432,12 @@ fun PhotoGrid(
                 //   photographs are all this person's own (all loaded, all
                 //   deletable by them) -- the same rule the server applies.
                 //   A button that answers "you may not" is worse than none.
-                val mayEdit = LocalMayAdmin.current || (mayRemove && photos.isNotEmpty() &&
-                    photos.size >= total && photos.all { it.mayRemove == true })
+                // ⚠ The server's word first: working it out from the loaded
+                //   photographs needed ALL of them, and sixty load at a time --
+                //   in every album bigger than one page the button never showed.
+                val mayEdit = LocalMayAdmin.current || (serverSaysEdit ?: (mayRemove &&
+                    photos.isNotEmpty() && photos.size >= total &&
+                    photos.all { it.mayRemove == true }))
                 if (mayEdit) {
                     IconButton(onClick = { editing = true }) {
                         Icon(Icons.Filled.Tune, contentDescription = "Edit album",

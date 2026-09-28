@@ -2417,6 +2417,12 @@ def api_photos(request: Request, page: int = 1, year: str = None, country: str =
         if ident.is_contributor else set()
     for p in res["photos"]:
         p["may_remove"] = p["id"] in mine
+    # ⚠ For the album as a whole: may this person edit it? Said here, by the
+    #   server, with the same rule `edit` applies -- the apps used to work it
+    #   out from the photographs they had loaded, and they load sixty at a
+    #   time: in any album bigger than one page the button never appeared.
+    if year is not None and country is not None and event is not None:
+        res["may_edit"] = _may_manage_album(ident, year, country, event)
     return res
 
 

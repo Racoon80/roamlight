@@ -54,6 +54,14 @@ struct PhotoPage: Decodable {
     let page: Int
     let pages: Int
     let photos: [Photo]
+    /// May this person edit the album as a whole? Said by the server for an
+    /// album page; nil from an older site.
+    let mayEdit: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case total, page, pages, photos
+        case mayEdit = "may_edit"
+    }
 }
 
 struct Photo: Decodable, Identifiable, Hashable {

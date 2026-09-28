@@ -178,7 +178,9 @@ data class Photo(
     }
 }
 
-data class PhotoPage(val total: Int, val page: Int, val pages: Int, val photos: List<Photo>) {
+data class PhotoPage(val total: Int, val page: Int, val pages: Int, val photos: List<Photo>,
+                     /** May this person edit the album as a whole? null from an older site. */
+                     val mayEdit: Boolean? = null) {
     companion object {
         fun of(o: JSONObject): PhotoPage {
             val a = o.optJSONArray("photos") ?: JSONArray()
@@ -187,6 +189,7 @@ data class PhotoPage(val total: Int, val page: Int, val pages: Int, val photos: 
                 page = o.optInt("page", 1),
                 pages = o.optInt("pages", 1),
                 photos = (0 until a.length()).map { Photo.of(a.getJSONObject(it)) },
+                mayEdit = if (o.has("may_edit")) o.optBoolean("may_edit") else null,
             )
         }
     }

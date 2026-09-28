@@ -285,10 +285,15 @@ struct PhotosView: View {
     ///   rule the server applies. A button that answers "you may not" is worse
     ///   than none, and to an App Store reviewer it looks broken.
     private var mayEdit: Bool {
-        state.me?.may.admin == true
-            || (state.mayRemove && !photos.isEmpty && photos.count >= total
-                && photos.allSatisfy { $0.mayRemove == true })
+        if state.me?.may.admin == true { return true }
+        // ⚠ The server's word first. Working it out from the loaded
+        //   photographs needed ALL of them, and the app loads sixty at a time
+        //   -- in every album bigger than one page the button never showed.
+        if let serverSays { return serverSays }
+        return state.mayRemove && !photos.isEmpty && photos.count >= total
+            && photos.allSatisfy { $0.mayRemove == true }
     }
+    @State private var serverSays: Bool?
     @State private var slideshow = false
 
     var body: some View {
@@ -496,6 +501,7 @@ struct PhotosView: View {
                 photos += res.photos.filter { !known.contains($0.id) }
             }
             page = res.page; pages = res.pages; total = res.total
+            if let m = res.mayEdit { serverSays = m }
             failed = nil
         } catch {
             // Give the page back, so a scroll can try it again.

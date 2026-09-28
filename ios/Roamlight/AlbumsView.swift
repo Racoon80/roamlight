@@ -42,7 +42,12 @@ struct AlbumsView: View {
                                     //   theirs. "Delete" straight from the list
                                     //   only for an admin: for anybody else it
                                     //   would nearly always be a refusal.
-                                    if state.mayRemove {
+                                    // ⚠ From the list only for an admin: the
+                                    //   list cannot tell whose photographs an
+                                    //   album holds. Anybody else edits from
+                                    //   inside the album, where the button
+                                    //   shows only if it will work.
+                                    if state.me?.may.admin == true {
                                         Button { editing = a } label: {
                                             Label("Edit album", systemImage: "pencil")
                                         }
@@ -274,6 +279,16 @@ struct PhotosView: View {
     @State private var played = false
 
     @State private var width: CGFloat = 0
+
+    /// ⚠ Only where editing WORKS: an admin, or an album whose photographs are
+    ///   all this person's own (all loaded, all deletable by them) -- the same
+    ///   rule the server applies. A button that answers "you may not" is worse
+    ///   than none, and to an App Store reviewer it looks broken.
+    private var mayEdit: Bool {
+        state.me?.may.admin == true
+            || (state.mayRemove && !photos.isEmpty && photos.count >= total
+                && photos.allSatisfy { $0.mayRemove == true })
+    }
     @State private var slideshow = false
 
     var body: some View {
@@ -363,7 +378,7 @@ struct PhotosView: View {
                         .accessibilityLabel("Slideshow")
                 }
             }
-            if album != nil, state.mayRemove {
+            if album != nil, mayEdit {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { editing = true } label: { Image(systemName: "slider.horizontal.3") }
                         .accessibilityLabel("Edit album")

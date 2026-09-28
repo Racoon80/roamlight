@@ -85,7 +85,11 @@ fun AlbumsScreen(nav: NavHostController) {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.rule))
                 }
                 listItemsIndexed(albums, key = { _, a -> a.id }) { i, a ->
-                    AlbumRow(a, i + 1, onLongClick = if (LocalMayRemove.current) {
+                    // ⚠ From the list only for an admin: the list cannot tell
+                    //   whose photographs an album holds. Anybody else edits
+                    //   from inside the album, where the button shows only if
+                    //   it will work.
+                    AlbumRow(a, i + 1, onLongClick = if (LocalMayAdmin.current) {
                         { editing = a }
                     } else null) { nav.navigate("photos/${AlbumKey.of(a)}") }
                 }
@@ -421,7 +425,13 @@ fun PhotoGrid(
                              tint = Ink.safelight)
                     }
                 }
-                if (mayRemove) {
+                // ⚠ Only where editing WORKS: an admin, or an album whose
+                //   photographs are all this person's own (all loaded, all
+                //   deletable by them) -- the same rule the server applies.
+                //   A button that answers "you may not" is worse than none.
+                val mayEdit = LocalMayAdmin.current || (mayRemove && photos.isNotEmpty() &&
+                    photos.size >= total && photos.all { it.mayRemove == true })
+                if (mayEdit) {
                     IconButton(onClick = { editing = true }) {
                         Icon(Icons.Filled.Tune, contentDescription = "Edit album",
                              tint = Ink.inkSoft)

@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalApi provides state.api,
                     LocalMayRemove provides (state.me?.may?.upload == true),
+                    LocalMayAdmin provides (state.me?.may?.admin == true),
                 ) {
                     Surface(color = Ink.ground) { Root(state) }
                 }

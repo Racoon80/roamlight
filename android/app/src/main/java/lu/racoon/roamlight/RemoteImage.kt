@@ -71,7 +71,12 @@ fun RemoteImage(
         if (bitmap == null) bitmap = ImageStore.load(api, id, width, rev)
     }
 
-    Box(modifier.background(Ink.groundWarm), contentAlignment = Alignment.Center) {
+    // ⚠ The placeholder colour only while there is nothing to show. Painted
+    //   under the picture as well, it framed every photograph that does not
+    //   fill its box (`Fit`, full screen and slideshow) in brown instead of
+    //   the black it stands on.
+    Box(if (bitmap == null) modifier.background(Ink.groundWarm) else modifier,
+        contentAlignment = Alignment.Center) {
         val b = bitmap
         if (b != null) {
             Image(

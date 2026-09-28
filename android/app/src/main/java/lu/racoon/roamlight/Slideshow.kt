@@ -137,7 +137,11 @@ fun SlideshowDialog(album: Album?, query: String?, start: List<Photo>, total: In
             }
 
             AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut()) {
-                Box(Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
+                // ⚠ Explicit room at the bottom: inside a Dialog the system-bar
+                //   insets come back as nothing on some devices, and the bar
+                //   with 3 s / 5 s / 8 s sat half under the gesture bar.
+                Box(Modifier.fillMaxSize().systemBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp)) {
                     Row(Modifier.fillMaxWidth().align(Alignment.TopCenter),
                         verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClose,

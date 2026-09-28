@@ -36,6 +36,9 @@ val LocalApi = staticCompositionLocalOf<Api> { error("no Api in the tree") }
  */
 val LocalMayRemove = compositionLocalOf { false }
 
+/** An administrator of the site -- may edit any album. */
+val LocalMayAdmin = compositionLocalOf { false }
+
 class AppState(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
     val api = Api(store)

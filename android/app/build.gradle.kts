@@ -22,8 +22,8 @@ android {
         targetSdk = 35
         // ⚠ versionCode only ever goes UP -- it is what the update check
         //   compares (see Updates.kt). 1.1.0 -> 110, 1.1.1 -> 111, 1.2.0 -> 120.
-        versionCode = 111
-        versionName = "1.1.1"
+        versionCode = 112
+        versionName = "1.1.2"
     }
 
     // ⚠ The release key is NOT in this repository and never will be. The path

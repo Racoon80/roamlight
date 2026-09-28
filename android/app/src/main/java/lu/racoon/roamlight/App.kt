@@ -10,7 +10,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 
-class RoamlightApp : Application()
+class RoamlightApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Notices.setUp(this)
+    }
+}
 
 /** A typed address, made into one: `family.example.org` -> `https://family.example.org`. */
 fun siteUrl(typed: String): String {
@@ -42,6 +47,8 @@ class AppState(app: Application) : AndroidViewModel(app) {
     var error by mutableStateOf<String?>(null)
     var checking by mutableStateOf(false)
         private set
+    /** The album a tapped notice asked for (its `<year>/<country>/<event>`). */
+    var openAlbum by mutableStateOf<String?>(null)
 
     val connected: Boolean get() = token != null
 
@@ -177,9 +184,16 @@ class AppState(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
-        store.token = null
-        token = null
-        me = null
-        ImageStore.clear()
+        // ⚠ Tell the site to stop sending BEFORE the token goes -- afterwards
+        //   there is nothing left to say it with. At most three seconds: a site
+        //   that cannot be reached must not keep anybody from signing out.
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            kotlinx.coroutines.withTimeoutOrNull(3000) { Notices.forget(app) }
+            store.token = null
+            token = null
+            me = null
+            ImageStore.clear()
+        }
     }
 }

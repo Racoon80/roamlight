@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: asked for once, after the device is connected. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Only for the pairing code on the site's /app page. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -58,5 +60,22 @@
                 <data android:scheme="roamlight" android:host="sso" />
             </intent-filter>
         </activity>
+        <!-- The notices. Not exported: only Firebase inside this app talks to it. -->
+        <service
+            android:name=".RoamlightMessaging"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="albums" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <!-- ⚠ No analytics collection, even by accident. -->
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false" />
     </application>
 </manifest>

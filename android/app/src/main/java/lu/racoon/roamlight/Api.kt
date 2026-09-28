@@ -196,6 +196,17 @@ class Api(private val store: Store) {
 
     suspend fun me(): Me = Me.of(getJson("/api/app/me"))
 
+    // MARK: - Notices
+
+    suspend fun registerNotices(token: String, name: String) {
+        postJson("/api/notify/register", JSONObject()
+            .put("kind", "fcm").put("token", token).put("name", name))
+    }
+
+    suspend fun forgetNotices(token: String) {
+        postJson("/api/notify/unregister", JSONObject().put("kind", "fcm").put("token", token))
+    }
+
     // MARK: - Kucken
 
     suspend fun albums(): List<Album> = Album.list(getJson("/api/albums"))

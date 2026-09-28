@@ -35,6 +35,11 @@ class Store(context: Context) {
      * in front, Android may throw this app's process away, and the answer then
      * arrives at a fresh one.
      */
+    /** The address Google gave this phone for notices -- kept to take it back. */
+    var fcmToken: String?
+        get() = p.getString("fcm_token", null)
+        set(v) = p.edit().apply { if (v == null) remove("fcm_token") else putString("fcm_token", v) }.apply()
+
     var ssoSite: String?
         get() = p.getString("sso_site", null)
         set(v) = p.edit().apply { if (v == null) remove("sso_site") else putString("sso_site", v) }.apply()

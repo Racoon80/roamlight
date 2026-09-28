@@ -58,6 +58,14 @@ dependencies {
     // lines of code -- cheaper than plumbing CameraX by hand.
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
+    // Push (a one-line notice when an album grows or is shared). ⚠ Only the
+    //   messaging part of Firebase -- no Analytics, no Crashlytics: nothing
+    //   about what the family looks at leaves the phone. Set up by hand in
+    //   RoamlightApp, so neither google-services.json nor its Gradle plugin
+    //   is needed.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+
     testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

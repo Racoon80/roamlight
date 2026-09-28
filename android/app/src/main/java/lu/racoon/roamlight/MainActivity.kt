@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // A fresh process (Android threw the old one away while the browser
         // was in front) gets the sign-in's answer here, not in onNewIntent.
-        if (savedInstanceState == null) takeSso(intent)
+        if (savedInstanceState == null) { takeSso(intent); takeNotice(intent) }
         setContent {
             RoamlightTheme {
                 val state: AppState = viewModel()
@@ -49,6 +49,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         takeSso(intent)
+        takeNotice(intent)
+    }
+
+    /** A tapped notice: its album comes along as an extra (see Notices.kt). */
+    private fun takeNotice(intent: Intent?) {
+        val key = intent?.getStringExtra(Notices.EXTRA_ALBUM)?.takeIf { it.isNotEmpty() } ?: return
+        ViewModelProvider(this)[AppState::class.java].openAlbum = key
+        intent.removeExtra(Notices.EXTRA_ALBUM)
     }
 
     /** roamlight://sso?c=<code> -- the way back from single sign-on. */
@@ -73,6 +81,35 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 @Composable
 private fun MainScreen(state: AppState) {
     val nav = rememberNavController()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // ⚠ Only once there IS a connection -- asking before that means asking
+    //   somebody who has not seen a single photograph yet. Android 13+ asks the
+    //   person; below that the permission is simply there.
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) Notices.register(context) }
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            Notices.register(context)
+        }
+    }
+
+    // A tapped notice lands here. The album is named by its key
+    // (`<year>/<country>/<event>`), which is all the album page needs.
+    LaunchedEffect(state.openAlbum) {
+        val key = state.openAlbum ?: return@LaunchedEffect
+        state.openAlbum = null
+        val parts = key.split("/", limit = 3)
+        if (parts.size == 3) {
+            nav.navigate("photos/" + AlbumKey.of(Album(parts[0], parts[1], parts[2], "", 0, null, null)))
+        }
+    }
     // ⚠ The upload tab only appears when the server says this person may
     //   upload. It is not a hiding place -- the server refuses either way --
     //   but a button that always answers 403 is worse than no button.

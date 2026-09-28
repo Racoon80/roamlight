@@ -829,6 +829,13 @@ TILE_CACHE = _path("FAMILY_TILE_CACHE", DATA_DIR / "tiles")
 # APK and, next to it, what version it is. `tools/publish_android.py` puts
 # both here.
 ANDROID_DIR = _path("FAMILY_ANDROID_DIR", DATA_DIR / "android")
+
+# Who converts what people upload: `separate` = a process of its own
+# (`python -m app.convert_cli`, which cannot see the originals -- the LXC's
+# family-convert.service, or a `roamlight-convert` container); `here` = the
+# site's own worker, for a single container with nothing next to it. See
+# FOREIGN_KINDS in app/worker.py.
+CONVERT_UPLOADS_HERE = os.environ.get("FAMILY_CONVERT_UPLOADS", "separate").strip().lower() == "here"
 TILE_URL = os.environ.get("FAMILY_TILE_URL",
                           "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
 TILE_MAX_AGE_DAYS = int(os.environ.get("FAMILY_TILE_MAX_AGE_DAYS", "60"))

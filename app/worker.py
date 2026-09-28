@@ -83,7 +83,15 @@ def requeue_orphans(kinds=None, exclude=None) -> int:
 #   So it happens in `family-convert.service` instead -- the same code, the
 #   same queue, a different process with `/mnt/my-photos` not mounted at all.
 #   See `app/convert_cli.py`.
-FOREIGN_KINDS = ("convert-upload",)
+#
+#   ⚠ Unless there IS no second process. A single Docker container (the
+#     Docker image, an Unraid template) runs the site and nothing else -- and
+#     there the uploads sat at "new" for ever, because nothing took
+#     `convert-upload`. `FAMILY_CONVERT_UPLOADS=here` (the image's default)
+#     lets this worker take them too; `separate` is for an installation that
+#     runs `python -m app.convert_cli` next to it, as the LXC and the compose
+#     stack with a `roamlight-convert` service do.
+FOREIGN_KINDS = () if config.CONVERT_UPLOADS_HERE else ("convert-upload",)
 
 
 class Worker:

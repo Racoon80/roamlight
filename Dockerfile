@@ -17,6 +17,7 @@ ENV PYTHONUNBUFFERED=1 \
     FAMILY_WEB=/library \
     FAMILY_AUTH=local \
     FAMILY_REQUIRE_MOUNT=0 \
+    FAMILY_CONVERT_UPLOADS=here \
     FAMILY_CLAMAV=0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -190,7 +190,7 @@ def _state() -> dict:
     #   the kind of failure nobody notices for a week. A job of that kind that
     #   has been waiting a while is the tell.
     try:
-        marks = ",".join("?" for _ in FOREIGN_KINDS)
+        marks = ",".join("?" for _ in FOREIGN_KINDS) or "NULL"
         stuck = db.connect().execute(
             f"SELECT COUNT(*) AS n FROM jobs WHERE status='pending' AND kind IN ({marks}) "
             "AND created_at <= datetime('now','-15 minutes')",

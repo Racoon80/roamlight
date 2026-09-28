@@ -291,6 +291,15 @@ async def gate(request: Request, call_next):
             #   a machine outside this one.
             ident = identify(request)
             if not ident.is_viewer:
+                # ⚠ A device token that no longer works gets a 401, not the
+                #   403 everybody else gets. The apps sign themselves out on a
+                #   401 -- that is how "take this device off" reaches a phone.
+                #   With a 403 a revoked phone was left on a screen saying
+                #   "The site said 403", signed in to nothing, for ever.
+                if (request.headers.get("authorization") or "")[:7].lower() == "bearer ":
+                    return _harden(JSONResponse(
+                        {"detail": "this device is not connected to the site any more"},
+                        status_code=401))
                 return _no_access(request)
             # Who was here gets noted — no token, no network request. That way
             # the administrator sees a list of people even when the directory

@@ -116,6 +116,20 @@ try:
     check("once only", r.status_code, 401)
     r = app_c.get("/api/app/me", headers={"authorization": f"Bearer {token}"})
     check("the token works", (r.status_code, r.json().get("user")), (200, "aunt"))
+
+    # Taken off the site: the phone must hear 401 (it signs itself out on
+    # that), not the 403 a stranger gets -- with 403 it was left stranded.
+    from app import devices
+    with db.tx() as c_:
+        c_.execute("UPDATE app_devices SET revoked_at=datetime('now') WHERE username='aunt'")
+    devices._CACHE.clear() if hasattr(devices, "_CACHE") else None
+    r = app_c.get("/api/app/me", headers={"authorization": f"Bearer {token}"})
+    check("a revoked device hears 401", r.status_code, 401)
+    r = app_c.get("/api/albums", headers={"authorization": "Bearer fam_nonsense_token"})
+    check("a made-up token hears 401", r.status_code, 401)
+    r = TestClient(app, base_url="https://photos.example.com").get(
+        "/api/albums", headers={"accept": "application/json"})
+    check("no token at all still hears 403", r.status_code, 403)
 finally:
     shutil.rmtree(TMP, ignore_errors=True)
 

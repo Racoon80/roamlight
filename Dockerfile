@@ -37,7 +37,11 @@ COPY app/ ./app/
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# The nightly database backup (dump, integrity check, restore test, rotation).
+# Not run by the container itself: a scheduler outside calls
+#   docker exec roamlight roamlight-db-backup backup
+COPY deploy/db-backup.sh /usr/local/bin/roamlight-db-backup
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/roamlight-db-backup
 
 EXPOSE 8080
 VOLUME ["/data", "/originals", "/library"]

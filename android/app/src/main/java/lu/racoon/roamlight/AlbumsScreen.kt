@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.Icons
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
@@ -40,36 +40,13 @@ fun AlbumsScreen(nav: NavHostController) {
     var albums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf<String?>(null) }
-    var doomed by remember { mutableStateOf<Album?>(null) }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf<Album?>(null) }
     var reload by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
 
-    doomed?.let { a ->
-        ConfirmRemoval(
-            title = "Delete “${a.title.ifEmpty { a.event }}”?",
-            action = "Delete ${a.n} photograph${if (a.n == 1) "" else "s"}",
-            onDismiss = { doomed = null },
-        ) {
-            doomed = null
-            scope.launch {
-                try {
-                    val r = api.removeAlbum(a)
-                    if (r.failed.isNotEmpty()) problem = "${r.failed.size} of ${a.n} could not be deleted."
-                } catch (e: Exception) {
-                    problem = (e as? ApiError)?.message ?: e.message
-                }
-                reload += 1
-            }
-        }
-    }
-    problem?.let { msg ->
-        AlertDialog(
-            onDismissRequest = { problem = null },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
-            title = { Text("Not deleted") },
-            text = { Text(msg) },
-        )
+    // Long-press on an album: "Edit album" -- name, journey, who sees it, and
+    // deleting it. The screen itself says when the album is not this person's.
+    editing?.let { a ->
+        EditAlbumDialog(a, onDismiss = { editing = null }) { reload += 1 }
     }
 
     LaunchedEffect(reload) {
@@ -102,7 +79,7 @@ fun AlbumsScreen(nav: NavHostController) {
                 items(albums, key = { it.id }) { a ->
                     Box(Modifier.padding(6.dp)) {
                         AlbumCard(a, onLongClick = if (LocalMayRemove.current) {
-                            { doomed = a }
+                            { editing = a }
                         } else null) { nav.navigate("photos/${AlbumKey.of(a)}") }
                     }
                 }
@@ -262,8 +239,26 @@ fun PhotoGrid(
     // Ewechhuelen: eng Foto (laang drécken) oder de ganzen Album (Menü).
     val mayRemove = LocalMayRemove.current
     var doomedPhoto by remember(album?.id) { mutableStateOf<Photo?>(null) }
-    var doomedAlbum by remember(album?.id) { mutableStateOf(false) }
-    var menu by remember(album?.id) { mutableStateOf(false) }
+    var editing by remember(album?.id) { mutableStateOf(false) }
+    // ⚠ A dialog, not a line of text: on 28.09.2026 the site refused two
+    //   deletions, the refusal was a small line nobody saw, and the photographs
+    //   simply seemed not to go.
+    var problem by remember(album?.id) { mutableStateOf<String?>(null) }
+    problem?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { problem = null },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+            title = { Text("Not deleted") },
+            text = { Text(msg) },
+        )
+    }
+    if (editing && album != null) {
+        EditAlbumDialog(album, onDismiss = { editing = false }) { left ->
+            // Renamed or deleted: this album is not in the list under this
+            // name any more -- back to the list, which loads afresh.
+            if (left) nav.popBackStack() else reloadNow += 1
+        }
+    }
     doomedPhoto?.let { p ->
         ConfirmRemoval(
             title = "Delete this ${if (p.isVideo) "video" else "photograph"}?",
@@ -278,34 +273,11 @@ fun PhotoGrid(
                         photos = photos.filter { it.id != p.id }
                         total = maxOf(0, total - 1)
                     } else {
-                        sent = r.failed.firstOrNull()?.ifEmpty { null } ?: "Not deleted."
+                        problem = r.failed.firstOrNull()?.ifEmpty { null }
+                            ?: "The site did not delete it."
                     }
                 } catch (e: Exception) {
-                    sent = (e as? ApiError)?.message ?: e.message
-                }
-            }
-        }
-    }
-    if (doomedAlbum && album != null) {
-        ConfirmRemoval(
-            title = "Delete “${title}”?",
-            action = "Delete the album",
-            onDismiss = { doomedAlbum = false },
-        ) {
-            doomedAlbum = false
-            scope.launch {
-                try {
-                    val r = api.removeAlbum(album)
-                    if (r.failed.isEmpty()) {
-                        // ⚠ Back to the list: the album this screen shows is
-                        //   gone. The list loads itself again on the way back.
-                        nav.popBackStack()
-                    } else {
-                        sent = "${r.failed.size} could not be deleted."
-                        reloadNow += 1
-                    }
-                } catch (e: Exception) {
-                    sent = (e as? ApiError)?.message ?: e.message
+                    problem = (e as? ApiError)?.message ?: e.message
                 }
             }
         }
@@ -396,18 +368,9 @@ fun PhotoGrid(
                     }
                 }
                 if (mayRemove) {
-                    Box {
-                        IconButton(onClick = { menu = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "More",
-                                 tint = Ink.inkSoft)
-                        }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Delete album",
-                                              color = MaterialTheme.colorScheme.error) },
-                                onClick = { menu = false; doomedAlbum = true },
-                            )
-                        }
+                    IconButton(onClick = { editing = true }) {
+                        Icon(Icons.Filled.Tune, contentDescription = "Edit album",
+                             tint = Ink.inkSoft)
                     }
                 }
             }
@@ -438,7 +401,7 @@ fun PhotoGrid(
                                 Viewing.open(photos, i)
                                 nav.navigate("photo/${p.id}")
                             },
-                            onLongClick = if (mayRemove) {
+                            onLongClick = if (mayRemove && p.mayRemove != false) {
                                 { doomedPhoto = p }
                             } else null,
                         )

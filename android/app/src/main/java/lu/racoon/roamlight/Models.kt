@@ -24,6 +24,42 @@ data class Pairing(val token: String, val user: String) {
     }
 }
 
+/** What "Edit album" is filled in with (`/api/albums/settings`). */
+data class AlbumSettings(
+    val year: String, val country: String, val event: String, val place: String,
+    val departure: String, val transport: String,
+    /** The stops of a multi-hop journey, sent back untouched (see Api.setJourney). */
+    val legs: JSONArray, val multi: Boolean,
+    val transports: List<String>,
+    val audience: List<String>,
+    val people: List<Pair<String, String>>,     // principal to name
+    val groups: List<Pair<String, String>>,
+) {
+    companion object {
+        fun of(o: JSONObject): AlbumSettings {
+            val j = o.optJSONObject("journey") ?: JSONObject()
+            fun choices(k: String) = (o.optJSONArray(k) ?: JSONArray()).let { a ->
+                (0 until a.length()).mapNotNull { i ->
+                    a.optJSONObject(i)?.let { it.optString("principal") to it.optString("name") }
+                }
+            }
+            return AlbumSettings(
+                year = o.optString("year"), country = o.optString("country"),
+                event = o.optString("event"), place = o.optString("place"),
+                departure = j.optString("departure", ""),
+                transport = j.optString("transport", "car"),
+                legs = j.optJSONArray("legs") ?: JSONArray(),
+                multi = j.optBoolean("multi"),
+                transports = o.optJSONArray("transports")?.strings()
+                    ?: listOf("car", "bus", "train", "plane"),
+                audience = o.optJSONArray("audience")?.strings() ?: emptyList(),
+                people = choices("people"),
+                groups = choices("groups"),
+            )
+        }
+    }
+}
+
 /** Which ways in a site has (`/api/app/ways`). */
 data class Ways(val password: Boolean, val sso: Boolean)
 
@@ -109,6 +145,9 @@ data class Photo(
     val kind: String?,
     val durationS: Int?,
     val rev: Int?,
+    /** May THIS person take it off the site? Said by the server; `null` from
+     *  an older site -- then the button shows and the server decides. */
+    val mayRemove: Boolean? = null,
 ) {
     val isVideo: Boolean get() = kind == "video"
 
@@ -134,6 +173,7 @@ data class Photo(
             kind = o.str("kind"),
             durationS = o.int("duration_s"),
             rev = o.int("rev"),
+            mayRemove = if (o.has("may_remove")) o.optBoolean("may_remove") else null,
         )
     }
 }

@@ -10,6 +10,7 @@ struct AlbumsView: View {
     @State private var failed: String?
     @State private var doomed: Album?
     @State private var problem: String?
+    @State private var editing: Album?
 
     // ⚠ The gap lives INSIDE the cell, and the grid is told nothing about it.
     //
@@ -36,7 +37,17 @@ struct AlbumsView: View {
                         NavigationLink(value: a) { AlbumCard(album: a) }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                // ⚠ "Edit" for anybody who may upload -- the
+                                //   screen itself says when the album is not
+                                //   theirs. "Delete" straight from the list
+                                //   only for an admin: for anybody else it
+                                //   would nearly always be a refusal.
                                 if state.mayRemove {
+                                    Button { editing = a } label: {
+                                        Label("Edit album", systemImage: "pencil")
+                                    }
+                                }
+                                if state.me?.may.admin == true {
                                     Button(role: .destructive) { doomed = a } label: {
                                         Label("Delete album", systemImage: "trash")
                                     }
@@ -54,6 +65,9 @@ struct AlbumsView: View {
         .refreshable { await load() }
         .task { await load() }
         .confirmAlbumRemoval($doomed) { a in await remove(a) }
+        .sheet(item: $editing) { a in
+            EditAlbumView(album: a) { _ in Task { await load() } }
+        }
         .alert("Not deleted", isPresented: Binding(get: { problem != nil },
                                                    set: { if !$0 { problem = nil } })) {
             Button("OK") {}
@@ -226,7 +240,8 @@ struct PhotosView: View {
     @State private var link: ShareResult?
     @State private var failed: String?
     @State private var doomedPhoto: Photo?
-    @State private var doomedAlbum: Album?
+    @State private var editing = false
+    @State private var problem: String?
     @Environment(\.dismiss) private var dismiss
 
     // Adding photographs to THIS album. ⚠ Open to everyone who may look at it,
@@ -264,7 +279,7 @@ struct PhotosView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        if state.mayRemove {
+                        if state.mayRemove, p.mayRemove ?? true {
                             Button(role: .destructive) { doomedPhoto = p } label: {
                                 Label(p.isVideo ? "Delete video" : "Delete photograph",
                                       systemImage: "trash")
@@ -332,13 +347,10 @@ struct PhotosView: View {
         // conversion took longer than the twenty tries above.
         .refreshable { await load(page: 1) }
         .toolbar {
-            if let album, state.mayRemove {
+            if album != nil, state.mayRemove {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button(role: .destructive) { doomedAlbum = album } label: {
-                            Label("Delete album", systemImage: "trash")
-                        }
-                    } label: { Image(systemName: "ellipsis.circle") }
+                    Button { editing = true } label: { Image(systemName: "slider.horizontal.3") }
+                        .accessibilityLabel("Edit album")
                 }
             }
             if album != nil, state.me?.may.share == true {
@@ -374,7 +386,22 @@ struct PhotosView: View {
         .sheet(item: $link) { l in ShareSheetView(link: l) }
         .task { if photos.isEmpty { await load(page: 1) } }
         .confirmPhotoRemoval($doomedPhoto) { p in await remove(p) }
-        .confirmAlbumRemoval($doomedAlbum) { a in await remove(a) }
+        .sheet(isPresented: $editing) {
+            if let album {
+                EditAlbumView(album: album) { left in
+                    // Renamed or deleted: this album is not in the list under
+                    // this name any more -- back to the list, which reloads.
+                    if left { dismiss() } else { Task { await load(page: 1) } }
+                }
+            }
+        }
+        // ⚠ An alert, not a line of text at the foot of the grid. The line was
+        //   there on 28.09.2026 when the site refused two deletions -- and
+        //   nobody saw it, so the photographs just seemed not to go.
+        .alert("Not deleted", isPresented: Binding(get: { problem != nil },
+                                                   set: { if !$0 { problem = nil } })) {
+            Button("OK") {}
+        } message: { Text(problem ?? "") }
     }
 
     private func remove(_ p: Photo) async {
@@ -384,26 +411,10 @@ struct PhotosView: View {
                 photos.removeAll { $0.id == p.id }
                 total = max(0, total - 1)
             } else {
-                failed = r.failed.first?.error ?? "Not deleted."
+                problem = r.failed.first?.error ?? "The site did not delete it."
             }
         } catch {
-            failed = error.localizedDescription
-        }
-    }
-
-    private func remove(_ a: Album) async {
-        do {
-            let r = try await state.api.removeAlbum(a)
-            if r.failed.isEmpty {
-                // ⚠ Back to the list: the album this screen shows is gone. The
-                //   list loads itself again when it comes back into view.
-                dismiss()
-            } else {
-                failed = "\(r.failed.count) could not be deleted."
-                await load(page: 1)
-            }
-        } catch {
-            failed = error.localizedDescription
+            problem = error.localizedDescription
         }
     }
 

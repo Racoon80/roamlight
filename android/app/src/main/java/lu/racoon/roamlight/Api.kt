@@ -278,6 +278,36 @@ class Api(private val store: Store) {
     //   The server decides that, not the app -- a refusal comes back as a 403
     //   with a sentence, and that sentence is what the person gets to read.
 
+    // MARK: - Album beaarbechten
+
+    suspend fun albumSettings(a: Album): AlbumSettings =
+        AlbumSettings.of(getJson("/api/albums/settings?year=${esc(a.year)}" +
+            "&country=${esc(a.country)}&event=${esc(a.event)}"))
+
+    /** Rename / move. ⚠ Last of the saves: afterwards the album has a new key. */
+    suspend fun editAlbum(a: Album, year: String, country: String, event: String,
+                          place: String) {
+        postJson("/api/albums/edit", JSONObject()
+            .put("year", a.year).put("country", a.country).put("event", a.event)
+            .put("new_year", year).put("new_country", country).put("new_event", event)
+            .put("new_place", place))
+    }
+
+    /** ⚠ The stops go back exactly as they came -- left out, they would be wiped. */
+    suspend fun setJourney(a: Album, departure: String, transport: String, s: AlbumSettings) {
+        postJson("/api/albums/journey", JSONObject()
+            .put("year", a.year).put("country", a.country).put("event", a.event)
+            .put("departure", departure).put("transport", transport)
+            .put("legs", s.legs).put("multi", s.multi))
+    }
+
+    /** Who sees the album. Empty = the administrators only. */
+    suspend fun setAudience(a: Album, principals: List<String>) {
+        postJson("/api/albums/audience", JSONObject()
+            .put("year", a.year).put("country", a.country).put("event", a.event)
+            .put("audience", org.json.JSONArray(principals)))
+    }
+
     /** Take a whole album off the site. */
     suspend fun removeAlbum(album: Album): Removed =
         Removed.of(postJson("/api/albums/remove", JSONObject()

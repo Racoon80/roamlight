@@ -1891,6 +1891,54 @@ def api_members_refresh(request: Request):
     return members.refresh()
 
 
+def _may_manage_album(ident, y: str, c: str, e: str) -> bool:
+    """The rule every album route uses: an admin any album, anybody else only
+    an album with NOTHING but their own photographs in it."""
+    if ident.is_admin:
+        return True
+    if not ident.is_contributor:
+        return False
+    rows = db.connect().execute(
+        "SELECT owner FROM photos WHERE coalesce(album_year,'—')=? "
+        "AND coalesce(country,'—')=? AND coalesce(event,'—')=?", (y, c, e)).fetchall()
+    return bool(rows) and all((r["owner"] or "") == ident.user for r in rows)
+
+
+@app.get("/api/albums/settings")
+def api_album_settings(request: Request, year: str = "", country: str = "", event: str = ""):
+    """Everything the app's "Edit album" screen is filled in with.
+
+    ⚠ Only READS. The changes go down the routes the website's workshop uses
+      (`edit`, `journey`, `audience`, `remove`) -- each of which checks the
+      same rule again. This route exists so the app can show the album as it
+      IS, and show the editing at all only to somebody who may.
+    """
+    ident = security.identify(request)
+    y, c, e = year, country, event
+    may = _may_manage_album(ident, y, c, e)
+    if not may:
+        raise HTTPException(status_code=403, detail="that is not your album")
+    place = db.connect().execute(
+        "SELECT place FROM photos WHERE coalesce(album_year,'—')=? AND coalesce(country,'—')=? "
+        "AND coalesce(event,'—')=? AND coalesce(place,'')<>'' "
+        "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 1", (y, c, e)).fetchone()
+    return {
+        "year": y, "country": c, "event": e,
+        "place": place["place"] if place else "",
+        "journey": journey.for_form(y, c, e),
+        "transports": list(journey.MODES),
+        "audience": acl.of_album(y, c, e),
+        # The same choices as the website's picker: without the admins, who
+        # see every album anyway (a tick next to them would change nothing).
+        "people": [{"principal": f"user:{m['username']}",
+                    "name": m.get("display_name") or m["username"]}
+                   for m in members.pickable()],
+        "groups": [{"principal": f"group:{g}", "name": g}
+                   for g in members.group_choices()],
+        "is_admin": ident.is_admin,
+    }
+
+
 @app.post("/api/albums/audience")
 def api_album_audience(request: Request, body: dict = Body(...)):
     """Who sees an album. An empty list = **the admin only**."""
@@ -2297,10 +2345,21 @@ def api_albums(request: Request):
 def api_photos(request: Request, page: int = 1, year: str = None, country: str = None,
                event: str = None, place: str = None, camera: str = None,
                kind: str = None, q: str = None):
-    return gallery.list_photos(
+    ident = security.identify(request)
+    res = gallery.list_photos(
         {"year": year, "country": country, "event": event, "place": place,
-         "camera": camera, "kind": kind, "q": q}, page,
-        viewer=security.identify(request))
+         "camera": camera, "kind": kind, "q": q}, page, viewer=ident)
+    # ⚠ Per photograph: may THIS person take it off the site? The same rule as
+    #   `_owns` (an admin anything, anybody else only their own uploads), said
+    #   in advance -- so the app shows a bin only where pressing it works. On
+    #   28.09.2026 the app offered it on a library album to a contributor, the
+    #   server said 403, and the photographs simply stayed where they were.
+    #   The owner's NAME does not go out; only the answer.
+    mine = set(_owns(ident, [p["id"] for p in res["photos"]])) \
+        if ident.is_contributor else set()
+    for p in res["photos"]:
+        p["may_remove"] = p["id"] in mine
+    return res
 
 
 @app.get("/api/facets")

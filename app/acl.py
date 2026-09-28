@@ -151,3 +151,9 @@ def rename_album(old_key: str, new_key: str) -> None:
     with db.tx() as c:
         c.execute("UPDATE OR REPLACE album_acl SET album_key=? WHERE album_key=?",
                   (new_key, old_key))
+        # ⚠ The journey hangs off the same key, and was left behind: a renamed
+        #   album lost its departure and its stops without a word, and the old
+        #   row sat there for a key nobody would ever ask for again.
+        if old_key != new_key:
+            c.execute("UPDATE OR REPLACE album_journey SET album_key=? WHERE album_key=?",
+                      (new_key, old_key))

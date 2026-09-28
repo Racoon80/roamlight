@@ -69,6 +69,10 @@ struct Photo: Decodable, Identifiable, Hashable {
     let kind: String?
     let durationS: Int?
     let rev: Int?
+    /// May THIS person take it off the site? Said by the server (the same rule
+    /// it enforces). `nil` from an older site -- then the button shows and the
+    /// server decides.
+    let mayRemove: Bool?
 
     var isVideo: Bool { kind == "video" }
 
@@ -83,7 +87,49 @@ struct Photo: Decodable, Identifiable, Hashable {
         case webName = "web_name"
         case takenAt = "taken_at"
         case durationS = "duration_s"
+        case mayRemove = "may_remove"
     }
+}
+
+/// What "Edit album" is filled in with (`/api/albums/settings`).
+struct AlbumSettings: Decodable {
+    let year: String
+    let country: String
+    let event: String
+    let place: String
+    let journey: JourneyForm
+    let transports: [String]
+    let audience: [String]
+    let people: [Choice]
+    let groups: [Choice]
+    let isAdmin: Bool
+
+    struct JourneyForm: Decodable {
+        let departure: String
+        let transport: String
+        let legs: [Leg]
+        let multi: Bool
+        struct Leg: Decodable {
+            let transport: String
+            let name: String
+        }
+    }
+
+    struct Choice: Decodable, Identifiable, Hashable {
+        let principal: String
+        let name: String
+        var id: String { principal }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case year, country, event, place, journey, transports, audience, people, groups
+        case isAdmin = "is_admin"
+    }
+}
+
+/// The answer to renaming an album.
+struct Edited: Decodable {
+    let photos: Int
 }
 
 /// Which ways in a site has (`/api/app/ways`).

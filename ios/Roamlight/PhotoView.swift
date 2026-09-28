@@ -142,7 +142,8 @@ struct PhotoView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if state.mayRemove, photos.indices.contains(index) {
+            if state.mayRemove, photos.indices.contains(index),
+               photos[index].mayRemove ?? true {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) { doomed = photos[index] } label: {
                         Image(systemName: "trash")

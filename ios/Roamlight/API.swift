@@ -313,6 +313,48 @@ struct API {
     //   The server decides that, not the app -- a refusal comes back as a 403
     //   with a sentence, and that sentence is what the person gets to read.
 
+    // MARK: - Album beaarbechten
+
+    func albumSettings(_ album: Album) async throws -> AlbumSettings {
+        try await get("/api/albums/settings?year=\(esc(album.year))&country=\(esc(album.country))"
+                      + "&event=\(esc(album.event))", as: AlbumSettings.self)
+    }
+
+    /// Rename / move an album. ⚠ Last of the saves: after it the album has a
+    /// new key, and everything keyed by the old one would miss.
+    func editAlbum(_ album: Album, year: String, country: String, event: String,
+                   place: String) async throws -> Edited {
+        try await post("/api/albums/edit",
+                       ["year": album.year, "country": album.country, "event": album.event,
+                        "new_year": year, "new_country": country, "new_event": event,
+                        "new_place": place], as: Edited.self)
+    }
+
+    /// Departure and means of travel. ⚠ The stops of a multi-hop journey are
+    /// sent back exactly as they came -- the app does not edit them, and
+    /// leaving them out would wipe them.
+    func setJourney(_ album: Album, departure: String, transport: String,
+                    form: AlbumSettings.JourneyForm) async throws {
+        _ = try await run(try request(
+            "/api/albums/journey", method: "POST",
+            body: try JSONSerialization.data(withJSONObject: [
+                "year": album.year, "country": album.country, "event": album.event,
+                "departure": departure, "transport": transport,
+                "legs": form.legs.map { ["transport": $0.transport, "name": $0.name] },
+                "multi": form.multi,
+            ] as [String: Any])))
+    }
+
+    /// Who sees the album. Empty = the administrators only.
+    func setAudience(_ album: Album, _ principals: [String]) async throws {
+        _ = try await run(try request(
+            "/api/albums/audience", method: "POST",
+            body: try JSONSerialization.data(withJSONObject: [
+                "year": album.year, "country": album.country, "event": album.event,
+                "audience": principals,
+            ] as [String: Any])))
+    }
+
     /// Take a whole album off the site.
     func removeAlbum(_ album: Album) async throws -> Removed {
         try await post("/api/albums/remove",

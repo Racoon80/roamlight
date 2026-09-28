@@ -148,7 +148,7 @@ fun PhotoScreen(nav: NavHostController, id: Int) {
         photos.getOrNull(pager.currentPage)?.let {
             Caption(it, Modifier.align(Alignment.BottomCenter))
         }
-        if (mayRemove) {
+        if (mayRemove && photos.getOrNull(pager.currentPage)?.mayRemove != false) {
             IconButton(
                 onClick = { doomed = photos.getOrNull(pager.currentPage) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),

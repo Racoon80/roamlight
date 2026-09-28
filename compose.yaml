@@ -27,9 +27,12 @@ services:
     environment:
       # --- who may in --------------------------------------------------------
       # local            accounts with a password, kept in this site's database
-      # proxy            an identity proxy in front (Authentik, Authelia,
-      #                  oauth2-proxy) sets the headers
-      # local+proxy      both, side by side
+      # oidc             your own single sign-on (Authentik, Keycloak, Entra...)
+      #                  -- the site talks to the provider itself
+      # local+oidc       both, side by side: the provider for everybody, and one
+      #                  password account for the day the provider is down
+      # For oidc also set FAMILY_OIDC_ISSUER and FAMILY_OIDC_CLIENT_ID -- or fill
+      # it all in later on Settings -> Sign-in. (The old `proxy` mode is gone.)
       FAMILY_AUTH: local
       # ⚠ Leave this at 1. It is what makes the site refuse a request that
       #   carries no identity at all.

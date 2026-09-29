@@ -34,3 +34,6 @@ build/
 *release.properties
 google-services.json
 *firebase-adminsdk*.json
+
+# Local hand-outs (QR codes with the family site, test files) -- not for the public repo.
+Share/

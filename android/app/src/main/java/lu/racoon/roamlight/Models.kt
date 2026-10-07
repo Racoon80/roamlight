@@ -63,6 +63,9 @@ data class AlbumSettings(
 /** Which ways in a site has (`/api/app/ways`). */
 data class Ways(val password: Boolean, val sso: Boolean)
 
+/** The Android app a site hands out (`/api/app/android`). */
+data class Release(val code: Long, val name: String)
+
 /** The answer to taking something off the site. */
 data class Removed(val removed: Int, val failed: List<String>) {
     companion object {

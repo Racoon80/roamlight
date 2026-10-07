@@ -1,4 +1,5 @@
-//  New versions of the app, from the family's own site (no Play Store).
+//  New versions of the app, from the family's own site -- the "site" build
+//  only. The Play build has its own Updates.kt that does nothing: Play updates it.
 //
 //  ⚠ The site says which version it hands out (/api/app/android). If that is
 //    newer than this one, the app offers it: download with the device token,
@@ -29,8 +30,6 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-data class Release(val code: Long, val name: String)
 
 fun installedVersion(context: Context): Long = try {
     val info = context.packageManager.getPackageInfo(context.packageName, 0)

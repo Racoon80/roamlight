@@ -17,9 +17,28 @@ Android Studio brings both.
 
 ```bash
 cd android
-./gradlew :app:assembleDebug          # app/build/outputs/apk/debug/
-./gradlew :app:installDebug           # onto a plugged-in phone
+./gradlew :app:assembleSiteDebug      # app/build/outputs/apk/site/debug/
+./gradlew :app:installSiteDebug       # onto a plugged-in phone
 ```
+
+There are two builds of the same app (`productFlavors` in `app/build.gradle.kts`):
+
+| Build | What for | Updates |
+|---|---|---|
+| `site` | the APK your own Roamlight hands out (`/app/android.apk`) | asks your site, and Android's installer asks you |
+| `play` | Google Play | Play brings them — the app has no installer permission at all |
+
+The release builds, signed with the key from `ROAMLIGHT_SIGNING`:
+
+```bash
+./gradlew :app:assembleSiteRelease    # for the site: apk/site/release/
+./gradlew :app:bundlePlayRelease      # for Play:     bundle/playRelease/*.aab
+```
+
+Both carry the same app ID and version number, so they are one app. One
+installs over the other only if both are signed with the same key. For
+Google Play, that means giving Play App Signing this release key
+("use my own key"), not letting Google make a new one.
 
 ⚠ **Gradle cannot build on a network share.** It needs file locks that SMB and
 NFS do not have, and it fails with `IOException: Operation not supported`

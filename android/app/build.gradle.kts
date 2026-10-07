@@ -44,6 +44,22 @@ android {
         }
     }
 
+    // Two ways onto a phone, one app:
+    //   site -- the APK the family's own Roamlight hands out. It updates
+    //           itself from that site (src/site: Updates.kt, the installer
+    //           permission, the FileProvider).
+    //   play -- the same app for Google Play, which updates it. ⚠ Play does
+    //           not allow an app to install apps, so none of src/site is in
+    //           it -- not even the permission.
+    //   Same applicationId, same versionCode: it is ONE app. Whichever
+    //   way it came, an update from the other way installs over it as long
+    //   as both are signed with the same key.
+    flavorDimensions += "store"
+    productFlavors {
+        create("site") { dimension = "store"; isDefault = true }
+        create("play") { dimension = "store" }
+    }
+
     buildTypes {
         release {
             if (signing != null) signingConfig = signingConfigs.getByName("release")

@@ -438,6 +438,31 @@ CREATE TABLE IF NOT EXISTS notify_pending (
     UNIQUE (username, event, album_key)
 );
 
+-- ---------------------------------------------------------------------------
+--  A person's own cloud (app/cloud.py): where their uploaded originals go.
+-- ---------------------------------------------------------------------------
+-- ⚠ `secret_enc` is the app password ENCRYPTED with the key in
+--   secret_path("cloud") -- this table is in every backup, the key is not.
+CREATE TABLE IF NOT EXISTS cloud_links (
+    username     TEXT PRIMARY KEY,
+    server       TEXT NOT NULL,
+    login        TEXT NOT NULL,
+    uid          TEXT NOT NULL,           -- the account id: the WebDAV path wants it
+    secret_enc   TEXT NOT NULL,
+    folder       TEXT NOT NULL DEFAULT 'Roamlight',
+    connected_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_ok_at   TEXT,
+    last_error   TEXT
+);
+
+-- A Login Flow v2 in progress: the person is approving it in their cloud.
+CREATE TABLE IF NOT EXISTS cloud_flows (
+    username   TEXT PRIMARY KEY,
+    endpoint   TEXT NOT NULL,
+    token_enc  TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_photos_folder  ON photos (web_folder_id);
 CREATE INDEX IF NOT EXISTS idx_photos_taken   ON photos (taken_at);
 CREATE INDEX IF NOT EXISTS idx_photos_state   ON photos (state);
@@ -542,6 +567,16 @@ MIGRATIONS = [
     # When the filing STARTED. `committed_at` says when it finished; between
     # the two the batch is being worked on, and a second commit is refused.
     ("upload_batches", "filing_at", "TEXT"),
+    # The person's own cloud (app/cloud.py). `cloud_state` NULL = nothing to
+    # copy (the library's own photographs, or nobody connected); otherwise
+    # pending | failed | done | dropped | lost. While it is pending or failed
+    # the staged upload is NOT thrown away -- see convert.py.
+    ("photos", "cloud_state", "TEXT"),
+    ("photos", "cloud_path", "TEXT"),
+    ("photos", "cloud_at", "TEXT"),
+    ("photos", "cloud_error", "TEXT"),
+    ("photos", "cloud_tries", "INTEGER NOT NULL DEFAULT 0"),
+    ("photos", "cloud_next_at", "TEXT"),
 ]
 
 

@@ -1,6 +1,18 @@
 /* Settings: fetch the list from the directory, and set the album permissions. */
 (function () {
   "use strict";
+  /* The one cloud people may connect (app/cloud.py). */
+  var csave = document.getElementById("cloud-save");
+  if (csave) {
+    csave.addEventListener("click", function () {
+      var say = document.getElementById("cloud-say");
+      csave.disabled = true; say.textContent = "saving…";
+      window.famPost("/api/cloud/server", { url: document.getElementById("cloud-url").value })
+        .then(function (d) { say.textContent = d.url ? "✓ saved" : "✓ off"; })
+        .catch(function (e) { say.textContent = "✗ " + e.message; })
+        .then(function () { csave.disabled = false; });
+    });
+  }
   var rsay = document.getElementById("rsay");
   var btn = document.getElementById("refresh");
   if (btn) {

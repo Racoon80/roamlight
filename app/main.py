@@ -27,6 +27,7 @@ from . import (acl, album, auth, collections, config, db, devices, gallery, geo,
                notify, tagging, tickets, tiles, tileseed, tree, upload)
 from . import guests
 from . import convert as _convert          # registers the convert handler
+from . import cloud                          # registers cloud-push
 from .worker import FOREIGN_KINDS, Worker, enqueue, requeue_orphans
 
 app = FastAPI(title="Family-Website", docs_url=None, redoc_url=None, openapi_url=None)
@@ -587,7 +588,7 @@ def page_mine(request: Request):
     ident = _contributor(request)
     if ident.is_admin:
         return RedirectResponse("/admin", status_code=307)
-    return _page(request, "mine.html", me=ident.user,
+    return _page(request, "mine.html", me=ident.user, cloud=cloud.status(ident.user),
                  albums=album.list_all(ident.user),
                  sets=collections.all_of(ident.user),
                  links=shares.all_of(ident.user),
@@ -1693,7 +1694,8 @@ def page_settings(request: Request):
                  seen={"user": ident.user, "groups": sorted(ident.groups),
                        "email": ident.email, "admin": ident.is_admin},
                  tagpick=tagging.tag_choices(),
-                 peoplepick=tagging.person_choices())
+                 peoplepick=tagging.person_choices(),
+                 cloud_url=config.setting("cloud_url"))
 
 
 # ---------------------------------------------------------------------------
@@ -1937,6 +1939,73 @@ def api_devices_revoke(request: Request, body: dict = Body(...)):
     if not ok:
         raise HTTPException(status_code=404, detail="that device is not yours")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+#  A person's own cloud: where the originals of their uploads go (app/cloud.py)
+# ---------------------------------------------------------------------------
+def _cloud_call(fn, *a):
+    try:
+        return fn(*a)
+    except (cloud.CloudError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/cloud")
+def api_cloud(request: Request):
+    ident = _contributor(request)
+    return cloud.status(ident.user)
+
+
+@app.post("/api/cloud/start")
+def api_cloud_start(request: Request):
+    """Open a sign-in in the person's cloud. The page sends them there and
+    polls `/api/cloud/poll` until they have approved."""
+    ident = _contributor(request)
+    return _cloud_call(cloud.start_flow, ident.user)
+
+
+@app.post("/api/cloud/poll")
+def api_cloud_poll(request: Request):
+    ident = _contributor(request)
+    return _cloud_call(cloud.poll_flow, ident.user)
+
+
+@app.post("/api/cloud/manual")
+def api_cloud_manual(request: Request, body: dict = Body(...)):
+    """With an app password made by hand, for a cloud without Login Flow v2."""
+    ident = _contributor(request)
+    return _cloud_call(cloud.connect_manual, ident.user,
+                       str(body.get("login") or ""), str(body.get("password") or ""))
+
+
+@app.post("/api/cloud/folder")
+def api_cloud_folder(request: Request, body: dict = Body(...)):
+    ident = _contributor(request)
+    return _cloud_call(cloud.set_folder, ident.user, str(body.get("folder") or ""))
+
+
+@app.post("/api/cloud/retry")
+def api_cloud_retry(request: Request):
+    ident = _contributor(request)
+    return {"queued": cloud.nudge(ident.user), **cloud.status(ident.user)}
+
+
+@app.post("/api/cloud/disconnect")
+def api_cloud_disconnect(request: Request):
+    ident = _contributor(request)
+    return _cloud_call(cloud.disconnect, ident.user)
+
+
+@app.post("/api/cloud/server")
+def api_cloud_server(request: Request, body: dict = Body(...)):
+    """The administrator names the one cloud people may connect."""
+    _admin(request)
+    try:
+        url = config.set_setting("cloud_url", str(body.get("url") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"url": url}
 
 
 @app.post("/api/members/refresh")

@@ -326,6 +326,9 @@ _SETTINGS = {
     "admin_groups":      lambda: ",".join(sorted(_ENV_ADMIN_GROUPS)),
     "viewer_groups":     lambda: ",".join(sorted(_ENV_VIEWER_GROUPS)),
     "contributor_groups": lambda: ",".join(sorted(_ENV_CONTRIBUTOR_GROUPS)),
+    # The ONE cloud (Nextcloud or any WebDAV server) people may connect, to
+    # keep the originals of what they upload (app/cloud.py). Empty = off.
+    "cloud_url":         lambda: _env("FAMILY_CLOUD_URL"),
 }
 
 
@@ -349,7 +352,8 @@ def set_setting(key: str, value: str) -> str:
     value = (value or "").strip()
     if key in ("sso_start", "sso_logout"):
         value = sso_path(value)
-    if key == "oidc_issuer" or (key.startswith("oidc_") and key.endswith("_url")):
+    if key == "oidc_issuer" or key == "cloud_url" or (
+            key.startswith("oidc_") and key.endswith("_url")):
         value = provider_url(key, value)
     if key.endswith("_groups") or key == "trusted_peers":
         value = ",".join(v.strip() for v in value.replace(" ", ",").split(",") if v.strip())
@@ -455,6 +459,11 @@ def secret_path(which: str):
         #   a client secret in fourteen backups is a client secret somebody else
         #   has. Never in the database, never sent back to the page.
         return _secret_file("oidc-client-secret", os.environ.get("FAMILY_OIDC_SECRET_FILE"))
+    if which == "cloud":
+        # ⚠ The key the people's cloud app passwords are encrypted with
+        #   (app/cloud.py). The ciphertext is in the database and therefore in
+        #   every backup; this file is what keeps it worthless there.
+        return _secret_file("cloud-key", os.environ.get("FAMILY_CLOUD_KEY_FILE"))
     raise KeyError(which)
 
 

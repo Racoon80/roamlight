@@ -140,20 +140,28 @@ def convert(job) -> None:
                 raise RuntimeError("the video copy did not survive the write")
 
     rel = str(dst.relative_to(config.WEB_DIR))
-    if is_user:
-        # ⚠ Throw the upload away. From here on the photograph exists ONLY as
-        #   the master.
-        src.unlink(missing_ok=True)
+    # ⚠ Throw the upload away -- from then on the photograph exists only as the
+    #   master -- UNLESS a copy to the person's own cloud is still waiting for
+    #   it (app/cloud.py). The decision is read and written in ONE transaction,
+    #   the same way `cloud._settle` does the other half: whichever finishes
+    #   second sees the other's mark and lets the file go.
+    release = False
     with db.tx() as conn:
+        cs = conn.execute("SELECT cloud_state FROM photos WHERE id=?",
+                          (photo_id,)).fetchone()
+        release = is_user and (cs is None or cs[0] not in ("pending", "failed"))
+        keep_path = None if release else str(src)
         conn.execute(
             "UPDATE photos SET web_name=?, width=?, height=?, duration_s=?, "
-            "master_source_path=CASE WHEN origin_root='user' THEN NULL ELSE ? END, "
+            "master_source_path=?, "
             "master_source_sha256=?, master_built_at=datetime('now'), state='ok' "
             "WHERE id=?",
             (rel, info["width"], info["height"],
              round(duration) if duration else row["duration_s"],
-             str(src), local_sha, photo_id),
+             keep_path, local_sha, photo_id),
         )
+    if release:
+        src.unlink(missing_ok=True)
 
     # ⚠ HERE and not at the upload: a photograph counts as having arrived when
     #   it can actually be looked at. Before the conversion it is a row nobody

@@ -46,9 +46,56 @@
     </div>
   </div>
 
-  <p class="meta">When you upload, the original is converted and then discarded —
-     the site keeps a 4000-pixel copy. Photographs you are only tagged in are not
-     yours to change; only the ones you uploaded.</p>
+  {% if cloud.available %}
+  <div class="step"><span class="step__n">☁</span><h2>Your originals</h2>
+    <span class="step__note">{{ 'kept in your cloud' if cloud.connected else 'not kept anywhere yet' }}</span></div>
+  <div class="cfgbox" id="cloudbox" data-connected="{{ 'yes' if cloud.connected else 'no' }}">
+    {% if cloud.connected %}
+    <p>Every photograph you upload is copied, in full, to your cloud
+       (<code>{{ cloud.server }}</code>, as <b>{{ cloud.login }}</b>) — in the same
+       folders as here: <code>{{ cloud.folder }}/year/country/album</code>. The site
+       lets go of its own copy only once the one in your cloud has been read back
+       and matches.</p>
+    <table class="tbl">
+      <tr><th>Copied</th><td id="cl-copied">{{ cloud.copied }}</td></tr>
+      <tr><th>Waiting</th><td id="cl-waiting">{{ cloud.waiting }}
+        {% if cloud.waiting %}<button class="btn" id="cl-retry" type="button">try now</button>{% endif %}</td></tr>
+      {% if cloud.last_error %}<tr><th>Last problem</th><td class="meta">{{ cloud.last_error }}</td></tr>{% endif %}
+    </table>
+    <p><label>Folder in your cloud
+      <input id="cl-folder" type="text" size="24" value="{{ cloud.folder }}"></label>
+      <button class="btn" id="cl-folder-save" type="button">save</button>
+      <a class="link-u" href="{{ cloud.web }}" target="_blank" rel="noopener">open it</a></p>
+    <p class="syncbar">
+      <button class="btn" id="cl-off" type="button">disconnect</button>
+      <span class="meta">Disconnecting stops the copying. Your files in the cloud stay
+        where they are; anything not copied yet is then discarded after conversion,
+        as before.</span>
+    </p>
+    {% else %}
+    <p>When you upload, the site keeps a 4000-pixel copy and <b>throws the original
+       away</b>. Connect your cloud (<code>{{ cloud.server }}</code>) and every
+       original goes there first, in the same folders as on the site.</p>
+    <p class="syncbar">
+      <button class="btn btn--go" id="cl-on" type="button">connect my cloud</button>
+    </p>
+    <details><summary class="meta">with an app password instead</summary>
+      <p><label>User name <input id="cl-login" type="text" size="18" autocomplete="off"></label>
+         <label>App password <input id="cl-pass" type="password" size="28" autocomplete="off"></label>
+         <button class="btn" id="cl-manual" type="button">connect</button></p>
+      <p class="meta">Make one in your cloud under Settings → Security → app passwords.</p>
+    </details>
+    {% endif %}
+    <p class="meta" id="cl-say" aria-live="polite"></p>
+  </div>
+  {% endif %}
+
+  <p class="meta">{% if cloud.connected %}Your originals go to your cloud; the site
+     itself keeps a 4000-pixel copy.{% else %}When you upload, the original is
+     converted and then discarded — the site keeps a 4000-pixel copy.{% endif %}
+     Photographs you are only tagged in are not yours to change; only the ones you
+     uploaded.</p>
 </section>
 {{ m.back("/", "Gallery") }}
 {% endblock %}
+{% block scripts %}<script src="/static/cloud.js?v={{ static_ver }}" defer></script>{% endblock %}

@@ -31,7 +31,7 @@ import secrets
 import shutil
 from pathlib import Path
 
-from . import av, config, db, library, meta, tree
+from . import av, cloud, config, db, library, meta, tree
 from .worker import enqueue, handler
 
 log = logging.getLogger("family")
@@ -315,6 +315,9 @@ def file_away(batch: str) -> dict:
     event, place = b["event"] or "", b["place"] or ""
     owner = b["owner"]
     keep_original = bool(b["keep_original"])
+    # ⚠ Asked ONCE per batch: a contributor with their own cloud gets every
+    #   original copied there before the staged file may go (app/cloud.py).
+    to_cloud = (not keep_original) and cloud.linked(owner)
     include_duplicates = bool(b["include_duplicates"])
     folder = tree.target_dir(year, country, event)
     rows = db.connect().execute(
@@ -384,20 +387,25 @@ def file_away(batch: str) -> dict:
             origin_root, source_path = "user", str(staged)
             obytes, omtime = staged.stat().st_size, staged.stat().st_mtime
             osha = r["sha256"]
+        # ⚠ Set IN the row, at the moment it is made: the conversion may finish
+        #   before the copy, and it reads this to decide whether the staged
+        #   file may go yet.
+        cloud_state = "pending" if (origin_root == "user" and to_cloud) else None
 
         with db.tx() as conn:
             cur = conn.execute(
                 "INSERT INTO photos (origin_root, origin_path, origin_sha256, origin_bytes, "
                 " origin_mtime, origin_kind, country, place, album_year, event, "
                 " taken_at, taken_source, camera, "
-                " lens, gps_lat, gps_lon, kind, state, web_name, owner, master_source_path) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?,?)",
+                " lens, gps_lat, gps_lon, kind, state, web_name, owner, master_source_path, "
+                " cloud_state) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?,?,?)",
                 (origin_root, rel, osha, obytes, omtime,
                  r["ext"], tree.clean_name(country), tree.clean_name(place, ""),
                  year, folder.name,
                  r["taken_at"], r["taken_source"], r["camera"], r["lens"],
                  r["gps_lat"], r["gps_lon"], r["kind"],
-                 Path(name).with_suffix(".jpg").name, owner, source_path),
+                 Path(name).with_suffix(".jpg").name, owner, source_path, cloud_state),
             )
             photo_id = cur.lastrowid
             conn.execute("UPDATE upload_files SET state='stored', photo_id=? WHERE id=?",
@@ -412,6 +420,11 @@ def file_away(batch: str) -> dict:
         #   there by the site itself. A contributor's or a guest's file is a
         #   file from OUTSIDE, and it goes to `convert-upload`, which runs in a
         #   process without the originals mounted -- see app/convert_cli.py.
+        # The copy to the person's cloud goes first in the queue, but the two
+        # do not wait for each other: the photograph appears on the site as
+        # soon as it is converted, and the staged file goes once BOTH are done.
+        if cloud_state:
+            enqueue("cloud-push", str(photo_id))
         enqueue("convert" if origin_root != "user" else "convert-upload",
                 str(photo_id))
 

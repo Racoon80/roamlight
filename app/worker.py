@@ -149,7 +149,8 @@ class Worker:
             self._threads.append(post)
 
     def _notices(self) -> None:
-        from . import notify
+        from . import cloud, notify
+        ticks = 0
         while not self._stop.is_set():
             # Every fifteen seconds: nothing to do most times, and never later
             # than that once a window has passed.
@@ -161,6 +162,18 @@ class Worker:
                     log.info("Bescheed: %s", tally)
             except Exception:                                    # noqa: BLE001
                 log.warning("notify: flush failed", exc_info=True)
+            # ⚠ Copies to people's clouds that failed come back here, on their
+            #   own schedule (app/cloud.py) -- the job queue gives up after five
+            #   tries, and a cloud that is down for a night must not lose the
+            #   originals waiting for it. Every five minutes is plenty.
+            ticks += 1
+            if ticks % 20 == 1:
+                try:
+                    done = cloud.sweep()
+                    if done["queued"] or done["freed"]:
+                        log.info("cloud: %s", done)
+                except Exception:                                # noqa: BLE001
+                    log.warning("cloud: sweep failed", exc_info=True)
         log.info("Worker: %d Threads", len(self._threads))
 
     def stop(self) -> None:

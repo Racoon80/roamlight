@@ -191,6 +191,24 @@
     <span class="meta" id="rsay" aria-live="polite"></span>
   </p>
 
+  <div class="step"><span class="step__n">☁</span><h2>People's own cloud</h2>
+    <span class="step__note">where a contributor's originals can be kept</span></div>
+  {# ⚠ ONE address, named here. The site talks to it from the server side, so
+     letting each person type their own would be a way to make the site send
+     requests anywhere on the inside network. #}
+  <div class="cfgbox" id="cloudcfg">
+    <p><label>Nextcloud (or WebDAV) address
+      <input id="cloud-url" type="url" size="42" value="{{ cloud_url }}"
+             placeholder="https://cloud.example.org"></label>
+      <span class="meta">A contributor's upload keeps no original in the library.
+        With this set, each of them can connect their own account here, and their
+        originals are copied there before the site lets go of them. Empty = off.</span></p>
+    <p class="syncbar">
+      <button class="btn btn--go" id="cloud-save" type="button">save</button>
+      <span class="meta" id="cloud-say" aria-live="polite"></span>
+    </p>
+  </div>
+
   <div class="step"><span class="step__n">03</span><h2>Members</h2>
     <span class="step__note">{{ members|length }} known</span></div>
   <table class="tbl tbl--members">

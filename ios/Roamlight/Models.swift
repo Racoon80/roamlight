@@ -295,3 +295,34 @@ struct UploadStatus: Decodable {
         let reason: String?
     }
 }
+
+
+// MARK: - Your own cloud
+
+/// What `/api/cloud` says. Everything but the first two is there only once
+/// the person is connected.
+struct CloudStatus: Decodable {
+    let available: Bool
+    let connected: Bool
+    let server: String?
+    let login: String?
+    let folder: String?
+    let copied: Int?
+    let waiting: Int?
+    let lastError: String?
+    let web: String?
+
+    enum CodingKeys: String, CodingKey {
+        case available, connected, server, login, folder, copied, waiting, web
+        case lastError = "last_error"
+    }
+}
+
+struct CloudStart: Decodable {
+    let loginURL: String
+    enum CodingKeys: String, CodingKey { case loginURL = "login_url" }
+}
+
+struct CloudPoll: Decodable {
+    let state: String
+}

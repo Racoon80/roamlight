@@ -100,6 +100,32 @@ struct API {
         catch { throw APIError.badResponse }
     }
 
+    // MARK: - Your own cloud (app/cloud.py on the site)
+
+    /// Is a cloud set up on the site, and is this person connected to it?
+    func cloudStatus() async throws -> CloudStatus {
+        try await get("/api/cloud", as: CloudStatus.self)
+    }
+
+    /// Ask the site to open a Login Flow v2 at the cloud. The answer is the
+    /// cloud's own sign-in page, which the person approves in a browser.
+    func cloudStart() async throws -> CloudStart {
+        try await post("/api/cloud/start", [:], as: CloudStart.self)
+    }
+
+    /// Has the person approved yet? `waiting`, `connected`, `expired`, `none`.
+    func cloudPoll() async throws -> CloudPoll {
+        try await post("/api/cloud/poll", [:], as: CloudPoll.self)
+    }
+
+    func cloudRetry() async throws -> CloudStatus {
+        try await post("/api/cloud/retry", [:], as: CloudStatus.self)
+    }
+
+    func cloudDisconnect() async throws -> CloudStatus {
+        try await post("/api/cloud/disconnect", [:], as: CloudStatus.self)
+    }
+
     // MARK: - Umellen
 
     /// Trade the pairing code for a token. This is the only request that

@@ -6,6 +6,8 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var askSignOut = false
     @State private var notices: NoticeState?
+    @State private var cloud: CloudStatus?
+    @State private var cloudPage: CloudPage?
 
     var body: some View {
         Form {
@@ -26,6 +28,13 @@ struct SettingsView: View {
                     Text("Not reached").foregroundStyle(Theme.inkMute)
                 }
                 LabeledContent("Site", value: Site.url.host() ?? "—")
+            }
+
+            // ⚠ Only for somebody who uploads and is not an administrator: an
+            //   administrator's uploads keep their original in the library
+            //   anyway, so the cloud would copy nothing for them.
+            if let me = state.me, me.may.upload, !me.may.admin {
+                CloudSection(status: $cloud, page: $cloudPage)
             }
 
             Section("Notices") {
@@ -88,8 +97,17 @@ struct SettingsView: View {
         .refreshable {
             await state.refresh()
             notices = try? await state.api.noticeState()
+            cloud = try? await state.api.cloudStatus()
         }
-        .task { notices = try? await state.api.noticeState() }
+        .task {
+            notices = try? await state.api.noticeState()
+            cloud = try? await state.api.cloudStatus()
+        }
+        // The cloud's sign-in page (CloudSection). Here, on the page, and not on
+        // the row: see CloudSection.page.
+        .sheet(item: $cloudPage) { p in
+            SafariSheet(url: p.url).ignoresSafeArea()
+        }
         .confirmationDialog("Take this device off?", isPresented: $askSignOut,
                             titleVisibility: .visible) {
             Button("Take it off", role: .destructive) { state.signOut() }

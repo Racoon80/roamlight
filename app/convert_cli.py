@@ -49,7 +49,16 @@ def main() -> int:
     #   originals, which this process cannot see and must not try to write to.
     config.ensure_dirs()
 
-    kinds = list(w.FOREIGN_KINDS)
+    # ⚠ ALWAYS `convert-upload`, never "whatever the site leaves". It used to
+    #   be `list(w.FOREIGN_KINDS)` -- and FOREIGN_KINDS is EMPTY when
+    #   FAMILY_CONVERT_UPLOADS=here, which is the image's default. A
+    #   `roamlight-convert` container that did not repeat `separate` in its own
+    #   environment therefore got an empty list, and an empty list means "take
+    #   everything": library conversions it cannot do (no originals mounted, so
+    #   "the original is gone" five times and then `error`), the site's
+    #   geocoding, and copies to people's clouds. Found on the live stack on
+    #   30.10.2026 with 63 photographs stuck at "new" since 28.09.
+    kinds = ["convert-upload"]
     # ⚠ Ours and only ours. The site sweeps the rest; sweeping everything from
     #   here would reset a library conversion the site is in the middle of.
     orphans = w.requeue_orphans(kinds=kinds)

@@ -88,6 +88,8 @@ def _page(request: Request, name: str, **ctx):
         #   visitor what this one is called.
         "admin_group": config.ADMIN_GROUP,
         "is_contributor": ident.is_contributor,
+        # The "Your originals" entry in the menu: only when a cloud is named.
+        "cloud_on": bool(cloud.server()),
         "user": ident.user, "email": ident.email, "q": ctx.pop("q", None),
         # ⚠ One door, and `/logout` decides behind it. It used to be decided
         #   HERE, as "/logout if local else the provider's sign-out" -- which
@@ -595,6 +597,15 @@ def page_mine(request: Request):
                  counts={"photos": db.connect().execute(
                      "SELECT COUNT(*) FROM photos WHERE owner=? AND state='ok'",
                      (ident.user,)).fetchone()[0]})
+
+
+@app.get("/my/cloud", response_class=HTMLResponse)
+def page_my_cloud(request: Request):
+    """Your own cloud, on a page of its own -- reachable from the menu by
+    everybody who uploads, administrators included (who are sent away from
+    /mine, and would otherwise never see it)."""
+    ident = _contributor(request)
+    return _page(request, "cloud.html", cloud=cloud.status(ident.user))
 
 
 @app.get("/my/albums", response_class=HTMLResponse)

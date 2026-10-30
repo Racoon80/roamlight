@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Your originals — {{ site_title }}{% endblock %}
+{% block content %}
+{{ m.back("/", "Gallery") }}
+<header class="wrap dest-head">
+  <span class="plate">{{ user }}</span>
+  <h1 class="reveal d1">Your originals</h1>
+  <p class="lede reveal d2">The site keeps a 4000-pixel copy of what you upload.
+     The full original can go to your own cloud, in the same folders as here.</p>
+</header>
+<section class="wrap section" style="padding-top:clamp(1rem,3vh,2rem)">
+  {% if cloud.available %}
+  {% include "_cloud.html" %}
+  {% else %}
+  <p class="meta">No cloud is set up on this site. An administrator can name one
+     under Settings.</p>
+  {% endif %}
+</section>
+{{ m.back("/", "Gallery") }}
+{% endblock %}
+{% block scripts %}<script src="/static/cloud.js?v={{ static_ver }}" defer></script>{% endblock %}

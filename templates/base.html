@@ -62,6 +62,7 @@
         {% endif %}
         {% if is_admin %}<a role="menuitem" href="/admin"><b>Admin</b><span class="meta">the whole site</span></a>{% endif %}
         <a role="menuitem" href="/app"><b>Phone &amp; tablet</b><span class="meta">connect a device to the app</span></a>
+        {% if is_contributor and cloud_on %}<a role="menuitem" href="/my/cloud"><b>Your originals</b><span class="meta">keep them in your own cloud</span></a>{% endif %}
         <hr class="usermenu__rule">
         <a role="menuitem" class="usermenu__out" href="{{ logout_url }}">Log out</a>
       </div>

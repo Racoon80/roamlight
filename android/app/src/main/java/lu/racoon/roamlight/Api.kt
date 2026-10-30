@@ -208,6 +208,24 @@ class Api(private val store: Store) {
     /** The APK itself, with the device token. A few MB -- a longer wait. */
     suspend fun androidApk(): ByteArray = run("/app/android.apk", readTimeoutMs = 180_000)
 
+    // MARK: - Your own cloud (app/cloud.py on the site)
+
+    suspend fun cloudStatus(): CloudStatus = CloudStatus.of(getJson("/api/cloud"))
+
+    /** The cloud's own sign-in page (Nextcloud Login Flow v2). */
+    suspend fun cloudStart(): String =
+        postJson("/api/cloud/start", JSONObject()).getString("login_url")
+
+    /** `waiting`, `connected`, `expired` or `none`. */
+    suspend fun cloudPoll(): String =
+        postJson("/api/cloud/poll", JSONObject()).optString("state", "waiting")
+
+    suspend fun cloudRetry(): CloudStatus =
+        CloudStatus.of(postJson("/api/cloud/retry", JSONObject()))
+
+    suspend fun cloudDisconnect(): CloudStatus =
+        CloudStatus.of(postJson("/api/cloud/disconnect", JSONObject()))
+
     // MARK: - Notices
 
     suspend fun registerNotices(token: String, name: String) {

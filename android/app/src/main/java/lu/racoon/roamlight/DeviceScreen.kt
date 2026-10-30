@@ -50,6 +50,13 @@ fun DeviceScreen(state: AppState) {
             //   on "0.1.0" can be on different builds.
             Row2("Version", appVersion(LocalContext.current))
 
+            // ⚠ Only for somebody who uploads and is not an administrator: an
+            //   administrator's uploads keep their original in the library
+            //   anyway, so the cloud would copy nothing for them.
+            if (me != null && me.may.upload && !me.may.admin) {
+                CloudBlock(state.api)
+            }
+
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
             }

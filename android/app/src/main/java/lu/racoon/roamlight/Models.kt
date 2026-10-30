@@ -310,3 +310,32 @@ data class UploadStatus(
 ) {
     val isDone: Boolean get() = state == "done"
 }
+
+
+/** What `/api/cloud` says. All but the first two only once connected. */
+data class CloudStatus(
+    val available: Boolean,
+    val connected: Boolean,
+    val server: String,
+    val login: String,
+    val folder: String,
+    val copied: Int,
+    val waiting: Int,
+    val lastError: String,
+) {
+    val host: String
+        get() = try { java.net.URI(server).host ?: "your cloud" } catch (_: Exception) { "your cloud" }
+
+    companion object {
+        fun of(o: org.json.JSONObject) = CloudStatus(
+            available = o.optBoolean("available"),
+            connected = o.optBoolean("connected"),
+            server = o.optString("server", ""),
+            login = o.optString("login", ""),
+            folder = o.optString("folder", ""),
+            copied = o.optInt("copied", 0),
+            waiting = o.optInt("waiting", 0),
+            lastError = if (o.isNull("last_error")) "" else o.optString("last_error", ""),
+        )
+    }
+}
